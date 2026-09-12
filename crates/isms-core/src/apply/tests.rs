@@ -221,6 +221,10 @@ fn unimplemented_registry_matches_the_enum() {
         "Produced",
         "Assigned",
         "Unassigned",
+        "ManagerAppointed",
+        "MachinesInstalled",
+        "MachinesUninstalled",
+        "MachinesDepreciated",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);

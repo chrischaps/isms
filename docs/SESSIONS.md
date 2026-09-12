@@ -65,3 +65,11 @@ Provisional answers added to QUESTIONS.md: Q21 (input-capped remainder resets), 
 New tunables: none.
 Next session should know: skill grows within the very first tick, so second-tick expectations must include `skill_mult`; unhoused citizens run at x0.7 from tick 1. `max_workers_per_workplace` and land-slot limits are not enforced yet (S0.6b: `FoundOrg`/`AddWorkplace` commands, machines install/uninstall/depreciation, the 9th Farm and 7th worker rejections).
 make check: green · new tests: 9 · sim-check: n/a
+
+## S0.6b — Orgs, land slots, machines, depreciation — 2026-09-12 — PR #9
+Built: `orgs` module: `managed_org` (manager check, `on_behalf_of` must agree), `slot_for` (slot-limited kinds need a free slot, `NoSlotAvailable`), `check_room` (`max_workers_per_workplace`, `WorkplaceFull`; S0.10/S0.16 call it before `Assigned`), `found_org` (firms/coops/associations; collectives are seeded; destitute cannot found; fee burned (Q9); first workplace moves 20 Materials from the pantry to the org then `WorkplaceAdded`), `add_workplace` (manager, org Materials), `install_machines`/`uninstall_machines`, `appoint_manager` (controlling owner for firms, current manager for member orgs, System for society orgs), `controlling_owner` (> 50% of issued, ADR-0005), `cycle_end_8f_depreciation` (wear += machines x rate; whole units emitted as `MachinesDepreciated` with Explain; fraction carried). `apply` handles `ManagerAppointed`, `MachinesInstalled`/`Uninstalled`/`Depreciated`. New tunable `founding.initial_shares` = 100.
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: none.
+New tunables: `initial_shares` (100).
+Next session should know: the builder golden `s0_3b_builder` was regenerated because `SocietyCreated` embeds `Params` and a param was added; any param addition will do that until the S0.12 scenario golden replaces it as the meaningful one. S0.6 done gate complete (9th Farm and 7th worker rejected, machines and depreciation conserve).
+make check: green · new tests: 7 · sim-check: n/a
