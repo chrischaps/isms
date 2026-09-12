@@ -251,3 +251,192 @@ pub fn run_scenario(h: &mut Harness, steps: &[Step]) {
 pub fn nth(h: &Harness, i: usize) -> CitizenId {
     h.citizen_ids()[i]
 }
+
+// ---------------------------------------------------------------------------
+// Command-shaped steps (S0.7+): resolved to an `Envelope<Command>` and run
+// through `handle`; rejections are expected and ignored. Indices are taken
+// modulo the citizen count; offer ids are picked from the open offers.
+
+/// A generated command step.
+#[derive(Clone, Debug)]
+pub enum CmdStep {
+    TransferMoney {
+        from: usize,
+        to: usize,
+        credits: u32,
+    },
+    TransferGood {
+        from: usize,
+        to: usize,
+        good: Good,
+        qty: u32,
+    },
+    OfferSale {
+        from: usize,
+        good: Good,
+        qty: u32,
+        price_cents: u32,
+        barter: Option<(Good, u32)>,
+        to: Option<usize>,
+    },
+    AcceptSale {
+        who: usize,
+        which: usize,
+    },
+    CancelSale {
+        who: usize,
+        which: usize,
+    },
+    PostWanted {
+        who: usize,
+        good: Good,
+        qty: u32,
+    },
+}
+
+pub fn arb_cmd_step(n: usize) -> impl Strategy<Value = CmdStep> {
+    let n = n.max(1);
+    prop_oneof![
+        (0..n, 0..n, 0u32..400).prop_map(|(from, to, credits)| CmdStep::TransferMoney {
+            from,
+            to,
+            credits
+        }),
+        (0..n, 0..n, arb_good(), 0u32..30).prop_map(|(from, to, good, qty)| {
+            CmdStep::TransferGood {
+                from,
+                to,
+                good,
+                qty,
+            }
+        }),
+        (
+            0..n,
+            arb_good(),
+            0u32..12,
+            1u32..2000,
+            prop::option::of((arb_good(), 1u32..10)),
+            prop::option::of(0..n)
+        )
+            .prop_map(
+                |(from, good, qty, price_cents, barter, to)| CmdStep::OfferSale {
+                    from,
+                    good,
+                    qty,
+                    price_cents,
+                    barter,
+                    to
+                }
+            ),
+        (0..n, 0usize..8).prop_map(|(who, which)| CmdStep::AcceptSale { who, which }),
+        (0..n, 0usize..8).prop_map(|(who, which)| CmdStep::CancelSale { who, which }),
+        (0..n, arb_good(), 1u32..5).prop_map(|(who, good, qty)| CmdStep::PostWanted {
+            who,
+            good,
+            qty
+        }),
+    ]
+}
+
+pub fn arb_cmd_scenario(n: usize, max_steps: usize) -> impl Strategy<Value = Vec<CmdStep>> {
+    prop::collection::vec(arb_cmd_step(n), 0..=max_steps)
+}
+
+/// Resolve a command step against the live world.
+#[must_use]
+pub fn resolve_cmd(
+    h: &Harness,
+    step: &CmdStep,
+) -> Option<crate::command::Envelope<crate::command::Command>> {
+    use crate::command::{Command, Envelope};
+    use crate::world::{Price, SaleAsset};
+    let ids = h.citizen_ids();
+    if ids.is_empty() {
+        return None;
+    }
+    let id = |i: usize| ids[i % ids.len()];
+    let tick = h.world.meta.tick;
+    let offer_at = |which: usize| {
+        h.world
+            .offers
+            .keys()
+            .nth(which % h.world.offers.len().max(1))
+            .copied()
+    };
+    Some(match step {
+        CmdStep::TransferMoney { from, to, credits } => Envelope::citizen(
+            id(*from),
+            Command::Transfer {
+                to: Party::Citizen(id(*to)),
+                asset: Asset::Money(Money::credits(i64::from(*credits))),
+                memo: String::new(),
+            },
+            tick,
+        ),
+        CmdStep::TransferGood {
+            from,
+            to,
+            good,
+            qty,
+        } => Envelope::citizen(
+            id(*from),
+            Command::Transfer {
+                to: Party::Citizen(id(*to)),
+                asset: Asset::Good(*good, *qty),
+                memo: String::new(),
+            },
+            tick,
+        ),
+        CmdStep::OfferSale {
+            from,
+            good,
+            qty,
+            price_cents,
+            barter,
+            to,
+        } => Envelope::citizen(
+            id(*from),
+            Command::OfferSale {
+                asset: SaleAsset::Good(*good, *qty),
+                price: match barter {
+                    Some((g, q)) => Price::Good(*g, *q),
+                    None => Price::Money(Money::cents(i64::from(*price_cents))),
+                },
+                to: to.map(|t| Party::Citizen(id(t))),
+            },
+            tick,
+        ),
+        CmdStep::AcceptSale { who, which } => Envelope::citizen(
+            id(*who),
+            Command::AcceptSale {
+                offer: offer_at(*which)?,
+            },
+            tick,
+        ),
+        CmdStep::CancelSale { who, which } => Envelope::citizen(
+            id(*who),
+            Command::CancelSale {
+                offer: offer_at(*which)?,
+            },
+            tick,
+        ),
+        CmdStep::PostWanted { who, good, qty } => Envelope::citizen(
+            id(*who),
+            Command::PostWanted {
+                good: *good,
+                qty: *qty,
+                max_price: Money::credits(1),
+            },
+            tick,
+        ),
+    })
+}
+
+/// Run command steps through `handle`, ignoring rejections.
+pub fn run_cmd_scenario(h: &mut Harness, steps: &[CmdStep]) {
+    for s in steps {
+        if let Some(env) = resolve_cmd(h, s) {
+            let _ = h.cmd(env);
+        }
+    }
+}

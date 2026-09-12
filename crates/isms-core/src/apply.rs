@@ -21,11 +21,6 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "OrderCancelled",
     "OrderExpired",
     "Trade",
-    "SaleOffered",
-    "SaleAccepted",
-    "SaleCancelled",
-    "WantedPosted",
-    "WantedRemoved",
     "MemberAdmitted",
     "MemberLeft",
     "SharesIssued",
@@ -226,6 +221,91 @@ pub fn apply(world: &mut World, event: &Event) {
             );
             LedgerMeta::add(&mut world.ledger_meta.depreciated, Good::Machines, *qty);
         }
+        Event::SaleOffered {
+            offer,
+            by,
+            asset,
+            price,
+            to,
+        } => {
+            let escrowed = match asset {
+                crate::world::SaleAsset::Good(g, q) => Some(Asset::Good(*g, *q)),
+                crate::world::SaleAsset::Shares(..) | crate::world::SaleAsset::Dwelling(_) => None,
+            };
+            if let Some(a) = escrowed {
+                debit(world, Holder::from(*by), a);
+                world
+                    .escrow
+                    .insert(crate::world::EscrowKey::Offer(*offer), a);
+            }
+            world.offers.insert(
+                *offer,
+                crate::world::Offer {
+                    id: *offer,
+                    by: *by,
+                    created_tick: world.meta.tick,
+                    body: crate::world::OfferBody::Sale {
+                        asset: *asset,
+                        price: *price,
+                        to: *to,
+                    },
+                },
+            );
+            bump_offer(world, *offer);
+        }
+        Event::SaleAccepted {
+            offer,
+            buyer,
+            seller,
+            price,
+            ..
+        } => {
+            if let Some(a) = world.escrow.remove(&crate::world::EscrowKey::Offer(*offer)) {
+                credit(world, Holder::from(*buyer), a);
+            }
+            let paid = match price {
+                crate::world::Price::Money(m) => Asset::Money(*m),
+                crate::world::Price::Good(g, q) => Asset::Good(*g, *q),
+            };
+            debit(world, Holder::from(*buyer), paid);
+            credit(world, Holder::from(*seller), paid);
+            world.offers.remove(offer);
+        }
+        Event::SaleCancelled { offer } => {
+            if let (Some(a), Some(o)) = (
+                world.escrow.remove(&crate::world::EscrowKey::Offer(*offer)),
+                world.offers.get(offer),
+            ) {
+                let by = o.by;
+                credit(world, Holder::from(by), a);
+            }
+            world.offers.remove(offer);
+        }
+        Event::WantedPosted {
+            offer,
+            by,
+            good,
+            qty,
+            max_price,
+        } => {
+            world.offers.insert(
+                *offer,
+                crate::world::Offer {
+                    id: *offer,
+                    by: *by,
+                    created_tick: world.meta.tick,
+                    body: crate::world::OfferBody::Wanted {
+                        good: *good,
+                        qty: *qty,
+                        max_price: *max_price,
+                    },
+                },
+            );
+            bump_offer(world, *offer);
+        }
+        Event::WantedRemoved { offer } => {
+            world.offers.remove(offer);
+        }
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.last_seen_tick = *tick;
@@ -282,6 +362,12 @@ fn set_labor(world: &mut World, citizen: CitizenId, allocations: &[crate::world:
                 assign.hours = 0;
             }
         }
+    }
+}
+
+fn bump_offer(world: &mut World, id: crate::ids::OfferId) {
+    if world.next.offer.0 <= id.0 {
+        world.next.offer = id.next();
     }
 }
 

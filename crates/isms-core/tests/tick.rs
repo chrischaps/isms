@@ -180,7 +180,7 @@ fn handle_gates_on_capabilities_before_anything_else() {
         0,
     ));
     assert_eq!(r.unwrap_err().code, RejectCode::NotInThisSociety);
-    // a goods transfer is a primitive everywhere; it is merely unimplemented yet
+    // a goods transfer is a primitive everywhere; it passes the gate and fails on its merits
     let r = h.cmd_dry(Envelope::citizen(
         me,
         Command::Transfer {
@@ -190,7 +190,7 @@ fn handle_gates_on_capabilities_before_anything_else() {
         },
         0,
     ));
-    assert_eq!(r.unwrap_err().code, RejectCode::NotImplemented);
+    assert_eq!(r.unwrap_err().code, RejectCode::SelfDeal);
 }
 
 #[test]
