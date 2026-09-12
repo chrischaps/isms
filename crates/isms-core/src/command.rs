@@ -389,6 +389,7 @@ pub fn handle(
     match &envelope.command {
         Command::Join { handle, kind } => join(world, envelope, handle, *kind),
         Command::Seen => seen(world, envelope),
+        Command::SetLabor { allocations } => crate::labor::set_labor(world, envelope, allocations),
         Command::EndEpoch { reason: _ } => end_epoch(world, envelope),
         other => Err(Reject::new(
             RejectCode::NotImplemented,

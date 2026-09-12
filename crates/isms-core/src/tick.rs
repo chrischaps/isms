@@ -64,6 +64,8 @@ pub struct TickBuilder<'r> {
     pub workplace_deltas: BTreeMap<crate::ids::WorkplaceId, WorkplaceDelta>,
     /// (Food eaten, Wares consumed) per citizen this tick, for the deltas.
     pub consumed: BTreeMap<crate::ids::CitizenId, (u32, u32)>,
+    /// Phase 3's result, consumed by phase 4.
+    pub labor: BTreeMap<crate::ids::WorkplaceId, Vec<crate::labor::WorkerTick>>,
 }
 
 impl std::fmt::Debug for TickBuilder<'_> {
@@ -88,6 +90,7 @@ impl<'r> TickBuilder<'r> {
             citizen_deltas: BTreeMap::new(),
             workplace_deltas: BTreeMap::new(),
             consumed: BTreeMap::new(),
+            labor: BTreeMap::new(),
         }
     }
 
@@ -189,10 +192,15 @@ fn phase_2_standing_plans(b: &mut TickBuilder) {
 }
 
 /// 3. Labor hours and multipliers (S0.6).
-fn phase_3_labor(_b: &mut TickBuilder) {}
+fn phase_3_labor(b: &mut TickBuilder) {
+    b.labor = crate::labor::phase_3_labor(&b.world);
+}
 
 /// 4. Production and attribution (S0.6).
-fn phase_4_production(_b: &mut TickBuilder) {}
+fn phase_4_production(b: &mut TickBuilder) {
+    let labor = std::mem::take(&mut b.labor);
+    crate::labor::phase_4_production(b, &labor);
+}
 
 /// 5. Consumption and needs (S0.5).
 fn phase_5_needs(b: &mut TickBuilder) {
@@ -228,7 +236,9 @@ fn cycle_end_8c_credit_installments(_b: &mut TickBuilder) {}
 fn cycle_end_8d_rent(_b: &mut TickBuilder) {}
 fn cycle_end_8e_dividends(_b: &mut TickBuilder) {}
 fn cycle_end_8f_depreciation(_b: &mut TickBuilder) {}
-fn cycle_end_8g_skill_decay(_b: &mut TickBuilder) {}
+fn cycle_end_8g_skill_decay(b: &mut TickBuilder) {
+    crate::labor::cycle_end_8g_skill_and_effort(b);
+}
 fn cycle_end_8h_hardship_and_fatigue(b: &mut TickBuilder) {
     crate::needs::cycle_end_8h_hardship_and_fatigue(b);
 }
@@ -318,7 +328,30 @@ fn phase_10_emit(b: TickBuilder) -> Vec<Event> {
         cycle: b.cycle,
         price_index: None,
         citizen_deltas,
-        workplace_deltas: b.workplace_deltas.into_values().collect(),
+        workplace_deltas: b
+            .world
+            .workplaces
+            .values()
+            .map(|w| WorkplaceDelta {
+                workplace: w.id,
+                machine_wear: w.machine_wear,
+                output_remainder: w.output_remainder,
+                cycle_output: w.cycle_output,
+                workers: w
+                    .workers
+                    .iter()
+                    .map(|(c, a)| {
+                        (
+                            *c,
+                            crate::event::WorkerCycle {
+                                tick_hours: a.cycle_tick_hours,
+                                attributed: a.cycle_attributed,
+                            },
+                        )
+                    })
+                    .collect(),
+            })
+            .collect(),
     });
     events
 }

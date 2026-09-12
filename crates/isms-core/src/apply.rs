@@ -26,8 +26,6 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "SaleCancelled",
     "WantedPosted",
     "WantedRemoved",
-    "OrgFounded",
-    "WorkplaceAdded",
     "ManagerAppointed",
     "MemberAdmitted",
     "MemberLeft",
@@ -56,7 +54,6 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "LeaseEnded",
     "Paid",
     "PaymentMissed",
-    "Produced",
     "Drew",
     "PolicyChanged",
 ];
@@ -149,6 +146,57 @@ pub fn apply(world: &mut World, event: &Event) {
             f.destitute = false;
             f.options_narrowed = false;
         }),
+        Event::OrgFounded {
+            org,
+            kind,
+            name,
+            founder,
+            ownership,
+            manager,
+            fee_burned,
+        } => apply_org_founded(
+            world,
+            *org,
+            *kind,
+            name,
+            *founder,
+            ownership,
+            *manager,
+            *fee_burned,
+        ),
+        Event::WorkplaceAdded {
+            workplace,
+            org,
+            kind,
+            slot,
+            materials_consumed,
+        } => apply_workplace_added(world, *workplace, *org, *kind, *slot, *materials_consumed),
+        Event::Produced {
+            workplace,
+            output,
+            units,
+            inputs_consumed,
+            ..
+        } => apply_produced(world, *workplace, *output, *units, inputs_consumed),
+        Event::Assigned {
+            workplace,
+            citizen,
+            contract,
+        } => {
+            if let Some(w) = world.workplaces.get_mut(workplace) {
+                w.workers
+                    .entry(*citizen)
+                    .or_insert_with(|| crate::world::Assignment::new(*contract));
+            }
+        }
+        Event::Unassigned { workplace, citizen } => {
+            if let Some(w) = world.workplaces.get_mut(workplace) {
+                w.workers.remove(citizen);
+            }
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.labor.allocations.retain(|a| a.workplace != *workplace);
+            }
+        }
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.last_seen_tick = *tick;
@@ -293,6 +341,113 @@ fn apply_workplace_delta(world: &mut World, d: &WorkplaceDelta) {
         w.machine_wear = d.machine_wear;
         w.output_remainder = d.output_remainder;
         w.cycle_output = d.cycle_output;
+        for (cid, wc) in &d.workers {
+            if let Some(a) = w.workers.get_mut(cid) {
+                a.cycle_tick_hours = wc.tick_hours;
+                a.cycle_attributed = wc.attributed;
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_org_founded(
+    world: &mut World,
+    org: crate::ids::OrgId,
+    kind: crate::kinds::OrgKind,
+    name: &str,
+    founder: Option<CitizenId>,
+    ownership: &crate::world::Ownership,
+    manager: Option<CitizenId>,
+    fee_burned: Money,
+) {
+    if let Some(f) = founder {
+        debit(world, Holder::Citizen(f), Asset::Money(fee_burned));
+    }
+    world.ledger_meta.burned_money += fee_burned;
+    world.orgs.insert(
+        org,
+        crate::world::Org {
+            id: org,
+            kind,
+            name: name.to_owned(),
+            ownership: ownership.clone(),
+            manager,
+            treasury: Money::ZERO,
+            inventory: BTreeMap::new(),
+            workplaces: std::collections::BTreeSet::new(),
+            employees: std::collections::BTreeSet::new(),
+            members: founder.into_iter().collect(),
+            founded_tick: world.meta.tick,
+            payment_missed: false,
+        },
+    );
+    if world.next.org.0 <= org.0 {
+        world.next.org = org.next();
+    }
+}
+
+fn apply_workplace_added(
+    world: &mut World,
+    workplace: crate::ids::WorkplaceId,
+    org: crate::ids::OrgId,
+    kind: crate::kinds::WorkplaceKind,
+    slot: Option<crate::ids::SlotId>,
+    materials_consumed: u32,
+) {
+    debit(
+        world,
+        Holder::Org(org),
+        Asset::Good(Good::Materials, materials_consumed),
+    );
+    LedgerMeta::add(
+        &mut world.ledger_meta.consumed,
+        Good::Materials,
+        materials_consumed,
+    );
+    world.workplaces.insert(
+        workplace,
+        crate::world::Workplace {
+            id: workplace,
+            kind,
+            org,
+            slot,
+            machines: 0,
+            machine_wear: 0.0,
+            output_remainder: 0.0,
+            workers: BTreeMap::new(),
+            cycle_output: 0.0,
+            target: None,
+        },
+    );
+    if let Some(o) = world.orgs.get_mut(&org) {
+        o.workplaces.insert(workplace);
+    }
+    if let Some(s) = slot.and_then(|s| world.land.slots.get_mut(&s)) {
+        s.workplace = Some(workplace);
+    }
+    if world.next.workplace.0 <= workplace.0 {
+        world.next.workplace = workplace.next();
+    }
+}
+
+fn apply_produced(
+    world: &mut World,
+    workplace: crate::ids::WorkplaceId,
+    output: Good,
+    units: u32,
+    inputs_consumed: &BTreeMap<Good, u32>,
+) {
+    let Some(org) = world.workplaces.get(&workplace).map(|w| w.org) else {
+        return;
+    };
+    for (g, q) in inputs_consumed {
+        debit(world, Holder::Org(org), Asset::Good(*g, *q));
+        LedgerMeta::add(&mut world.ledger_meta.consumed, *g, *q);
+    }
+    if units > 0 {
+        credit(world, Holder::Org(org), Asset::Good(output, units));
+        LedgerMeta::add(&mut world.ledger_meta.produced, output, units);
     }
 }
 

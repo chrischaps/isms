@@ -5,9 +5,12 @@ use super::harness::Harness;
 use crate::config::Preset;
 use crate::event::Event;
 use crate::ids::CitizenId;
-use crate::kinds::{CitizenKind, Good};
+use crate::ids::{OrgId, WorkplaceId};
+use crate::kinds::{CitizenKind, Effort, Good, OrgKind, WorkplaceKind};
 use crate::ledger::{Asset, Holder};
 use crate::money::Money;
+use crate::world::{Allocation, LandRegistry, Ownership, ShareHolder};
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct WorldBuilder {
@@ -17,6 +20,10 @@ pub struct WorldBuilder {
     citizens: Vec<(String, CitizenKind)>,
     pantry: Vec<(usize, Good, u32)>,
     balance_extra: Vec<(usize, Money)>,
+    orgs: Vec<(OrgKind, String)>,
+    workplaces: Vec<(WorkplaceKind, usize, u32)>,
+    org_inventory: Vec<(usize, Good, u32)>,
+    assignments: Vec<(usize, usize, u8, Effort)>,
 }
 
 impl WorldBuilder {
@@ -29,6 +36,10 @@ impl WorldBuilder {
             citizens: Vec::new(),
             pantry: Vec::new(),
             balance_extra: Vec::new(),
+            orgs: Vec::new(),
+            workplaces: Vec::new(),
+            org_inventory: Vec::new(),
+            assignments: Vec::new(),
         }
     }
 
@@ -75,6 +86,34 @@ impl WorldBuilder {
     #[must_use]
     pub fn balance_extra(mut self, citizen: usize, amount: Money) -> Self {
         self.balance_extra.push((citizen, amount));
+        self
+    }
+
+    /// Add an org (seeded like a legacy org: no founder, no fee; firms are 100% `OrgSelf`).
+    #[must_use]
+    pub fn org(mut self, kind: OrgKind, name: &str) -> Self {
+        self.orgs.push((kind, name.to_owned()));
+        self
+    }
+
+    /// Add a workplace of `kind` to the `org`-th org with `machines` installed.
+    #[must_use]
+    pub fn workplace(mut self, kind: WorkplaceKind, org: usize, machines: u32) -> Self {
+        self.workplaces.push((kind, org, machines));
+        self
+    }
+
+    /// Seed goods into an org's inventory.
+    #[must_use]
+    pub fn org_inventory(mut self, org: usize, good: Good, qty: u32) -> Self {
+        self.org_inventory.push((org, good, qty));
+        self
+    }
+
+    /// Assign the `citizen`-th citizen to the `workplace`-th workplace with an allocation.
+    #[must_use]
+    pub fn assign(mut self, citizen: usize, workplace: usize, hours: u8, effort: Effort) -> Self {
+        self.assignments.push((citizen, workplace, hours, effort));
         self
     }
 
@@ -125,6 +164,73 @@ impl WorldBuilder {
             log.push(Event::Seeded {
                 holder: Holder::Citizen(CitizenId(u32::try_from(*i).unwrap())),
                 asset: Asset::Money(*amount),
+            });
+        }
+        for (i, (kind, name)) in self.orgs.iter().enumerate() {
+            let ownership = match kind {
+                OrgKind::Firm => Ownership::Shares {
+                    issued: 100,
+                    holdings: BTreeMap::from([(ShareHolder::OrgSelf, 100)]),
+                },
+                OrgKind::Cooperative | OrgKind::Association | OrgKind::Union => Ownership::Members,
+                OrgKind::Collective | OrgKind::StateEnterprise => Ownership::Society,
+            };
+            log.push(Event::OrgFounded {
+                org: OrgId(u32::try_from(i).unwrap()),
+                kind: *kind,
+                name: name.clone(),
+                founder: None,
+                ownership,
+                manager: None,
+                fee_burned: Money::ZERO,
+            });
+        }
+        let mut land = LandRegistry::from_params(&self.preset.params);
+        for (i, (kind, org, machines)) in self.workplaces.iter().enumerate() {
+            let id = WorkplaceId(u32::try_from(i).unwrap());
+            let slot = land.free_slot(*kind);
+            assert!(
+                slot.is_some() || !land.is_limited(*kind),
+                "no free {kind:?} slot for fixture workplace {i}"
+            );
+            if let Some(s) = slot {
+                land.slots.get_mut(&s).unwrap().workplace = Some(id);
+            }
+            log.push(Event::WorkplaceAdded {
+                workplace: id,
+                org: OrgId(u32::try_from(*org).unwrap()),
+                kind: *kind,
+                slot,
+                materials_consumed: 0,
+            });
+            if *machines > 0 {
+                log.push(Event::Seeded {
+                    holder: Holder::Workplace(id),
+                    asset: Asset::Good(Good::Machines, *machines),
+                });
+            }
+        }
+        for (org, good, qty) in &self.org_inventory {
+            log.push(Event::Seeded {
+                holder: Holder::Org(OrgId(u32::try_from(*org).unwrap())),
+                asset: Asset::Good(*good, *qty),
+            });
+        }
+        for (citizen, workplace, hours, effort) in &self.assignments {
+            let citizen = CitizenId(u32::try_from(*citizen).unwrap());
+            let workplace = WorkplaceId(u32::try_from(*workplace).unwrap());
+            log.push(Event::Assigned {
+                workplace,
+                citizen,
+                contract: None,
+            });
+            log.push(Event::LaborSet {
+                citizen,
+                allocations: vec![Allocation {
+                    workplace,
+                    hours: *hours,
+                    effort: *effort,
+                }],
             });
         }
         log

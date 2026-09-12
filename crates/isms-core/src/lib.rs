@@ -13,6 +13,7 @@ pub mod event;
 pub mod explain;
 pub mod ids;
 pub mod kinds;
+pub mod labor;
 pub mod ledger;
 pub mod lexicon;
 pub mod money;
