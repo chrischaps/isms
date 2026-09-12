@@ -17,3 +17,11 @@ Provisional answers added to QUESTIONS.md: none new.
 New tunables: none beyond S0.1's.
 Next session should know: `WORKSPACE_PRESETS_DIR` resolves presets relative to the crate at compile time (tests and sim); `Preset` round-trips through JSON (credits serialized as floats). `Capabilities`, the per-preset capability table test, lexicon KEYS test, and six invalid-combination tests are S0.2b.
 make check: green · new tests: 11 · sim-check: n/a
+
+## S0.2b — Capabilities, constraint fixture, lexicon test — 2026-09-12 — PR #3
+Built: `Capabilities::derive(constitution, policy, params)` with the TDD 5.2 fields (money/order_books/administered/common_store flags, contract and org sets, labor/pay/capital/redistribution/governance, monitoring as overridden by policy plus the resolved sigma, offices, published land slots and rate limit) and `allows_contract`/`allows_org`; the per-preset capability table test; eight invalid axis-combination tests; Params TOML round-trip; preset-name-mismatch test; `lexicon` module (`required_keys` from KEYS.txt, `load_lexicon` with completeness check) and the every-preset-defines-every-key test; `scripts/pr-cycle.sh` (push, PR, wait for CI to register and pass, squash-merge).
+Deviations from TDD: `Capabilities` uses `BTreeSet` instead of `EnumSet` (canonical list serialization for the API, no derive conflicts); `enumset` removed from the workspace. `proposal_kinds` is omitted until Phase 2 defines `ProposalKind`. `Capabilities::allows(&Command)` arrives with `Command` in S0.4.
+Provisional answers added to QUESTIONS.md: none new.
+New tunables: none.
+Next session should know: PR #2 was merged before its CI check registered (the watch returned "no checks reported"); main's CI run for it passed afterwards. Use `scripts/pr-cycle.sh` from now on. S0.2 done gate is complete.
+make check: green · new tests: 10 · sim-check: n/a

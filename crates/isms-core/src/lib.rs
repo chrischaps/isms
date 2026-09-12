@@ -4,14 +4,17 @@
 //! unseeded randomness. State changes only by applying events.
 //! See `docs/tdd.md` §0 and §5.
 
+pub mod capabilities;
 pub mod config;
 pub mod constitution;
 pub mod ids;
 pub mod kinds;
+pub mod lexicon;
 pub mod money;
 pub mod params;
 pub mod policy;
 
+pub use capabilities::Capabilities;
 pub use config::{ConfigError, Preset, load_preset};
 pub use constitution::Constitution;
 pub use money::Money;

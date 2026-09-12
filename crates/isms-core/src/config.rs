@@ -318,4 +318,98 @@ mod tests {
         let back: Preset = serde_json::from_str(&json).unwrap();
         assert_eq!(p, back);
     }
+    fn freeport() -> Preset {
+        load_preset(&dir(), "freeport").unwrap()
+    }
+
+    fn expect_constraint(mut p: Preset, edit: impl FnOnce(&mut Preset), needle: &str) {
+        edit(&mut p);
+        match validate(&p) {
+            Err(ConfigError::Constraint { reason, .. }) => {
+                assert!(reason.contains(needle), "got: {reason}");
+            }
+            other => panic!("expected constraint error containing {needle:?}, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn invalid_axis_combinations_are_rejected() {
+        use crate::constitution::{
+            CapitalMode, Compensation, Governance, LaborMode, Ownership, Pricing, Redistribution,
+        };
+        // 1. need-based pay with prices
+        expect_constraint(
+            freeport(),
+            |p| p.constitution.compensation = Compensation::Need,
+            "need",
+        );
+        // 2. no prices but contract pay
+        expect_constraint(
+            freeport(),
+            |p| p.constitution.pricing = Pricing::None,
+            "pricing=none",
+        );
+        // 3. open capital without private ownership
+        expect_constraint(
+            freeport(),
+            |p| p.constitution.ownership = Ownership::Cooperative,
+            "capital=open",
+        );
+        // 4. collective ownership with a capital market
+        expect_constraint(
+            freeport(),
+            |p| {
+                p.constitution.ownership = Ownership::Collective;
+                p.constitution.capital = CapitalMode::PublicBank;
+            },
+            "collective",
+        );
+        // 5. assigned labor without a committee
+        expect_constraint(
+            freeport(),
+            |p| p.constitution.labor = LaborMode::Assigned,
+            "assigned",
+        );
+        // 6. share pay outside cooperatives
+        expect_constraint(
+            freeport(),
+            |p| p.constitution.compensation = Compensation::Share,
+            "share",
+        );
+        // 7. no governance but redistribution
+        expect_constraint(
+            freeport(),
+            |p| p.constitution.redistribution = Redistribution::Provision,
+            "governance=none",
+        );
+        // 8. a Materials split that does not sum to 1
+        expect_constraint(
+            freeport(),
+            |p| {
+                p.constitution.governance = Governance::Direct;
+                p.policy.materials_split = Some(crate::policy::MaterialsSplit {
+                    wares: 0.5,
+                    machines: 0.5,
+                    dwellings: 0.5,
+                });
+            },
+            "materials_split",
+        );
+    }
+
+    #[test]
+    fn params_round_trip_through_toml() {
+        let p = freeport();
+        let text = toml::to_string(&p.params).unwrap();
+        let back: Params = toml::from_str(&text).unwrap();
+        assert_eq!(p.params, back);
+    }
+
+    #[test]
+    fn preset_name_must_match_file() {
+        let err = with_edited_presets("name", |_, preset| {
+            *preset = preset.replace("name = \"freeport\"", "name = \"freeport-x\"");
+        });
+        assert!(matches!(err, ConfigError::NameMismatch { .. }), "{err}");
+    }
 }
