@@ -207,6 +207,9 @@ fn unimplemented_registry_matches_the_enum() {
         "LaborSet",
         "Transferred",
         "TickResolved",
+        "CitizenSeen",
+        "CycleClosed",
+        "EpochEnded",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -227,6 +230,7 @@ fn all_kinds_is_in_sync_with_kind() {
     let last = Event::CycleClosed {
         cycle: 0,
         aggregates: crate::event::CycleAggregates::default(),
+        low_population_cycles: 0,
     };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {

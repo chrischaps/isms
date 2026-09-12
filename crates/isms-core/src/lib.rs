@@ -6,6 +6,7 @@
 
 pub mod apply;
 pub mod capabilities;
+pub mod command;
 pub mod config;
 pub mod constitution;
 pub mod event;
@@ -17,12 +18,15 @@ pub mod lexicon;
 pub mod money;
 pub mod params;
 pub mod policy;
+pub mod rules;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
+pub mod tick;
 pub mod world;
 
 pub use apply::apply;
 pub use capabilities::Capabilities;
+pub use command::{Command, Envelope, Reject, RejectCode, handle};
 pub use config::{ConfigError, Preset, load_preset};
 pub use constitution::Constitution;
 pub use event::Event;
@@ -31,6 +35,8 @@ pub use ledger::{Asset, Holder, Party, conservation_check};
 pub use money::Money;
 pub use params::Params;
 pub use policy::Policy;
+pub use rules::Rules;
+pub use tick::{TickError, TickInput, start_epoch, tick};
 pub use world::World;
 
 /// Path to the workspace `presets/` directory, resolved at compile time.
