@@ -389,6 +389,7 @@ pub fn handle(
     match &envelope.command {
         Command::Join { handle, kind } => join(world, envelope, handle, *kind),
         Command::Seen => seen(world, envelope),
+        Command::SetStandingPlan { plan } => crate::plan::set_standing_plan(world, envelope, plan),
         Command::SetLabor { allocations } => crate::labor::set_labor(world, envelope, allocations),
         Command::Transfer { to, asset, memo } => {
             crate::transfers::transfer(world, envelope, *to, *asset, memo)
@@ -541,11 +542,15 @@ fn seen(world: &World, envelope: &Envelope<Command>) -> Result<Vec<Event>, Rejec
     if citizen.last_seen_tick == envelope.received_at_tick && !citizen.dormant {
         return Ok(Vec::new());
     }
-    Ok(vec![Event::CitizenSeen {
+    let mut events = vec![Event::CitizenSeen {
         citizen: id,
         tick: envelope.received_at_tick,
         client_kind: envelope.client_kind,
-    }])
+    }];
+    if citizen.dormant {
+        events.push(Event::CitizenReturned { citizen: id });
+    }
+    Ok(events)
 }
 
 fn end_epoch(world: &World, envelope: &Envelope<Command>) -> Result<Vec<Event>, Reject> {

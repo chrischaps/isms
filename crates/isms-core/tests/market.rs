@@ -183,6 +183,16 @@ fn placement_validates_funds_goods_caps_and_capability() {
 fn cancel_and_expiry_release_exactly_the_escrow() {
     let mut h = market(2);
     let (a, b) = (nth(&h, 0), nth(&h, 1));
+    // The default plan bids for Food each tick (S0.9); switch it off here so
+    // the resting ask can only expire.
+    for who in [a, b] {
+        let mut plan = h.citizen(who).plan.clone();
+        plan.keep_food_at_least = 0;
+        h.apply(Event::PlanChanged {
+            citizen: who,
+            plan: Box::new(plan),
+        });
+    }
     h.cmd(Envelope::citizen(a, order(Side::Bid, 10, 130), 0))
         .unwrap();
     let r = h.cmd_dry(Envelope::citizen(

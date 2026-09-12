@@ -65,7 +65,7 @@ fn resting(book: &OrderBook, side: Side) -> Vec<&Order> {
 }
 
 /// Open bid quantity a party has resting for a good (for the pantry cap, Q12).
-fn open_bid_qty(world: &World, party: Party, good: Good) -> u32 {
+pub fn open_bid_qty(world: &World, party: Party, good: Good) -> u32 {
     world.books.get(&Instrument::Good(good)).map_or(0, |b| {
         b.orders
             .values()

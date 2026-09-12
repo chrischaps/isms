@@ -89,3 +89,11 @@ Provisional answers added to QUESTIONS.md: Q23 (index ignores Dwellings until th
 New tunables: none.
 Next session should know: the S0.7 conservation proptest now also cancels resting orders before asserting the escrow drains, because the shared `CmdStep` strategy places orders. `open_bid_qty` is `pub` for the plan executor (S0.9).
 make check: green · new tests: 6 (+1 proptest) · sim-check: n/a
+
+## S0.9 — Standing plan executor and dormancy — 2026-09-12 — PR #12
+Built: `plan` module: `set_standing_plan` (validated against the constitution: labor plan kind, money rules, standing orders, vote defaults), `default_max_price` (last x 1.25 to the cent), `phase_2_standing_plans` for market systems (standing orders refreshed each tick or each cycle by cancel-and-replace, the Food shortfall bid at the limit within the saving floor and pantry room counting open bids, the Wares rule sized to refill Comfort, Q24), `cycle_end_8k_dormancy` (humans absent for 7 full cycles: open orders cancelled, then `CitizenDormant`; householders exempt), `away_digest`/`touches`. `Seen` from a dormant citizen emits `CitizenReturned`. `apply` suspends/reactivates the citizen's contracts on dormancy/return. Plan commands run through `handle` on the scratch world with `ClientKind::Plan` (Q6).
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q24 (Wares quantity and refresh semantics), Q25 (presence and the freeze).
+New tunables: none.
+Next session should know: every joined citizen carries the default plan (keep Food at 24), so any fixture with money and a resting Food ask will see plan bids; tests that need a quiet book set `keep_food_at_least = 0` via `PlanChanged`. Long-running fixtures without `Seen` go dormant at cycle 7; raise `dormancy_absent_cycles` in `with_preset` when that is not the point.
+make check: green · new tests: 8 · sim-check: n/a

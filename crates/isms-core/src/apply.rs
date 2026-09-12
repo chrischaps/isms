@@ -113,11 +113,23 @@ pub fn apply(world: &mut World, event: &Event) {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.dormant = true;
             }
+            set_contract_status(
+                world,
+                *citizen,
+                crate::world::ContractStatus::Active,
+                crate::world::ContractStatus::Suspended,
+            );
         }
         Event::CitizenReturned { citizen } => {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.dormant = false;
             }
+            set_contract_status(
+                world,
+                *citizen,
+                crate::world::ContractStatus::Suspended,
+                crate::world::ContractStatus::Active,
+            );
         }
         Event::HardshipBegan { citizen, .. } => set_flag(world, *citizen, |f| {
             f.in_hardship = true;
@@ -486,6 +498,21 @@ fn apply_trade(
 fn bump_offer(world: &mut World, id: crate::ids::OfferId) {
     if world.next.offer.0 <= id.0 {
         world.next.offer = id.next();
+    }
+}
+
+/// Move every contract the citizen is party to from one status to another.
+fn set_contract_status(
+    world: &mut World,
+    citizen: CitizenId,
+    from: crate::world::ContractStatus,
+    to: crate::world::ContractStatus,
+) {
+    let p = Party::Citizen(citizen);
+    for k in world.contracts.values_mut() {
+        if (k.parties.0 == p || k.parties.1 == p) && k.status == from {
+            k.status = to;
+        }
     }
 }
 
