@@ -26,9 +26,6 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "DwellingBuilt",
     "DwellingTransferred",
     "DwellingOccupied",
-    "EmploymentOffered",
-    "EmploymentAccepted",
-    "EmploymentTerminated",
     "CreditOffered",
     "CreditAccepted",
     "CreditInstallment",
@@ -39,8 +36,6 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "RentPaid",
     "RentMissed",
     "LeaseEnded",
-    "Paid",
-    "PaymentMissed",
     "Drew",
     "PolicyChanged",
 ];
@@ -362,6 +357,95 @@ pub fn apply(world: &mut World, event: &Event) {
             *price,
             *tick,
         ),
+        Event::EmploymentOffered { offer, body } => {
+            let by = match body {
+                crate::world::OfferBody::Employment { org, .. } => Party::Org(*org),
+                _ => return,
+            };
+            world.offers.insert(
+                *offer,
+                crate::world::Offer {
+                    id: *offer,
+                    by,
+                    created_tick: world.meta.tick,
+                    body: body.clone(),
+                },
+            );
+            bump_offer(world, *offer);
+        }
+        Event::EmploymentAccepted {
+            contract,
+            offer,
+            org,
+            workplace,
+            citizen,
+            pay,
+            max_hours,
+            term_cycles,
+            notice_cycles,
+        } => {
+            world.contracts.insert(
+                *contract,
+                crate::world::Contract {
+                    id: *contract,
+                    parties: (Party::Org(*org), Party::Citizen(*citizen)),
+                    created_tick: world.meta.tick,
+                    term_cycles: *term_cycles,
+                    status: crate::world::ContractStatus::Active,
+                    body: crate::world::ContractBody::Employment {
+                        org: *org,
+                        workplace: *workplace,
+                        pay: *pay,
+                        max_hours: *max_hours,
+                        notice_cycles: *notice_cycles,
+                    },
+                },
+            );
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.employees.insert(*contract);
+            }
+            let mut exhausted = false;
+            if let Some(off) = world.offers.get_mut(offer)
+                && let crate::world::OfferBody::Employment { places, .. } = &mut off.body
+            {
+                *places = places.saturating_sub(1);
+                exhausted = *places == 0;
+            }
+            if exhausted {
+                world.offers.remove(offer);
+            }
+            if world.next.contract.0 <= contract.0 {
+                world.next.contract = contract.next();
+            }
+        }
+        Event::EmploymentTerminated { contract, .. } => {
+            if let Some(k) = world.contracts.get_mut(contract) {
+                k.status = crate::world::ContractStatus::Ended;
+                if let Party::Org(org) = k.parties.0
+                    && let Some(o) = world.orgs.get_mut(&org)
+                {
+                    o.employees.remove(contract);
+                }
+            }
+        }
+        Event::Paid {
+            citizen,
+            org,
+            amount,
+            ..
+        } => {
+            debit(world, Holder::Org(*org), Asset::Money(*amount));
+            credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+        }
+        Event::PaymentMissed { org, contract, .. } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.payment_missed = true;
+                o.employees.remove(contract);
+            }
+            if let Some(k) = world.contracts.get_mut(contract) {
+                k.status = crate::world::ContractStatus::Ended;
+            }
+        }
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.last_seen_tick = *tick;

@@ -421,6 +421,31 @@ pub fn handle(
             *expires_tick,
         ),
         Command::CancelOrder { order } => crate::market::cancel_order(world, envelope, *order),
+        Command::OfferEmployment {
+            org,
+            workplace,
+            pay,
+            max_hours,
+            term_cycles,
+            notice_cycles,
+            places,
+        } => crate::employment::offer_employment(
+            world,
+            envelope,
+            *org,
+            *workplace,
+            *pay,
+            *max_hours,
+            *term_cycles,
+            *notice_cycles,
+            *places,
+        ),
+        Command::AcceptEmployment { offer } => {
+            crate::employment::accept_employment(world, envelope, *offer)
+        }
+        Command::TerminateEmployment { contract } => {
+            crate::employment::terminate_employment(world, envelope, *contract)
+        }
         Command::FoundOrg {
             kind,
             name,

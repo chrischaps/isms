@@ -182,6 +182,8 @@ pub struct HouseholderParams {
 #[serde(deny_unknown_fields)]
 pub struct ContractParams {
     pub lease_grace_cycles: u32,
+    /// A destitute citizen may not sign contracts longer than this (GDD Q3, Q26).
+    pub long_contract_cycles: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

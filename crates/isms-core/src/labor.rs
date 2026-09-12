@@ -282,10 +282,22 @@ pub fn set_labor(
                 format!("no workplace {}", a.workplace),
             )
         })?;
-        if !wp.workers.contains_key(&citizen.id) {
+        let Some(assignment) = wp.workers.get(&citizen.id) else {
             return Err(Reject::new(
                 RejectCode::NotAssigned,
                 format!("{} has no position at {}", citizen.id, a.workplace),
+            ));
+        };
+        if let Some(k) = assignment.contract.and_then(|k| world.contracts.get(&k))
+            && let crate::world::ContractBody::Employment { max_hours, .. } = k.body
+            && a.hours > max_hours
+        {
+            return Err(Reject::new(
+                RejectCode::OverContractHours,
+                format!(
+                    "the contract allows at most {max_hours} h at {}",
+                    a.workplace
+                ),
             ));
         }
     }

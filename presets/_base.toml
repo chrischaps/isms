@@ -120,6 +120,7 @@ living_cost_wares = 4
 
 [params.contracts]
 lease_grace_cycles = 1                   # [new tunable] S0.11
+long_contract_cycles = 5                 # [new tunable] S0.10a: destitute citizens cannot sign longer terms (QUESTIONS Q26)
 
 [params.metrics]
 housed_tick_weight = 0.5                 # [new tunable] TDD 13
