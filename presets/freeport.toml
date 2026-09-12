@@ -1,0 +1,26 @@
+name = "freeport"
+display = "Freeport"
+gdd_section = "6.1"
+
+[constitution]
+ownership = "private"        # A1
+pricing = "market"           # A2
+compensation = "contract"    # A3
+labor = "free"               # A4
+capital = "open"             # A5
+redistribution = "none"      # A6
+monitoring = "high"          # A7
+governance = "none"          # A8
+contracts = ["employment", "sale_book", "sale_direct", "credit", "lease", "share"]
+org_kinds = ["firm", "association"]
+communication = ["square", "org", "dm", "notice_board", "chronicle"]
+
+[policy]
+monitoring = "inherit"
+
+[params]
+legacy_firms = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
+initial_dwellings = 40
+
+[scoreboard]
+primary = ["net_worth", "firm_valuation", "self_made"]

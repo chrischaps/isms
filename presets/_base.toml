@@ -1,0 +1,140 @@
+# presets/_base.toml - every tunable shared by all presets.
+# Source: GDD Appendix A (starting values) and TDD Appendix A (new tunables).
+# Presets overlay this file; a preset may override any [params] key.
+# A literal number in engine code that could plausibly be tuned is a defect (TDD section 0).
+# Money is in integer cents throughout the engine; this file writes credits (x100 on load).
+
+[params.time]
+ticks_per_cycle = 24
+epoch_cycles = 42
+tick_seconds = 3600            # overridable per society; 0 in tests
+
+[params.labor]
+base_budget_hours = 8
+max_workplaces = 2
+max_workers_per_workplace = 6  # [new tunable] TDD 5.7
+effort_output_mult = { low = 0.6, normal = 1.0, high = 1.3 }
+effort_food_decay_mult = { low = 0.8, normal = 1.0, high = 1.3 }
+high_effort_debt_after_cycles = 2   # third consecutive High cycle onward carries the debt (T20)
+high_effort_debt_hours = 1
+hardship_debt_hours = 2
+fatigue_debt_cap_hours = 7           # base_budget - 1 (T20)
+
+[params.skill]
+k = 20.0                       # skill = min(100, k*ln(1 + hours/h0))  [new tunable] TDD 6
+h0 = 10.0
+max = 100
+decay_per_idle_cycles = 10     # -1 skill per 10 idle cycles
+# skill_mult = 1 + skill/100 (1.0 -> 2.0)
+
+[params.needs]
+food_decay_per_tick = 4
+food_meter_per_unit = 4        # [new tunable] TDD 5.5
+shelter_decay_unhoused = 2
+shelter_recovery_per_tick = 2  # [new tunable]
+comfort_decay_per_tick = 1
+comfort_per_wares = 6          # [new tunable]
+comfort_decay_unhoused_mult = 2.0
+hardship_food_threshold = 20
+destitution_hardship_cycles = 3
+output_floor = 0.4
+output_floor_destitute = 0.25
+output_mult_unhoused = 0.7
+food_full_output_meter = 50    # Food term is x1.0 at >= 50, linear to output_floor at 0
+comfort_affects_output = false # T7
+meter_start = 100              # QUESTIONS Q11
+
+[params.pantry]
+# per-good caps; absent = unlimited (QUESTIONS Q12)
+food = 48
+wares = 48
+
+[params.capital]
+# capital_mult = 1 + capital_log_coeff * ln(1 + machines/worker)
+capital_log_coeff = 0.5
+machine_depreciation_per_cycle = 0.02
+
+[params.land]
+# slots per workplace kind; absent = unlimited
+farm = 8
+mine = 6
+
+[params.founding]
+materials = 20                 # per workplace (GDD App. A); money cost is per preset
+
+[params.recipes]
+# consumes = inputs per unit of output; base_rate = units per worker-hour at skill mult 1.0, no machines
+farm         = { produces = "grain",     consumes = {},                 base_rate = 15.0 }
+mine         = { produces = "ore",       consumes = {},                 base_rate = 10.0 }
+foundry      = { produces = "materials", consumes = { ore = 1 },        base_rate = 10.0 }
+mill         = { produces = "food",      consumes = { grain = 1 },      base_rate = 15.0 }
+workshop     = { produces = "wares",     consumes = { materials = 1 },  base_rate = 5.0 }
+machine_shop = { produces = "machines",  consumes = { materials = 2 },  base_rate = 2.0 }
+builder      = { produces = "dwelling",  consumes = { materials = 10 }, base_rate = 0.5 }
+
+[params.basket]
+# reference basket for the price index and "real output"; Food is the numeraire (GDD 20 Q9)
+food = 1.0
+wares = 1.0
+machines = 2.0
+dwelling = 10.0
+
+[params.money]
+endowment_credits = 1000                 # [new tunable] TDD 7
+founding_cost_money_credits = 200        # [new tunable] TDD 7
+legacy_wage_credits = 8.00               # [new tunable] TDD 5.7
+legacy_rent_credits = 8.00               # [new tunable] TDD 9.3
+legacy_treasury_credits = 384            # [new tunable] ADR-0004: about one cycle of payroll at full staffing
+start_prices_credits = { grain = 0.60, ore = 0.90, materials = 2.00, food = 1.30, wares = 4.00, machines = 9.00 }
+
+[params.market]
+order_expiry_cycles = 1                  # default expiry = end of next cycle
+rate_limit = { per_second = 5, burst = 20 }   # [new tunable] TDD 10.2
+
+[params.population]
+floor = 40
+comfortable_min = 100
+comfortable_max = 300
+cap = 500
+dormancy_absent_cycles = 7
+office_vacancy_absent_cycles = 3
+quorum_fraction = 0.20
+collapse_cycles = 5
+collapse_enabled = true                  # false in the simulator
+
+[params.householder]
+keep_food_at_least = 24
+wares_comfort_below = 60
+wares_balance_living_cost_mult = 2.0
+save_fraction = 0.10
+rent_income_fraction_max = 0.25
+sell_surplus = true
+legacy_markup = 0.15
+legacy_machine_buy_payroll_mult = 3.0
+legacy_hire_inventory_cycles_cap = 2     # QUESTIONS Q2: no new job offers while inventory > this many cycles of sales
+legacy_offer_max_hours = 8               # QUESTIONS Q15
+legacy_offer_notice_cycles = 1
+living_cost_food = 24                    # QUESTIONS Q15
+living_cost_wares = 4
+
+[params.contracts]
+lease_grace_cycles = 1                   # [new tunable] S0.11
+
+[params.metrics]
+housed_tick_weight = 0.5                 # [new tunable] TDD 13
+mobility_window_cycles = 7
+
+[params.governance]
+plan_bonus_fraction = 0.25               # Directorate
+ratchet = true
+coordinator_term_cycles = 5
+committee_term_cycles = 10
+legislature_term_cycles = 10
+work_norm_hours = 6                      # Commune
+sim_planner_target_growth = 1.05         # sim only, S0.16
+
+[params.monitoring]
+# sigma per A7 setting
+high = 0.0
+medium = 0.25
+low = 0.6

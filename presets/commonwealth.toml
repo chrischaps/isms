@@ -1,0 +1,33 @@
+name = "commonwealth"
+display = "The Cooperative Commonwealth"
+gdd_section = "6.5"
+
+[constitution]
+ownership = "cooperative"
+pricing = "market"
+compensation = "share"
+labor = "free"
+capital = "public_bank"
+redistribution = "provision"
+monitoring = "medium"
+governance = "representative"
+contracts = ["employment", "sale_book", "sale_direct", "lease", "public_credit"]
+org_kinds = ["cooperative", "association"]
+communication = ["square", "assembly", "org", "dm", "notice_board", "chronicle"]
+offices = [
+  { kind = "legislator", seats = 5, term_cycles = 10, consecutive = true, recall = "majority" },
+  { kind = "bank_board", seats = 3, term_cycles = 10, consecutive = true, recall = "majority" },
+]
+
+[policy]
+monitoring = "inherit"
+capital_levy = 0.01            # QUESTIONS Q14 [new tunable] S0.2: fraction of machine value per cycle
+lending_rule = "formula"
+minimum_food_ration = 24
+
+[params]
+legacy_coops = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
+initial_dwellings = 40
+
+[scoreboard]
+primary = ["coop_surplus_per_member", "tenure", "coop_honors"]
