@@ -70,6 +70,8 @@ pub struct World {
     pub proposals: BTreeMap<ProposalId, Proposal>,
     pub ledger_meta: LedgerMeta,
     pub next: NextIds,
+    /// Basket price index as of the last tick (market systems).
+    pub price_index: Option<f64>,
 }
 
 /// What an escrow entry is held against.
@@ -136,6 +138,7 @@ impl World {
             proposals: BTreeMap::new(),
             ledger_meta: LedgerMeta::default(),
             next: NextIds::default(),
+            price_index: None,
         }
     }
 
@@ -493,6 +496,9 @@ pub struct OrderBook {
     pub orders: BTreeMap<OrderId, Order>,
     pub last_price: Option<Money>,
     pub last_trade_tick: Option<Tick>,
+    /// Trades since the last tick, for the tick's VWAP; reset by `TickResolved`.
+    pub tick_volume: u32,
+    pub tick_value: Money,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

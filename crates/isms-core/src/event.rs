@@ -367,6 +367,8 @@ pub enum Event {
         tick: Tick,
         cycle: Cycle,
         price_index: Option<f64>,
+        /// Volume-weighted average price per instrument over the trades since the last tick.
+        vwap: BTreeMap<Instrument, Money>,
         citizen_deltas: Vec<CitizenDelta>,
         workplace_deltas: Vec<WorkplaceDelta>,
     },

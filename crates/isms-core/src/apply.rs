@@ -17,10 +17,6 @@ use std::collections::BTreeMap;
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
 pub const UNIMPLEMENTED: &[&str] = &[
     "HouseholderEmigrated",
-    "OrderPlaced",
-    "OrderCancelled",
-    "OrderExpired",
-    "Trade",
     "MemberAdmitted",
     "MemberLeft",
     "SharesIssued",
@@ -306,6 +302,54 @@ pub fn apply(world: &mut World, event: &Event) {
         Event::WantedRemoved { offer } => {
             world.offers.remove(offer);
         }
+        Event::OrderPlaced { order, escrow } => {
+            debit(world, Holder::from(order.owner), *escrow);
+            world
+                .escrow
+                .insert(crate::world::EscrowKey::Order(order.id), *escrow);
+            world
+                .books
+                .entry(order.instrument)
+                .or_default()
+                .orders
+                .insert(order.id, *order);
+            if world.next.order.0 <= order.id.0 {
+                world.next.order = order.id.next();
+            }
+        }
+        Event::OrderCancelled { order, released } | Event::OrderExpired { order, released } => {
+            let key = crate::world::EscrowKey::Order(*order);
+            let owner = world
+                .books
+                .values()
+                .find_map(|b| b.orders.get(order).map(|o| o.owner));
+            if let (Some(owner), Some(_)) = (owner, world.escrow.remove(&key)) {
+                credit(world, Holder::from(owner), *released);
+            }
+            for b in world.books.values_mut() {
+                b.orders.remove(order);
+            }
+        }
+        Event::Trade {
+            instrument,
+            buyer,
+            seller,
+            buy_order,
+            sell_order,
+            qty,
+            price,
+            tick,
+        } => apply_trade(
+            world,
+            *instrument,
+            *buyer,
+            *seller,
+            *buy_order,
+            *sell_order,
+            *qty,
+            *price,
+            *tick,
+        ),
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.last_seen_tick = *tick;
@@ -324,9 +368,15 @@ pub fn apply(world: &mut World, event: &Event) {
             tick,
             citizen_deltas,
             workplace_deltas,
+            price_index,
             ..
         } => {
             world.meta.tick = tick.wrapping_add(1);
+            world.price_index = *price_index;
+            for b in world.books.values_mut() {
+                b.tick_volume = 0;
+                b.tick_value = Money::ZERO;
+            }
             for d in citizen_deltas {
                 apply_citizen_delta(world, d);
             }
@@ -362,6 +412,74 @@ fn set_labor(world: &mut World, citizen: CitizenId, allocations: &[crate::world:
                 assign.hours = 0;
             }
         }
+    }
+}
+
+/// Settle one fill: goods leave the ask's escrow to the buyer; money leaves the
+/// bid's escrow to the seller at the trade price, and the bid's price improvement
+/// (`limit - price`) x qty is refunded to the buyer. Fully filled orders are removed.
+#[allow(clippy::too_many_arguments)]
+fn apply_trade(
+    world: &mut World,
+    instrument: crate::world::Instrument,
+    buyer: Party,
+    seller: Party,
+    buy_order: crate::ids::OrderId,
+    sell_order: crate::ids::OrderId,
+    qty: u32,
+    price: Money,
+    tick: crate::ids::Tick,
+) {
+    use crate::world::EscrowKey;
+    let paid = Money(price.0 * i64::from(qty));
+    let Some(book) = world.books.get_mut(&instrument) else {
+        return;
+    };
+    // Buy side.
+    let mut buy_done = false;
+    let mut refund = Money::ZERO;
+    if let Some(b) = book.orders.get_mut(&buy_order) {
+        b.remaining = b.remaining.saturating_sub(qty);
+        refund = Money((b.limit_price.0 - price.0) * i64::from(qty));
+        buy_done = b.remaining == 0;
+    }
+    // Sell side.
+    let mut sell_done = false;
+    if let Some(s) = book.orders.get_mut(&sell_order) {
+        s.remaining = s.remaining.saturating_sub(qty);
+        sell_done = s.remaining == 0;
+    }
+    book.last_price = Some(price);
+    book.last_trade_tick = Some(tick);
+    book.tick_volume += qty;
+    book.tick_value += paid;
+    if buy_done {
+        book.orders.remove(&buy_order);
+    }
+    if sell_done {
+        book.orders.remove(&sell_order);
+    }
+    // Escrow bookkeeping.
+    let buy_key = EscrowKey::Order(buy_order);
+    if let Some(Asset::Money(m)) = world.escrow.get_mut(&buy_key) {
+        *m -= paid + refund;
+    }
+    if buy_done {
+        world.escrow.remove(&buy_key);
+    }
+    let sell_key = EscrowKey::Order(sell_order);
+    if let (crate::world::Instrument::Good(g), Some(Asset::Good(_, q))) =
+        (instrument, world.escrow.get_mut(&sell_key))
+    {
+        *q = q.saturating_sub(qty);
+        if sell_done {
+            world.escrow.remove(&sell_key);
+        }
+        credit(world, Holder::from(buyer), Asset::Good(g, qty));
+    }
+    credit(world, Holder::from(seller), Asset::Money(paid));
+    if refund > Money::ZERO {
+        credit(world, Holder::from(buyer), Asset::Money(refund));
     }
 }
 

@@ -16,6 +16,7 @@ pub mod kinds;
 pub mod labor;
 pub mod ledger;
 pub mod lexicon;
+pub mod market;
 pub mod money;
 pub mod needs;
 pub mod orgs;

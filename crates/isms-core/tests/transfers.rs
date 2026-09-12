@@ -335,6 +335,17 @@ proptest! {
             }
         }
         // cancel everything that is still open and check escrow drains
+        let orders: Vec<(isms_core::ids::OrderId, Party)> = h
+            .world
+            .books
+            .values()
+            .flat_map(|b| b.orders.values().map(|o| (o.id, o.owner)))
+            .collect();
+        for (id, owner) in orders {
+            if let Party::Citizen(c) = owner {
+                let _ = h.cmd(Envelope::citizen(c, Command::CancelOrder { order: id }, 0));
+            }
+        }
         let open: Vec<(isms_core::ids::OfferId, Party)> = h.world.offers.values().map(|o| (o.id, o.by)).collect();
         for (id, by) in open {
             if let Party::Citizen(c) = by {

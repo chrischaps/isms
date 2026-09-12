@@ -66,6 +66,9 @@ pub struct TickBuilder<'r> {
     pub consumed: BTreeMap<crate::ids::CitizenId, (u32, u32)>,
     /// Phase 3's result, consumed by phase 4.
     pub labor: BTreeMap<crate::ids::WorkplaceId, Vec<crate::labor::WorkerTick>>,
+    /// Phase 6's market statistics for `TickResolved`.
+    pub vwap: BTreeMap<crate::world::Instrument, crate::money::Money>,
+    pub price_index: Option<f64>,
 }
 
 impl std::fmt::Debug for TickBuilder<'_> {
@@ -91,6 +94,8 @@ impl<'r> TickBuilder<'r> {
             workplace_deltas: BTreeMap::new(),
             consumed: BTreeMap::new(),
             labor: BTreeMap::new(),
+            vwap: BTreeMap::new(),
+            price_index: None,
         }
     }
 
@@ -208,7 +213,13 @@ fn phase_5_needs(b: &mut TickBuilder) {
 }
 
 /// 6. Markets, store, state stock (S0.8, S0.15, S0.16).
-fn phase_6_markets(_b: &mut TickBuilder) {}
+fn phase_6_markets(b: &mut TickBuilder) {
+    if b.rules.capabilities.order_books {
+        let (vwap, index) = crate::market::phase_6_markets(b);
+        b.vwap = vwap;
+        b.price_index = index;
+    }
+}
 
 /// 7. Evictions and defaults from last cycle's misses (S0.11).
 fn phase_7_contracts(_b: &mut TickBuilder) {}
@@ -328,7 +339,8 @@ fn phase_10_emit(b: TickBuilder) -> Vec<Event> {
     events.push(Event::TickResolved {
         tick: b.tick,
         cycle: b.cycle,
-        price_index: None,
+        price_index: b.price_index,
+        vwap: b.vwap,
         citizen_deltas,
         workplace_deltas: b
             .world
