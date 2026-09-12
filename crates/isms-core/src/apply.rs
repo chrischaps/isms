@@ -16,8 +16,6 @@ use std::collections::BTreeMap;
 
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
 pub const UNIMPLEMENTED: &[&str] = &[
-    "EpochEnded",
-    "CitizenSeen",
     "CitizenDormant",
     "CitizenReturned",
     "HouseholderEmigrated",
@@ -67,7 +65,6 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "DestitutionBegan",
     "DestitutionEnded",
     "PolicyChanged",
-    "CycleClosed",
 ];
 
 /// Fold one event into the world.
@@ -132,6 +129,20 @@ pub fn apply(world: &mut World, event: &Event) {
         } => {
             debit(world, Holder::from(*from), *asset);
             credit(world, Holder::from(*to), *asset);
+        }
+        Event::CitizenSeen { citizen, tick, .. } => {
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.last_seen_tick = *tick;
+            }
+        }
+        Event::CycleClosed {
+            low_population_cycles,
+            ..
+        } => {
+            world.meta.low_population_cycles = *low_population_cycles;
+        }
+        Event::EpochEnded { reason, .. } => {
+            world.meta.epoch_ended = Some(*reason);
         }
         Event::TickResolved {
             tick,

@@ -362,6 +362,8 @@ pub enum Event {
     CycleClosed {
         cycle: Cycle,
         aggregates: CycleAggregates,
+        /// The collapse counter after this cycle (phase 8m).
+        low_population_cycles: u32,
     },
 }
 

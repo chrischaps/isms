@@ -31,6 +31,8 @@ pub struct SocietyMeta {
     pub tick: Tick,
     /// Set when the epoch has ended and no new epoch has started.
     pub epoch_ended: Option<EpochEndReason>,
+    /// Consecutive cycles with active humans below the population floor (GDD Q7).
+    pub low_population_cycles: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +114,7 @@ impl World {
                 epoch: 0,
                 tick: 0,
                 epoch_ended: None,
+                low_population_cycles: 0,
             },
             constitution: preset.constitution.clone(),
             policy: preset.policy.clone(),
