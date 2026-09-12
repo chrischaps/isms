@@ -17,6 +17,8 @@ pub mod lexicon;
 pub mod money;
 pub mod params;
 pub mod policy;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub mod world;
 
 pub use apply::apply;
