@@ -7,7 +7,7 @@ use std::fmt;
 macro_rules! id {
     ($(#[$m:meta])* $name:ident, $prefix:literal) => {
         $(#[$m])*
-        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $name(pub u32);
 
