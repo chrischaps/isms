@@ -372,6 +372,7 @@ impl Capabilities {
 }
 
 /// Validate and execute a command against the world. Never mutates.
+#[allow(clippy::too_many_lines)] // one arm per command
 pub fn handle(
     world: &World,
     rules: &Rules,
@@ -445,6 +446,12 @@ pub fn handle(
         }
         Command::TerminateEmployment { contract } => {
             crate::employment::terminate_employment(world, envelope, *contract)
+        }
+        Command::IssueShares { org, qty } => {
+            crate::shares::issue_shares(world, envelope, *org, *qty)
+        }
+        Command::DeclareDividend { org, per_share } => {
+            crate::shares::declare_dividend(world, envelope, *org, *per_share)
         }
         Command::FoundOrg {
             kind,

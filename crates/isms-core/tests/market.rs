@@ -157,7 +157,7 @@ fn placement_validates_funds_goods_caps_and_capability() {
     let r = h.cmd_dry(Envelope::citizen(
         a,
         Command::PlaceOrder {
-            instrument: Instrument::Share(isms_core::ids::OrgId(0)),
+            instrument: Instrument::Share(isms_core::ids::OrgId(7)),
             side: Side::Bid,
             qty: 1,
             limit_price: Money::cents(1),
@@ -167,8 +167,8 @@ fn placement_validates_funds_goods_caps_and_capability() {
     ));
     assert_eq!(
         r.unwrap_err().code,
-        RejectCode::NotImplemented,
-        "share instruments arrive in S0.10"
+        RejectCode::UnknownOrg,
+        "share instruments need a real org (S0.10b)"
     );
     let commune = WorldBuilder::new("commune").humans(1).build();
     let r = commune.cmd_dry(Envelope::citizen(

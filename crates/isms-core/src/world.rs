@@ -324,6 +324,8 @@ pub struct Org {
     pub founded_tick: Tick,
     /// Set when a payslip could not be covered (TDD §5.4 `PaymentMissed`).
     pub payment_missed: bool,
+    /// Per-share dividend declared this cycle, paid at 8e and cleared at cycle close.
+    pub declared_dividend: Option<Money>,
 }
 
 /// Who holds shares (ADR-0005).

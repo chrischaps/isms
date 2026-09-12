@@ -126,13 +126,11 @@ pub fn transfer(
     }])
 }
 
-fn sale_asset_as_asset(asset: SaleAsset) -> Result<Asset, Reject> {
+/// The escrowable form of a sale asset; shares are checked separately.
+fn sale_asset_as_asset(asset: SaleAsset) -> Result<Option<Asset>, Reject> {
     match asset {
-        SaleAsset::Good(g, q) => Ok(Asset::Good(g, q)),
-        SaleAsset::Shares(..) => Err(Reject::new(
-            RejectCode::NotImplemented,
-            "share sales arrive in S0.10",
-        )),
+        SaleAsset::Good(g, q) => Ok(Some(Asset::Good(g, q))),
+        SaleAsset::Shares(..) => Ok(None),
         SaleAsset::Dwelling(_) => Err(Reject::new(
             RejectCode::NotImplemented,
             "dwelling sales arrive in S0.11",
@@ -148,6 +146,7 @@ fn price_as_asset(price: Price) -> Asset {
 }
 
 /// `OfferSale`: escrow the asset and list it.
+#[allow(clippy::single_match_else)] // the None arm grows per asset kind
 pub fn offer_sale(
     world: &World,
     envelope: &Envelope<Command>,
@@ -156,8 +155,27 @@ pub fn offer_sale(
     to: Option<Party>,
 ) -> Result<Vec<Event>, Reject> {
     let seller = acting_party(world, envelope)?;
-    let escrowed = sale_asset_as_asset(asset)?;
-    check_has(world, seller, escrowed)?;
+    match sale_asset_as_asset(asset)? {
+        Some(escrowed) => check_has(world, seller, escrowed)?,
+        None => {
+            let SaleAsset::Shares(org, qty) = asset else {
+                unreachable!()
+            };
+            if qty == 0 {
+                return Err(Reject::new(
+                    RejectCode::InvalidQuantity,
+                    "quantity must be positive",
+                ));
+            }
+            let held = crate::shares::shares_held(world, seller, org);
+            if held < qty {
+                return Err(Reject::new(
+                    RejectCode::InsufficientGoods,
+                    format!("{seller:?} holds {held} shares of {org}"),
+                ));
+            }
+        }
+    }
     match price_as_asset(price) {
         Asset::Money(m) if m <= Money::ZERO => {
             return Err(Reject::new(
@@ -238,13 +256,20 @@ pub fn accept_sale(
     if let SaleAsset::Good(g, q) = asset {
         check_pantry_room(world, buyer, g, q)?;
     }
-    Ok(vec![Event::SaleAccepted {
+    let mut events = vec![Event::SaleAccepted {
         offer: id,
         buyer,
         seller: offer.by,
         asset,
         price,
-    }])
+    }];
+    if let SaleAsset::Shares(org, qty) = asset
+        && let Some(h) = crate::shares::holder_of(buyer, org)
+        && let Some(e) = crate::shares::control_change(world, org, h, qty)
+    {
+        events.push(e);
+    }
+    Ok(events)
 }
 
 /// `CancelSale`: release the escrow to the seller.

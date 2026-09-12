@@ -20,13 +20,14 @@ pub fn bid_escrow(remaining: u32, limit: Money) -> Money {
     Money(limit.0 * i64::from(remaining))
 }
 
-/// What an order holds in escrow right now.
+/// What an order holds in escrow right now (money for bids, goods for asks of
+/// goods). Share asks hold shares in `World::share_escrow` instead.
 #[must_use]
 pub fn escrow_of(order: &Order) -> Asset {
     match (order.side, order.instrument) {
         (Side::Bid, _) => Asset::Money(bid_escrow(order.remaining, order.limit_price)),
         (Side::Ask, Instrument::Good(g)) => Asset::Good(g, order.remaining),
-        (Side::Ask, Instrument::Share(_)) => Asset::Money(Money::ZERO), // shares escrow separately (S0.10)
+        (Side::Ask, Instrument::Share(_)) => Asset::Money(Money::ZERO),
     }
 }
 
@@ -98,12 +99,28 @@ pub fn place_order(
             "limit price must be positive",
         ));
     }
-    let Instrument::Good(good) = instrument else {
-        return Err(Reject::new(
-            RejectCode::NotImplemented,
-            "share orders arrive in S0.10",
-        ));
-    };
+    if let Instrument::Share(org) = instrument {
+        let o = world
+            .orgs
+            .get(&org)
+            .ok_or_else(|| Reject::new(RejectCode::UnknownOrg, format!("no org {org}")))?;
+        if !matches!(o.ownership, crate::world::Ownership::Shares { .. }) {
+            return Err(Reject::new(
+                RejectCode::NotInThisSociety,
+                "no share registry",
+            ));
+        }
+        if !world
+            .constitution
+            .contracts
+            .contains(&crate::kinds::ContractKind::Share)
+        {
+            return Err(Reject::new(
+                RejectCode::NotInThisSociety,
+                "shares do not trade here",
+            ));
+        }
+    }
     let tick = world.meta.tick;
     let expires_tick = expires_tick.unwrap_or_else(|| default_expiry(world));
     if expires_tick < tick {
@@ -129,12 +146,46 @@ pub fn place_order(
         },
     };
     let escrow = escrow_of(&order);
-    check_has(world, owner, escrow)?;
-    if side == Side::Bid {
-        check_pantry_room(world, owner, good, open_bid_qty(world, owner, good) + qty)?;
+    match (side, instrument) {
+        (Side::Ask, Instrument::Share(org)) => {
+            let held = crate::shares::shares_held(world, owner, org);
+            if held < u64::from(qty) {
+                return Err(Reject::new(
+                    RejectCode::InsufficientGoods,
+                    format!("{owner:?} holds {held} shares of {org}"),
+                ));
+            }
+        }
+        (Side::Bid, Instrument::Good(good)) => {
+            check_has(world, owner, escrow)?;
+            check_pantry_room(world, owner, good, open_bid_qty(world, owner, good) + qty)?;
+        }
+        _ => check_has(world, owner, escrow)?,
     }
     let mut events = vec![Event::OrderPlaced { order, escrow }];
-    events.extend(matches_for(world, &order));
+    let fills = matches_for(world, &order);
+    if let Instrument::Share(org) = instrument {
+        // Control passes with the shares (Q29): the buyer of the last fill that
+        // crosses 50% becomes manager.
+        let mut bought: std::collections::BTreeMap<Party, u64> = std::collections::BTreeMap::new();
+        for f in &fills {
+            if let Event::Trade { buyer, qty, .. } = f {
+                *bought.entry(*buyer).or_insert(0) += u64::from(*qty);
+            }
+        }
+        let mut control = Vec::new();
+        for (buyer, qty) in bought {
+            if let Some(h) = crate::shares::holder_of(buyer, org)
+                && let Some(e) = crate::shares::control_change(world, org, h, qty)
+            {
+                control.push(e);
+            }
+        }
+        events.extend(fills);
+        events.extend(control);
+    } else {
+        events.extend(fills);
+    }
     Ok(events)
 }
 
