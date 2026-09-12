@@ -16,8 +16,6 @@ use std::collections::BTreeMap;
 
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
 pub const UNIMPLEMENTED: &[&str] = &[
-    "CitizenDormant",
-    "CitizenReturned",
     "HouseholderEmigrated",
     "OrderPlaced",
     "OrderCancelled",
@@ -60,14 +58,11 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "PaymentMissed",
     "Produced",
     "Drew",
-    "HardshipBegan",
-    "HardshipEnded",
-    "DestitutionBegan",
-    "DestitutionEnded",
     "PolicyChanged",
 ];
 
 /// Fold one event into the world.
+#[allow(clippy::too_many_lines)] // a flat dispatcher; arms stay one-liners or calls
 pub fn apply(world: &mut World, event: &Event) {
     match event {
         Event::SocietyCreated {
@@ -130,6 +125,30 @@ pub fn apply(world: &mut World, event: &Event) {
             debit(world, Holder::from(*from), *asset);
             credit(world, Holder::from(*to), *asset);
         }
+        Event::CitizenDormant { citizen } => {
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.dormant = true;
+            }
+        }
+        Event::CitizenReturned { citizen } => {
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.dormant = false;
+            }
+        }
+        Event::HardshipBegan { citizen, .. } => set_flag(world, *citizen, |f| {
+            f.in_hardship = true;
+        }),
+        Event::HardshipEnded { citizen, .. } => set_flag(world, *citizen, |f| {
+            f.in_hardship = false;
+        }),
+        Event::DestitutionBegan { citizen, .. } => set_flag(world, *citizen, |f| {
+            f.destitute = true;
+            f.options_narrowed = true;
+        }),
+        Event::DestitutionEnded { citizen, .. } => set_flag(world, *citizen, |f| {
+            f.destitute = false;
+            f.options_narrowed = false;
+        }),
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.last_seen_tick = *tick;
@@ -150,7 +169,7 @@ pub fn apply(world: &mut World, event: &Event) {
             workplace_deltas,
             ..
         } => {
-            world.meta.tick = *tick + 1;
+            world.meta.tick = tick.wrapping_add(1);
             for d in citizen_deltas {
                 apply_citizen_delta(world, d);
             }
@@ -189,6 +208,12 @@ fn set_labor(world: &mut World, citizen: CitizenId, allocations: &[crate::world:
     }
 }
 
+fn set_flag(world: &mut World, citizen: CitizenId, f: impl FnOnce(&mut CitizenFlags)) {
+    if let Some(c) = world.citizens.get_mut(&citizen) {
+        f(&mut c.flags);
+    }
+}
+
 fn join(
     world: &mut World,
     id: CitizenId,
@@ -216,14 +241,9 @@ fn join(
             fatigue_debt: 0,
             consecutive_high_effort_cycles: 0,
             skill: BTreeMap::new(),
+            output_mult: 1.0,
         },
-        needs: Needs {
-            food: p.needs.meter_start,
-            shelter: p.needs.meter_start,
-            comfort: p.needs.meter_start,
-            low_food_ticks_this_cycle: 0,
-            consecutive_hardship_cycles: 0,
-        },
+        needs: Needs::at_start(p),
         plan: StandingPlan {
             labor: LaborPlan::Explicit,
             keep_food_at_least: p.householder.keep_food_at_least,
@@ -256,6 +276,7 @@ fn apply_citizen_delta(world: &mut World, d: &CitizenDelta) {
     c.labor.budget = d.budget;
     c.labor.fatigue_debt = d.fatigue_debt;
     c.labor.consecutive_high_effort_cycles = d.consecutive_high_effort_cycles;
+    c.labor.output_mult = d.output_mult;
     c.labor.skill.clone_from(&d.skill);
     take_from_pantry(&mut c.household.pantry, Good::Food, d.food_eaten);
     take_from_pantry(&mut c.household.pantry, Good::Wares, d.wares_consumed);

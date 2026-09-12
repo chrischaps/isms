@@ -50,7 +50,7 @@ pub enum Step {
     /// nudges the Food meter.
     Tick {
         eat: u32,
-        food_meter: u8,
+        food_meter: u16,
     },
 }
 
@@ -97,7 +97,7 @@ pub fn arb_step(n: usize) -> impl Strategy<Value = Step> {
             hours,
             effort
         }),
-        (0u32..3, 0u8..=100).prop_map(|(eat, food_meter)| Step::Tick { eat, food_meter }),
+        (0u32..3, 0u16..=1000).prop_map(|(eat, food_meter)| Step::Tick { eat, food_meter }),
     ]
 }
 

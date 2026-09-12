@@ -106,6 +106,31 @@ impl Harness {
         (0..n).flat_map(|_| self.run_cycle()).collect()
     }
 
+    /// Test-only: set a citizen's continuous state through a synthetic
+    /// `TickResolved` that does not advance the clock (fold == live still holds).
+    pub fn set_needs(&mut self, id: CitizenId, needs: crate::world::Needs) {
+        let c = &self.world.citizens[&id];
+        let delta = crate::event::CitizenDelta {
+            citizen: id,
+            needs,
+            food_eaten: 0,
+            wares_consumed: 0,
+            output_mult: c.labor.output_mult,
+            budget: c.labor.budget,
+            fatigue_debt: c.labor.fatigue_debt,
+            consecutive_high_effort_cycles: c.labor.consecutive_high_effort_cycles,
+            skill: c.labor.skill.clone(),
+        };
+        let tick = self.world.meta.tick.wrapping_sub(1);
+        self.apply(Event::TickResolved {
+            tick,
+            cycle: self.world.cycle_of(self.world.meta.tick),
+            price_index: None,
+            citizen_deltas: vec![delta],
+            workplace_deltas: Vec::new(),
+        });
+    }
+
     /// Conservation plus fold-equals-live.
     pub fn check(&self) {
         conservation_check(&self.world)

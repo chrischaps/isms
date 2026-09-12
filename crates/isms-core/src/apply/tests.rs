@@ -165,7 +165,7 @@ fn tick_resolved_consumes_from_pantry_and_advances_the_clock() {
     joined(&mut w, 1);
     seed_food(&mut w, 0, 3);
     let mut needs = w.citizens[&CitizenId(0)].needs.clone();
-    needs.food = 96;
+    needs.food = 960;
     apply(
         &mut w,
         &Event::TickResolved {
@@ -210,6 +210,12 @@ fn unimplemented_registry_matches_the_enum() {
         "CitizenSeen",
         "CycleClosed",
         "EpochEnded",
+        "CitizenDormant",
+        "CitizenReturned",
+        "HardshipBegan",
+        "HardshipEnded",
+        "DestitutionBegan",
+        "DestitutionEnded",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);

@@ -62,6 +62,8 @@ pub struct TickBuilder<'r> {
     pub events: Vec<Event>,
     pub citizen_deltas: BTreeMap<crate::ids::CitizenId, CitizenDelta>,
     pub workplace_deltas: BTreeMap<crate::ids::WorkplaceId, WorkplaceDelta>,
+    /// (Food eaten, Wares consumed) per citizen this tick, for the deltas.
+    pub consumed: BTreeMap<crate::ids::CitizenId, (u32, u32)>,
 }
 
 impl std::fmt::Debug for TickBuilder<'_> {
@@ -85,6 +87,7 @@ impl<'r> TickBuilder<'r> {
             events: Vec::new(),
             citizen_deltas: BTreeMap::new(),
             workplace_deltas: BTreeMap::new(),
+            consumed: BTreeMap::new(),
         }
     }
 
@@ -192,7 +195,9 @@ fn phase_3_labor(_b: &mut TickBuilder) {}
 fn phase_4_production(_b: &mut TickBuilder) {}
 
 /// 5. Consumption and needs (S0.5).
-fn phase_5_needs(_b: &mut TickBuilder) {}
+fn phase_5_needs(b: &mut TickBuilder) {
+    crate::needs::phase_5_needs(b);
+}
 
 /// 6. Markets, store, state stock (S0.8, S0.15, S0.16).
 fn phase_6_markets(_b: &mut TickBuilder) {}
@@ -224,7 +229,9 @@ fn cycle_end_8d_rent(_b: &mut TickBuilder) {}
 fn cycle_end_8e_dividends(_b: &mut TickBuilder) {}
 fn cycle_end_8f_depreciation(_b: &mut TickBuilder) {}
 fn cycle_end_8g_skill_decay(_b: &mut TickBuilder) {}
-fn cycle_end_8h_hardship_and_fatigue(_b: &mut TickBuilder) {}
+fn cycle_end_8h_hardship_and_fatigue(b: &mut TickBuilder) {
+    crate::needs::cycle_end_8h_hardship_and_fatigue(b);
+}
 fn cycle_end_8i_norms_ledger(_b: &mut TickBuilder) {}
 fn cycle_end_8j_votes_and_vacancies(_b: &mut TickBuilder) {}
 fn cycle_end_8k_dormancy(_b: &mut TickBuilder) {}
@@ -285,11 +292,32 @@ fn phase_9_epoch_checks(b: &mut TickBuilder) {
 /// 10. Emit: discrete events in order, then `TickResolved`.
 fn phase_10_emit(b: TickBuilder) -> Vec<Event> {
     let mut events = b.events;
+    // Continuous state of every non-dormant citizen, as it now stands in the scratch world.
+    let citizen_deltas = b
+        .world
+        .citizens
+        .values()
+        .filter(|c| !c.dormant)
+        .map(|c| {
+            let (food_eaten, wares_consumed) = b.consumed.get(&c.id).copied().unwrap_or((0, 0));
+            CitizenDelta {
+                citizen: c.id,
+                needs: c.needs.clone(),
+                food_eaten,
+                wares_consumed,
+                output_mult: c.labor.output_mult,
+                budget: c.labor.budget,
+                fatigue_debt: c.labor.fatigue_debt,
+                consecutive_high_effort_cycles: c.labor.consecutive_high_effort_cycles,
+                skill: c.labor.skill.clone(),
+            }
+        })
+        .collect();
     events.push(Event::TickResolved {
         tick: b.tick,
         cycle: b.cycle,
         price_index: None,
-        citizen_deltas: b.citizen_deltas.into_values().collect(),
+        citizen_deltas,
         workplace_deltas: b.workplace_deltas.into_values().collect(),
     });
     events
