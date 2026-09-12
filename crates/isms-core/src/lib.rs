@@ -25,6 +25,7 @@ pub mod rules;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 pub mod tick;
+pub mod transfers;
 pub mod world;
 
 pub use apply::apply;

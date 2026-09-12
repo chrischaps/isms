@@ -73,3 +73,11 @@ Provisional answers added to QUESTIONS.md: none.
 New tunables: `initial_shares` (100).
 Next session should know: the builder golden `s0_3b_builder` was regenerated because `SocietyCreated` embeds `Params` and a param was added; any param addition will do that until the S0.12 scenario golden replaces it as the meaningful one. S0.6 done gate complete (9th Farm and 7th worker rejected, machines and depreciation conserve).
 make check: green · new tests: 7 · sim-check: n/a
+
+## S0.7 — Money, transfers, escrow, direct sales — 2026-09-12 — PR #10
+Built: `transfers` module: `acting_party` (citizen, or an org via `on_behalf_of` when the citizen manages it), `check_pantry_room` (per-good caps, Q12; orgs uncapped), `check_has`, `transfer` (money or goods to any citizen or org; self-deal rejected), `offer_sale` (escrows the seller's goods at offer time; shares and dwellings are `NotImplemented` until S0.10/S0.11), `accept_sale` (addressee check, price paid atomically, pantry caps both ways), `cancel_sale`, `post_wanted`/`remove_wanted`. `apply` handles `SaleOffered`/`Accepted`/`Cancelled`, `WantedPosted`/`Removed` with `EscrowKey::Offer` escrow. Strategies gained command-shaped `CmdStep`s run through `handle` with rejections ignored (`arb_cmd_scenario`, `run_cmd_scenario`).
+Deviations from TDD: "escrow on both sides" is implemented as seller-side escrow at offer plus atomic payment at accept (a buyer who has not yet accepted has nothing to escrow).
+Provisional answers added to QUESTIONS.md: none.
+New tunables: none.
+Next session should know: `Transfer` is now real, so the S0.4 gating test expects `SelfDeal` rather than `NotImplemented` for a self-transfer. `CmdStep` is the place to add order steps (S0.8 drafts already do).
+make check: green · new tests: 5 (+1 proptest) · sim-check: n/a

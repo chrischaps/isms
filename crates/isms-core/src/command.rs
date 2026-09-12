@@ -390,6 +390,20 @@ pub fn handle(
         Command::Join { handle, kind } => join(world, envelope, handle, *kind),
         Command::Seen => seen(world, envelope),
         Command::SetLabor { allocations } => crate::labor::set_labor(world, envelope, allocations),
+        Command::Transfer { to, asset, memo } => {
+            crate::transfers::transfer(world, envelope, *to, *asset, memo)
+        }
+        Command::OfferSale { asset, price, to } => {
+            crate::transfers::offer_sale(world, envelope, *asset, *price, *to)
+        }
+        Command::AcceptSale { offer } => crate::transfers::accept_sale(world, envelope, *offer),
+        Command::CancelSale { offer } => crate::transfers::cancel_sale(world, envelope, *offer),
+        Command::PostWanted {
+            good,
+            qty,
+            max_price,
+        } => crate::transfers::post_wanted(world, envelope, *good, *qty, *max_price),
+        Command::RemoveWanted { offer } => crate::transfers::remove_wanted(world, envelope, *offer),
         Command::FoundOrg {
             kind,
             name,
