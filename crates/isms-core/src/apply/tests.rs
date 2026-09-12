@@ -172,6 +172,7 @@ fn tick_resolved_consumes_from_pantry_and_advances_the_clock() {
             tick: 0,
             cycle: 0,
             price_index: None,
+            vwap: BTreeMap::new(),
             citizen_deltas: vec![CitizenDelta {
                 citizen: CitizenId(0),
                 needs: needs.clone(),
@@ -230,6 +231,10 @@ fn unimplemented_registry_matches_the_enum() {
         "SaleCancelled",
         "WantedPosted",
         "WantedRemoved",
+        "OrderPlaced",
+        "OrderCancelled",
+        "OrderExpired",
+        "Trade",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);

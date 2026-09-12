@@ -230,6 +230,7 @@ pub fn resolve(h: &Harness, step: &Step) -> Option<Event> {
                 tick,
                 cycle,
                 price_index: None,
+                vwap: BTreeMap::new(),
                 citizen_deltas: deltas,
                 workplace_deltas: Vec::new(),
             })
@@ -292,6 +293,17 @@ pub enum CmdStep {
         good: Good,
         qty: u32,
     },
+    PlaceOrder {
+        who: usize,
+        good: Good,
+        bid: bool,
+        qty: u32,
+        price_cents: u32,
+    },
+    CancelOrder {
+        who: usize,
+        which: usize,
+    },
 }
 
 pub fn arb_cmd_step(n: usize) -> impl Strategy<Value = CmdStep> {
@@ -335,6 +347,16 @@ pub fn arb_cmd_step(n: usize) -> impl Strategy<Value = CmdStep> {
             good,
             qty
         }),
+        (0..n, arb_good(), any::<bool>(), 0u32..15, 1u32..300).prop_map(
+            |(who, good, bid, qty, price_cents)| CmdStep::PlaceOrder {
+                who,
+                good,
+                bid,
+                qty,
+                price_cents
+            }
+        ),
+        (0..n, 0usize..8).prop_map(|(who, which)| CmdStep::CancelOrder { who, which }),
     ]
 }
 
@@ -420,6 +442,45 @@ pub fn resolve_cmd(
             },
             tick,
         ),
+        CmdStep::PlaceOrder {
+            who,
+            good,
+            bid,
+            qty,
+            price_cents,
+        } => Envelope::citizen(
+            id(*who),
+            Command::PlaceOrder {
+                instrument: crate::world::Instrument::Good(*good),
+                side: if *bid {
+                    crate::world::Side::Bid
+                } else {
+                    crate::world::Side::Ask
+                },
+                qty: *qty,
+                limit_price: Money::cents(i64::from(*price_cents)),
+                expires_tick: None,
+            },
+            tick,
+        ),
+        CmdStep::CancelOrder { who, which } => {
+            let orders: Vec<crate::ids::OrderId> = h
+                .world
+                .books
+                .values()
+                .flat_map(|b| b.orders.keys().copied())
+                .collect();
+            if orders.is_empty() {
+                return None;
+            }
+            Envelope::citizen(
+                id(*who),
+                Command::CancelOrder {
+                    order: orders[which % orders.len()],
+                },
+                tick,
+            )
+        }
         CmdStep::PostWanted { who, good, qty } => Envelope::citizen(
             id(*who),
             Command::PostWanted {

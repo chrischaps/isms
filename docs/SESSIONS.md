@@ -81,3 +81,11 @@ Provisional answers added to QUESTIONS.md: none.
 New tunables: none.
 Next session should know: `Transfer` is now real, so the S0.4 gating test expects `SelfDeal` rather than `NotImplemented` for a self-transfer. `CmdStep` is the place to add order steps (S0.8 drafts already do).
 make check: green · new tests: 5 (+1 proptest) · sim-check: n/a
+
+## S0.8 — Order books — 2026-09-12 — PR #11
+Built: `market` module: `OrderBook` per instrument with per-tick VWAP accumulators, `place_order` (escrow money for bids at `remaining x limit`, goods for asks; pantry cap counts open bids; share instruments `NotImplemented` until S0.10; default expiry = end of the next cycle), continuous matching on submission at the resting order's price with price-time priority and partial fills, `cancel_order`, `phase_6_markets` (expiry, VWAP per instrument, basket price index over priced goods, Q23), `last_price` (trade, else start price, Q8), `depth`. `apply` handles `OrderPlaced`/`Cancelled`/`Expired`/`Trade` (price-improvement refunds to the bidder, fully filled orders removed, accumulators; `TickResolved` resets them and sets `World.price_index`). `TickResolved` gained `vwap`. Strategies gained `PlaceOrder`/`CancelOrder` command steps. ADR-0001 written. Golden `s0_8_order_tape` (20 scripted orders) committed.
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q23 (index ignores Dwellings until they have prices).
+New tunables: none.
+Next session should know: the S0.7 conservation proptest now also cancels resting orders before asserting the escrow drains, because the shared `CmdStep` strategy places orders. `open_bid_qty` is `pub` for the plan executor (S0.9).
+make check: green · new tests: 6 (+1 proptest) · sim-check: n/a

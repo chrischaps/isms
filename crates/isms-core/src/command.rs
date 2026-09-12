@@ -404,6 +404,22 @@ pub fn handle(
             max_price,
         } => crate::transfers::post_wanted(world, envelope, *good, *qty, *max_price),
         Command::RemoveWanted { offer } => crate::transfers::remove_wanted(world, envelope, *offer),
+        Command::PlaceOrder {
+            instrument,
+            side,
+            qty,
+            limit_price,
+            expires_tick,
+        } => crate::market::place_order(
+            world,
+            envelope,
+            *instrument,
+            *side,
+            *qty,
+            *limit_price,
+            *expires_tick,
+        ),
+        Command::CancelOrder { order } => crate::market::cancel_order(world, envelope, *order),
         Command::FoundOrg {
             kind,
             name,
