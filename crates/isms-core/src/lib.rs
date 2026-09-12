@@ -25,6 +25,7 @@ pub mod params;
 pub mod plan;
 pub mod policy;
 pub mod rules;
+pub mod shares;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 pub mod tick;

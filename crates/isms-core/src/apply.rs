@@ -19,10 +19,6 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "HouseholderEmigrated",
     "MemberAdmitted",
     "MemberLeft",
-    "SharesIssued",
-    "SharesTransferred",
-    "DividendDeclared",
-    "DividendPaid",
     "DwellingBuilt",
     "DwellingTransferred",
     "DwellingOccupied",
@@ -41,7 +37,7 @@ pub const UNIMPLEMENTED: &[&str] = &[
 ];
 
 /// Fold one event into the world.
-#[allow(clippy::too_many_lines)] // a flat dispatcher; arms stay one-liners or calls
+#[allow(clippy::too_many_lines, clippy::match_same_arms)] // a flat dispatcher
 pub fn apply(world: &mut World, event: &Event) {
     match event {
         Event::SocietyCreated {
@@ -231,15 +227,23 @@ pub fn apply(world: &mut World, event: &Event) {
             price,
             to,
         } => {
-            let escrowed = match asset {
-                crate::world::SaleAsset::Good(g, q) => Some(Asset::Good(*g, *q)),
-                crate::world::SaleAsset::Shares(..) | crate::world::SaleAsset::Dwelling(_) => None,
-            };
-            if let Some(a) = escrowed {
-                debit(world, Holder::from(*by), a);
-                world
-                    .escrow
-                    .insert(crate::world::EscrowKey::Offer(*offer), a);
+            match asset {
+                crate::world::SaleAsset::Good(g, q) => {
+                    let a = Asset::Good(*g, *q);
+                    debit(world, Holder::from(*by), a);
+                    world
+                        .escrow
+                        .insert(crate::world::EscrowKey::Offer(*offer), a);
+                }
+                crate::world::SaleAsset::Shares(org, q) => {
+                    if let Some(h) = crate::shares::holder_of(*by, *org) {
+                        move_shares(world, *org, Some(h), None, *q);
+                    }
+                    world
+                        .share_escrow
+                        .insert(crate::world::EscrowKey::Offer(*offer), (*org, *q));
+                }
+                crate::world::SaleAsset::Dwelling(_) => {}
             }
             world.offers.insert(
                 *offer,
@@ -266,6 +270,13 @@ pub fn apply(world: &mut World, event: &Event) {
             if let Some(a) = world.escrow.remove(&crate::world::EscrowKey::Offer(*offer)) {
                 credit(world, Holder::from(*buyer), a);
             }
+            if let Some((org, q)) = world
+                .share_escrow
+                .remove(&crate::world::EscrowKey::Offer(*offer))
+                && let Some(h) = crate::shares::holder_of(*buyer, org)
+            {
+                move_shares(world, org, None, Some(h), q);
+            }
             let paid = match price {
                 crate::world::Price::Money(m) => Asset::Money(*m),
                 crate::world::Price::Good(g, q) => Asset::Good(*g, *q),
@@ -275,12 +286,21 @@ pub fn apply(world: &mut World, event: &Event) {
             world.offers.remove(offer);
         }
         Event::SaleCancelled { offer } => {
-            if let (Some(a), Some(o)) = (
+            let by = world.offers.get(offer).map(|o| o.by);
+            if let (Some(a), Some(by)) = (
                 world.escrow.remove(&crate::world::EscrowKey::Offer(*offer)),
-                world.offers.get(offer),
+                by,
             ) {
-                let by = o.by;
                 credit(world, Holder::from(by), a);
+            }
+            if let (Some((org, q)), Some(by)) = (
+                world
+                    .share_escrow
+                    .remove(&crate::world::EscrowKey::Offer(*offer)),
+                by,
+            ) && let Some(h) = crate::shares::holder_of(by, org)
+            {
+                move_shares(world, org, None, Some(h), q);
             }
             world.offers.remove(offer);
         }
@@ -310,7 +330,19 @@ pub fn apply(world: &mut World, event: &Event) {
             world.offers.remove(offer);
         }
         Event::OrderPlaced { order, escrow } => {
-            debit(world, Holder::from(order.owner), *escrow);
+            if let (crate::world::Side::Ask, crate::world::Instrument::Share(org)) =
+                (order.side, order.instrument)
+            {
+                if let Some(h) = crate::shares::holder_of(order.owner, org) {
+                    move_shares(world, org, Some(h), None, u64::from(order.qty));
+                }
+                world.share_escrow.insert(
+                    crate::world::EscrowKey::Order(order.id),
+                    (org, u64::from(order.qty)),
+                );
+            } else {
+                debit(world, Holder::from(order.owner), *escrow);
+            }
             world
                 .escrow
                 .insert(crate::world::EscrowKey::Order(order.id), *escrow);
@@ -332,6 +364,11 @@ pub fn apply(world: &mut World, event: &Event) {
                 .find_map(|b| b.orders.get(order).map(|o| o.owner));
             if let (Some(owner), Some(_)) = (owner, world.escrow.remove(&key)) {
                 credit(world, Holder::from(owner), *released);
+                if let Some((org, qty)) = world.share_escrow.remove(&key)
+                    && let Some(h) = crate::shares::holder_of(owner, org)
+                {
+                    move_shares(world, org, None, Some(h), qty);
+                }
             }
             for b in world.books.values_mut() {
                 b.orders.remove(order);
@@ -446,6 +483,33 @@ pub fn apply(world: &mut World, event: &Event) {
                 k.status = crate::world::ContractStatus::Ended;
             }
         }
+        Event::SharesIssued { org, qty } => {
+            if let Some(o) = world.orgs.get_mut(org)
+                && let crate::world::Ownership::Shares { issued, holdings } = &mut o.ownership
+            {
+                *issued += qty;
+                *holdings
+                    .entry(crate::world::ShareHolder::OrgSelf)
+                    .or_insert(0) += qty;
+            }
+        }
+        Event::SharesTransferred { org, from, to, qty } => {
+            move_shares(world, *org, Some(*from), Some(*to), *qty);
+        }
+        Event::DividendDeclared { org, per_share, .. } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.declared_dividend = Some(*per_share);
+            }
+        }
+        Event::DividendPaid {
+            org,
+            citizen,
+            amount,
+            ..
+        } => {
+            debit(world, Holder::Org(*org), Asset::Money(*amount));
+            credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+        }
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.last_seen_tick = *tick;
@@ -456,6 +520,9 @@ pub fn apply(world: &mut World, event: &Event) {
             ..
         } => {
             world.meta.low_population_cycles = *low_population_cycles;
+            for o in world.orgs.values_mut() {
+                o.declared_dividend = None;
+            }
         }
         Event::EpochEnded { reason, .. } => {
             world.meta.epoch_ended = Some(*reason);
@@ -564,18 +631,59 @@ fn apply_trade(
         world.escrow.remove(&buy_key);
     }
     let sell_key = EscrowKey::Order(sell_order);
-    if let (crate::world::Instrument::Good(g), Some(Asset::Good(_, q))) =
-        (instrument, world.escrow.get_mut(&sell_key))
-    {
-        *q = q.saturating_sub(qty);
-        if sell_done {
-            world.escrow.remove(&sell_key);
+    match instrument {
+        crate::world::Instrument::Good(g) => {
+            if let Some(Asset::Good(_, q)) = world.escrow.get_mut(&sell_key) {
+                *q = q.saturating_sub(qty);
+            }
+            if sell_done {
+                world.escrow.remove(&sell_key);
+            }
+            credit(world, Holder::from(buyer), Asset::Good(g, qty));
         }
-        credit(world, Holder::from(buyer), Asset::Good(g, qty));
+        crate::world::Instrument::Share(org) => {
+            if let Some((_, q)) = world.share_escrow.get_mut(&sell_key) {
+                *q = q.saturating_sub(u64::from(qty));
+            }
+            if sell_done {
+                world.share_escrow.remove(&sell_key);
+                world.escrow.remove(&sell_key);
+            }
+            if let Some(h) = crate::shares::holder_of(buyer, org) {
+                move_shares(world, org, None, Some(h), u64::from(qty));
+            }
+        }
     }
     credit(world, Holder::from(seller), Asset::Money(paid));
     if refund > Money::ZERO {
         credit(world, Holder::from(buyer), Asset::Money(refund));
+    }
+}
+
+/// Move shares between holders; `None` on either side is the escrow.
+fn move_shares(
+    world: &mut World,
+    org: crate::ids::OrgId,
+    from: Option<crate::world::ShareHolder>,
+    to: Option<crate::world::ShareHolder>,
+    qty: u64,
+) {
+    let Some(o) = world.orgs.get_mut(&org) else {
+        return;
+    };
+    let crate::world::Ownership::Shares { holdings, .. } = &mut o.ownership else {
+        return;
+    };
+    if let Some(f) = from
+        && let Some(h) = holdings.get_mut(&f)
+    {
+        *h = h.saturating_sub(qty);
+        if *h == 0 {
+            holdings.remove(&f);
+        }
+    }
+    if let Some(t) = to {
+        *holdings.entry(t).or_insert(0) += qty;
     }
 }
 
@@ -724,6 +832,7 @@ fn apply_org_founded(
             members: founder.into_iter().collect(),
             founded_tick: world.meta.tick,
             payment_missed: false,
+            declared_dividend: None,
         },
     );
     if world.next.org.0 <= org.0 {

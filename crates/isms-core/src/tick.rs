@@ -248,7 +248,9 @@ fn cycle_end_8a_payroll(b: &mut TickBuilder) {
 fn cycle_end_8b_tax_and_provision(_b: &mut TickBuilder) {}
 fn cycle_end_8c_credit_installments(_b: &mut TickBuilder) {}
 fn cycle_end_8d_rent(_b: &mut TickBuilder) {}
-fn cycle_end_8e_dividends(_b: &mut TickBuilder) {}
+fn cycle_end_8e_dividends(b: &mut TickBuilder) {
+    crate::shares::cycle_end_8e_dividends(b);
+}
 fn cycle_end_8f_depreciation(b: &mut TickBuilder) {
     crate::orgs::cycle_end_8f_depreciation(b);
 }

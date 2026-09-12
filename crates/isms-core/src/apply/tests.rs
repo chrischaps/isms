@@ -240,6 +240,10 @@ fn unimplemented_registry_matches_the_enum() {
         "EmploymentTerminated",
         "Paid",
         "PaymentMissed",
+        "SharesIssued",
+        "SharesTransferred",
+        "DividendDeclared",
+        "DividendPaid",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
