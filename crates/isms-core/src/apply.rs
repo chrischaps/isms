@@ -26,16 +26,12 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "SaleCancelled",
     "WantedPosted",
     "WantedRemoved",
-    "ManagerAppointed",
     "MemberAdmitted",
     "MemberLeft",
     "SharesIssued",
     "SharesTransferred",
     "DividendDeclared",
     "DividendPaid",
-    "MachinesInstalled",
-    "MachinesUninstalled",
-    "MachinesDepreciated",
     "DwellingBuilt",
     "DwellingTransferred",
     "DwellingOccupied",
@@ -196,6 +192,39 @@ pub fn apply(world: &mut World, event: &Event) {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.labor.allocations.retain(|a| a.workplace != *workplace);
             }
+        }
+        Event::ManagerAppointed { org, citizen } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.manager = *citizen;
+            }
+        }
+        Event::MachinesInstalled { workplace, qty } => {
+            if let Some(org) = world.workplaces.get(workplace).map(|w| w.org) {
+                debit(world, Holder::Org(org), Asset::Good(Good::Machines, *qty));
+                credit(
+                    world,
+                    Holder::Workplace(*workplace),
+                    Asset::Good(Good::Machines, *qty),
+                );
+            }
+        }
+        Event::MachinesUninstalled { workplace, qty } => {
+            if let Some(org) = world.workplaces.get(workplace).map(|w| w.org) {
+                debit(
+                    world,
+                    Holder::Workplace(*workplace),
+                    Asset::Good(Good::Machines, *qty),
+                );
+                credit(world, Holder::Org(org), Asset::Good(Good::Machines, *qty));
+            }
+        }
+        Event::MachinesDepreciated { workplace, qty, .. } => {
+            debit(
+                world,
+                Holder::Workplace(*workplace),
+                Asset::Good(Good::Machines, *qty),
+            );
+            LedgerMeta::add(&mut world.ledger_meta.depreciated, Good::Machines, *qty);
         }
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {

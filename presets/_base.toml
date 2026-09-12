@@ -61,6 +61,7 @@ mine = 6
 
 [params.founding]
 materials = 20                 # per workplace (GDD App. A); money cost is per preset
+initial_shares = 100           # [new tunable] S0.6b: shares a founded firm issues to its founder
 
 [params.recipes]
 # consumes = inputs per unit of output; base_rate = units per worker-hour at skill mult 1.0, no machines

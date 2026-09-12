@@ -235,7 +235,9 @@ fn cycle_end_8b_tax_and_provision(_b: &mut TickBuilder) {}
 fn cycle_end_8c_credit_installments(_b: &mut TickBuilder) {}
 fn cycle_end_8d_rent(_b: &mut TickBuilder) {}
 fn cycle_end_8e_dividends(_b: &mut TickBuilder) {}
-fn cycle_end_8f_depreciation(_b: &mut TickBuilder) {}
+fn cycle_end_8f_depreciation(b: &mut TickBuilder) {
+    crate::orgs::cycle_end_8f_depreciation(b);
+}
 fn cycle_end_8g_skill_decay(b: &mut TickBuilder) {
     crate::labor::cycle_end_8g_skill_and_effort(b);
 }

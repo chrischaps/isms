@@ -101,6 +101,8 @@ pub struct CapitalParams {
 #[serde(deny_unknown_fields)]
 pub struct FoundingParams {
     pub materials: u32,
+    /// Shares a founded firm issues to its founder (a unit choice; 100% either way).
+    pub initial_shares: u32,
 }
 
 /// What a workplace kind consumes and produces (TDD §5.7).

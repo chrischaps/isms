@@ -390,6 +390,27 @@ pub fn handle(
         Command::Join { handle, kind } => join(world, envelope, handle, *kind),
         Command::Seen => seen(world, envelope),
         Command::SetLabor { allocations } => crate::labor::set_labor(world, envelope, allocations),
+        Command::FoundOrg {
+            kind,
+            name,
+            first_workplace,
+        } => crate::orgs::found_org(world, envelope, *kind, name, *first_workplace),
+        Command::AddWorkplace { org, kind, slot } => {
+            crate::orgs::add_workplace(world, envelope, *org, *kind, *slot)
+        }
+        Command::AppointManager { org, citizen } => {
+            crate::orgs::appoint_manager(world, envelope, *org, *citizen)
+        }
+        Command::InstallMachines {
+            org,
+            workplace,
+            qty,
+        } => crate::orgs::install_machines(world, envelope, *org, *workplace, *qty),
+        Command::UninstallMachines {
+            org,
+            workplace,
+            qty,
+        } => crate::orgs::uninstall_machines(world, envelope, *org, *workplace, *qty),
         Command::EndEpoch { reason: _ } => end_epoch(world, envelope),
         other => Err(Reject::new(
             RejectCode::NotImplemented,
