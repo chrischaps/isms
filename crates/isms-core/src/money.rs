@@ -42,6 +42,13 @@ impl Money {
         Ok(Money(rounded as i64))
     }
 
+    /// This amount as a float number of credits (for config output and displays only).
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn as_credits_f64(self) -> f64 {
+        self.0 as f64 / CENTS as f64
+    }
+
     #[must_use]
     pub const fn is_negative(self) -> bool {
         self.0 < 0
@@ -113,28 +120,21 @@ impl fmt::Display for Money {
 }
 
 /// Serde helpers for config fields written in credits (`8.00`) but stored in cents.
+/// Integers in TOML/JSON arrive through serde's `f64` visitor, so one path serves
+/// every format; an untagged enum would need `deserialize_any`, which postcard lacks.
 pub mod credits {
     use super::Money;
     use serde::de::Error as _;
     use serde::{Deserialize, Deserializer, Serializer};
 
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum Raw {
-        Int(i64),
-        Float(f64),
-    }
-
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Money, D::Error> {
-        match Raw::deserialize(d)? {
-            Raw::Int(i) => Ok(Money::credits(i)),
-            Raw::Float(x) => Money::from_credits_f64(x).map_err(D::Error::custom),
-        }
+        let x = f64::deserialize(d)?;
+        Money::from_credits_f64(x).map_err(D::Error::custom)
     }
 
-    #[allow(clippy::trivially_copy_pass_by_ref, clippy::cast_precision_loss)]
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn serialize<S: Serializer>(m: &Money, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_f64(m.0 as f64 / super::CENTS as f64)
+        s.serialize_f64(m.as_credits_f64())
     }
 }
 
@@ -145,40 +145,24 @@ pub mod credits_map {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::collections::BTreeMap;
 
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum Raw {
-        Int(i64),
-        Float(f64),
-    }
-
     pub fn deserialize<'de, D, K>(d: D) -> Result<BTreeMap<K, Money>, D::Error>
     where
         D: Deserializer<'de>,
         K: Deserialize<'de> + Ord,
     {
-        let raw: BTreeMap<K, Raw> = BTreeMap::deserialize(d)?;
+        let raw: BTreeMap<K, f64> = BTreeMap::deserialize(d)?;
         raw.into_iter()
-            .map(|(k, v)| {
-                let m = match v {
-                    Raw::Int(i) => Money::credits(i),
-                    Raw::Float(x) => Money::from_credits_f64(x).map_err(D::Error::custom)?,
-                };
-                Ok((k, m))
-            })
+            .map(|(k, x)| Ok((k, Money::from_credits_f64(x).map_err(D::Error::custom)?)))
             .collect()
     }
 
-    #[allow(clippy::cast_precision_loss)]
     pub fn serialize<S, K>(map: &BTreeMap<K, Money>, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         K: Serialize + Ord,
     {
-        let as_credits: BTreeMap<&K, f64> = map
-            .iter()
-            .map(|(k, m)| (k, m.0 as f64 / super::CENTS as f64))
-            .collect();
+        let as_credits: BTreeMap<&K, f64> =
+            map.iter().map(|(k, m)| (k, m.as_credits_f64())).collect();
         as_credits.serialize(s)
     }
 }
@@ -203,5 +187,18 @@ mod tests {
         assert_eq!(Money(104_119).to_string(), "1041.19");
         assert_eq!(Money(-5).to_string(), "-0.05");
         assert_eq!(Money::ZERO.to_string(), "0.00");
+    }
+
+    #[test]
+    fn credits_round_trip_through_postcard_and_json() {
+        #[derive(Debug, PartialEq, Serialize, Deserialize)]
+        struct S(#[serde(with = "credits")] Money);
+        let s = S(Money(1234));
+        let bytes = postcard::to_allocvec(&s).unwrap();
+        assert_eq!(postcard::from_bytes::<S>(&bytes).unwrap(), s);
+        let json = serde_json::to_string(&s).unwrap();
+        assert_eq!(serde_json::from_str::<S>(&json).unwrap(), s);
+        let from_int: S = serde_json::from_str("1000").unwrap();
+        assert_eq!(from_int, S(Money::credits(1000)));
     }
 }

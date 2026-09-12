@@ -61,66 +61,51 @@ pub struct Policy {
     pub monitoring: MonitoringPolicy,
 
     // Commune (GDD §6.2)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub work_norm_hours: Option<u8>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub rationing: Option<Rationing>,
     // Commune and Directorate
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub materials_split: Option<MaterialsSplit>,
 
     // Directorate (GDD §6.3)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub plan_bonus_fraction: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub ratchet: Option<bool>,
-    #[serde(
-        default,
-        rename = "price_list_credits",
-        skip_serializing_if = "Option::is_none",
-        with = "opt_credits_map"
-    )]
+    #[serde(default, rename = "price_list_credits", with = "opt_credits_map")]
     pub price_list: Option<BTreeMap<Good, Money>>,
-    #[serde(
-        default,
-        rename = "wage_grades_credits",
-        skip_serializing_if = "Option::is_none",
-        with = "opt_credits_vec"
-    )]
+    #[serde(default, rename = "wage_grades_credits", with = "opt_credits_vec")]
     pub wage_grades: Option<Vec<Money>>,
     // Directorate and Commonwealth
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub minimum_food_ration: Option<u32>,
 
     // Republic (GDD §6.4)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub tax_rate: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub tax_brackets: Option<Vec<TaxBracket>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub need_floor_food: Option<u32>,
-    #[serde(
-        default,
-        rename = "minimum_wage_credits",
-        skip_serializing_if = "Option::is_none",
-        with = "opt_credits"
-    )]
+    #[serde(default, rename = "minimum_wage_credits", with = "opt_credits")]
     pub minimum_wage: Option<Money>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub public_dwellings: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub public_bank: Option<bool>,
 
     // Commonwealth (GDD §6.5)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub capital_levy: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub lending_rule: Option<LendingRule>,
 }
 
 mod opt_credits {
     use crate::money::{Money, credits};
-    use serde::{Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Money>, D::Error> {
         #[derive(Deserialize)]
@@ -129,8 +114,10 @@ mod opt_credits {
     }
 
     pub fn serialize<S: Serializer>(v: &Option<Money>, s: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct W<'a>(#[serde(with = "credits")] &'a Money);
         match v {
-            Some(m) => credits::serialize(m, s),
+            Some(m) => s.serialize_some(&W(m)),
             None => s.serialize_none(),
         }
     }
@@ -149,7 +136,7 @@ mod opt_credits_vec {
 
     pub fn serialize<S: Serializer>(v: &Option<Vec<Money>>, s: S) -> Result<S::Ok, S::Error> {
         match v {
-            Some(v) => v.iter().map(|m| W(*m)).collect::<Vec<_>>().serialize(s),
+            Some(v) => s.serialize_some(&v.iter().map(|m| W(*m)).collect::<Vec<_>>()),
             None => s.serialize_none(),
         }
     }
@@ -159,7 +146,7 @@ mod opt_credits_map {
     use super::credits_map;
     use crate::kinds::Good;
     use crate::money::Money;
-    use serde::{Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::collections::BTreeMap;
 
     pub fn deserialize<'de, D: Deserializer<'de>>(
@@ -174,8 +161,10 @@ mod opt_credits_map {
         v: &Option<BTreeMap<Good, Money>>,
         s: S,
     ) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct W<'a>(#[serde(with = "credits_map")] &'a BTreeMap<Good, Money>);
         match v {
-            Some(m) => credits_map::serialize(m, s),
+            Some(m) => s.serialize_some(&W(m)),
             None => s.serialize_none(),
         }
     }
