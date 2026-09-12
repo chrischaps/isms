@@ -33,3 +33,11 @@ Provisional answers added to QUESTIONS.md: none new (ADRs cover the structural o
 New tunables: none.
 Next session should know: postcard cannot deserialize `#[serde(untagged)]`, `#[serde(flatten)]`, or fields with `skip_serializing_if`; none may appear anywhere in `World` or `Event`. The credits helpers now deserialize plain `f64`. `apply::credit`/`debit` are `pub(crate)` movers for later cards; escrow holders are keyed in `world.escrow` and moved by the market/contract events (S0.7/S0.8). S0.3b builds `test_support` (WorldBuilder that emits events, Harness with fold==live, proptest strategies, golden helper).
 make check: green · new tests: 9 · sim-check: n/a
+
+## S0.3b — Test harness — 2026-09-12 — PR #5
+Built: `isms_core::test_support` (feature `test-support`, also on under `cfg(test)`; the crate dev-depends on itself with the feature so integration tests see it): `WorldBuilder` (humans/householders/pantry/balance_extra/with_preset/seed; builds only by emitting events), `Harness` (apply/apply_all with conservation + fold==live after every step, `check_every_step` toggle), `fold`/`assert_fold_equals_live` (JSON field diff on mismatch), `check_golden` (postcard bytes + .jsonl twin, `UPDATE_GOLDEN=1`), `assert_deterministic`, and `strategies` (proptest `Step`s named by index and fraction, resolved against the live world so every generated event is well-formed; `arb_scenario`, `run_scenario`). `tests/harness.rs` holds the S0.3 gate: builder/fold/golden/determinism tests, `apply` never panics + conserves (Freeport and Commune), meters and balances in range. First golden `s0_3b_builder` committed.
+Deviations from TDD: none. `Harness::cmd`/`tick` arrive with `handle`/`tick` in S0.4.
+Provisional answers added to QUESTIONS.md: none.
+New tunables: none.
+Next session should know: the crate's `Step` enum is the place to add command-shaped steps once `handle` exists; keep every step resolvable (never generate an id or amount that could be invalid). S0.3 done gate complete.
+make check: green · new tests: 9 (+3 proptests) · sim-check: n/a
