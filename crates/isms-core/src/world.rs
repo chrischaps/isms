@@ -223,6 +223,8 @@ pub struct Skill {
     pub level: f64,
     /// Accumulated tick-hours in this family (24 per real hour).
     pub tick_hours: u64,
+    /// Tick-hours worked this cycle; reset at step 8g.
+    pub tick_hours_this_cycle: u32,
     pub idle_cycles: u32,
 }
 
@@ -360,11 +362,27 @@ pub struct Workplace {
     pub target: Option<f64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Assignment {
     pub hours: u8,
     pub effort: Effort,
     pub contract: Option<ContractId>,
+    /// This cycle's tick-hours and attributed output, for payroll (S0.10).
+    pub cycle_tick_hours: u32,
+    pub cycle_attributed: f64,
+}
+
+impl Assignment {
+    #[must_use]
+    pub const fn new(contract: Option<ContractId>) -> Self {
+        Assignment {
+            hours: 0,
+            effort: Effort::Normal,
+            contract,
+            cycle_tick_hours: 0,
+            cycle_attributed: 0.0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

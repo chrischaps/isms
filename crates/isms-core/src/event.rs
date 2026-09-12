@@ -166,6 +166,17 @@ pub enum Event {
         slot: Option<crate::ids::SlotId>,
         materials_consumed: u32,
     },
+    /// A citizen holds a position at a workplace (by contract, or by assignment
+    /// in assigned-labor systems). `SetLabor` requires it (Q16).
+    Assigned {
+        workplace: WorkplaceId,
+        citizen: CitizenId,
+        contract: Option<ContractId>,
+    },
+    Unassigned {
+        workplace: WorkplaceId,
+        citizen: CitizenId,
+    },
     ManagerAppointed {
         org: OrgId,
         citizen: Option<CitizenId>,
@@ -400,6 +411,14 @@ pub struct WorkplaceDelta {
     pub machine_wear: f64,
     pub output_remainder: f64,
     pub cycle_output: f64,
+    /// This cycle's accumulators per assigned worker.
+    pub workers: BTreeMap<CitizenId, WorkerCycle>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorkerCycle {
+    pub tick_hours: u32,
+    pub attributed: f64,
 }
 
 /// Per-cycle metrics snapshot (TDD §13). Filled in by S0.13.
@@ -439,6 +458,8 @@ impl Event {
             Event::WantedRemoved { .. } => "WantedRemoved",
             Event::OrgFounded { .. } => "OrgFounded",
             Event::WorkplaceAdded { .. } => "WorkplaceAdded",
+            Event::Assigned { .. } => "Assigned",
+            Event::Unassigned { .. } => "Unassigned",
             Event::ManagerAppointed { .. } => "ManagerAppointed",
             Event::MemberAdmitted { .. } => "MemberAdmitted",
             Event::MemberLeft { .. } => "MemberLeft",
@@ -505,6 +526,8 @@ impl Event {
         "WantedRemoved",
         "OrgFounded",
         "WorkplaceAdded",
+        "Assigned",
+        "Unassigned",
         "ManagerAppointed",
         "MemberAdmitted",
         "MemberLeft",
