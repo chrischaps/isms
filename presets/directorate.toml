@@ -1,0 +1,33 @@
+name = "directorate"
+display = "The Directorate"
+gdd_section = "6.3"
+
+[constitution]
+ownership = "collective"
+pricing = "administered"
+compensation = "scale"
+labor = "assigned"
+capital = "none"
+redistribution = "provision"
+monitoring = "medium"
+governance = "committee"
+contracts = ["sale_direct", "lease"]
+org_kinds = ["state_enterprise", "association"]
+communication = ["square", "org", "dm", "notice_board", "chronicle"]
+offices = [{ kind = "planning_committee", seats = 3, term_cycles = 10, consecutive = true, recall = "two_thirds" }]
+
+[policy]
+monitoring = "inherit"
+plan_bonus_fraction = 0.25
+ratchet = true
+price_list_credits = { grain = 0.60, ore = 0.90, materials = 2.00, food = 1.20, wares = 3.00 }
+wage_grades_credits = [6.00, 6.75, 7.50, 8.25, 9.00]   # by skill band of 20
+minimum_food_ration = 24
+materials_split = { wares = 0.5, machines = 0.3, dwellings = 0.2 }
+
+[params]
+seeded_workplaces = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
+initial_dwellings = 40
+
+[scoreboard]
+primary = ["grade", "plan_fulfillment", "honors"]

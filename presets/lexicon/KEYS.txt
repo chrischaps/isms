@@ -1,0 +1,15 @@
+# Every preset lexicon must define every key listed here (tested in S0.2b).
+# GDD section 15 rows:
+compensation
+job
+home_title
+society_stat
+# One per Home widget (wireframes; absent widgets still need a label for the API):
+balance
+pantry
+dwelling
+store
+plan
+scoreboard
+chronicle
+work_screen

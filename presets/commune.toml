@@ -1,0 +1,30 @@
+name = "commune"
+display = "The Commune"
+gdd_section = "6.2"
+
+[constitution]
+ownership = "collective"
+pricing = "none"
+compensation = "need"
+labor = "norm"
+capital = "none"
+redistribution = "total"
+monitoring = "low"
+governance = "direct"
+contracts = ["sale_direct", "pledge"]
+org_kinds = ["collective", "association"]
+communication = ["square", "assembly", "org", "dm", "notice_board", "chronicle"]
+offices = [{ kind = "coordinator", seats = 3, term_cycles = 5, consecutive = false, recall = "majority" }]
+
+[policy]
+monitoring = "inherit"
+work_norm_hours = 6
+rationing = "need_first"
+materials_split = { wares = 0.5, machines = 0.3, dwellings = 0.2 }
+
+[params]
+seeded_workplaces = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
+initial_dwellings = 40
+
+[scoreboard]
+primary = ["contribution_record", "honors", "need_fulfillment"]

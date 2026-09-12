@@ -1,0 +1,3 @@
+# Engine code must not hide tunables in literals; this only widens the default so
+# tests can use small obvious numbers. Any tunable belongs in presets/*.toml.
+too-many-arguments-threshold = 8
