@@ -16,6 +16,7 @@ pub mod kinds;
 pub mod ledger;
 pub mod lexicon;
 pub mod money;
+pub mod needs;
 pub mod params;
 pub mod policy;
 pub mod rules;

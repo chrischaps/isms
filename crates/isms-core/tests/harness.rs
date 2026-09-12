@@ -110,7 +110,7 @@ proptest! {
         let mut h = WorldBuilder::new("freeport").humans(3).build();
         run_scenario(&mut h, &steps);
         for c in h.world.citizens.values() {
-            prop_assert!(c.needs.food <= 100);
+            prop_assert!(c.needs.food <= isms_core::needs::FULL);
             prop_assert!(!c.household.balance.is_negative());
         }
     }

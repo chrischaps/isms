@@ -205,6 +205,8 @@ pub struct LaborState {
     pub fatigue_debt: u8,
     pub consecutive_high_effort_cycles: u8,
     pub skill: BTreeMap<JobFamily, Skill>,
+    /// Output multiplier for this tick, computed from needs at the end of the last one.
+    pub output_mult: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -226,9 +228,10 @@ pub struct Skill {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Needs {
-    pub food: u8,
-    pub shelter: u8,
-    pub comfort: u8,
+    /// Meters in tenths of a point, 0..=1000 (see `needs::TENTHS`).
+    pub food: u16,
+    pub shelter: u16,
+    pub comfort: u16,
     /// Ticks so far this cycle with Food below the hardship threshold (Q13).
     pub low_food_ticks_this_cycle: u8,
     pub consecutive_hardship_cycles: u32,
