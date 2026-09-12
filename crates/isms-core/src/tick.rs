@@ -242,7 +242,9 @@ fn phase_8_cycle_end(b: &mut TickBuilder) {
     cycle_end_8m_aggregates(b);
 }
 
-fn cycle_end_8a_payroll(_b: &mut TickBuilder) {}
+fn cycle_end_8a_payroll(b: &mut TickBuilder) {
+    crate::employment::cycle_end_8a_payroll(b);
+}
 fn cycle_end_8b_tax_and_provision(_b: &mut TickBuilder) {}
 fn cycle_end_8c_credit_installments(_b: &mut TickBuilder) {}
 fn cycle_end_8d_rent(_b: &mut TickBuilder) {}
