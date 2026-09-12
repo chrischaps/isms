@@ -21,6 +21,7 @@ pub mod money;
 pub mod needs;
 pub mod orgs;
 pub mod params;
+pub mod plan;
 pub mod policy;
 pub mod rules;
 #[cfg(any(test, feature = "test-support"))]

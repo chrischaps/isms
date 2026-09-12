@@ -22,7 +22,10 @@ use isms_core::world::Allocation;
 
 fn one_mine(machines: u32, workers: u32) -> Harness {
     let mut b = WorldBuilder::new("freeport")
-        .with_preset(|p| p.params.population.collapse_enabled = false)
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.dormancy_absent_cycles = 1000; // no presence in these fixtures
+        })
         .humans(workers)
         .org(OrgKind::Firm, "Iron & Sons")
         .workplace(WorkplaceKind::Mine, 0, machines);
@@ -109,7 +112,10 @@ fn a_mine_produces_base_rate_times_hours() {
 fn output_scales_with_effort_machines_and_needs() {
     // High effort x1.3 and 2 machines per worker x1.549.
     let mut h = WorldBuilder::new("freeport")
-        .with_preset(|p| p.params.population.collapse_enabled = false)
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.dormancy_absent_cycles = 1000; // no presence in these fixtures
+        })
         .humans(1)
         .pantry(0, Good::Food, 48)
         .org(OrgKind::Firm, "x")
@@ -136,7 +142,10 @@ fn output_scales_with_effort_machines_and_needs() {
 fn a_mill_with_five_grain_makes_five_food_and_no_more() {
     // Two millers: 15 * 16/24 = 10 Food of labor, but only 5 Grain.
     let mut h = WorldBuilder::new("freeport")
-        .with_preset(|p| p.params.population.collapse_enabled = false)
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.dormancy_absent_cycles = 1000; // no presence in these fixtures
+        })
         .humans(2)
         .org(OrgKind::Firm, "Millers' Row")
         .workplace(WorkplaceKind::Mill, 0, 0)
@@ -171,7 +180,10 @@ fn a_mill_with_five_grain_makes_five_food_and_no_more() {
 #[test]
 fn farm_to_mill_chain_conserves_over_three_cycles() {
     let mut h = WorldBuilder::new("freeport")
-        .with_preset(|p| p.params.population.collapse_enabled = false)
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.dormancy_absent_cycles = 1000; // no presence in these fixtures
+        })
         .humans(2)
         .pantry(0, Good::Food, 48)
         .pantry(1, Good::Food, 48)
@@ -199,6 +211,7 @@ fn attribution_noise_has_the_stated_mean_and_sigma() {
     let mut h = WorldBuilder::new("freeport")
         .with_preset(|p| {
             p.params.population.collapse_enabled = false;
+            p.params.population.dormancy_absent_cycles = 1000;
             p.constitution.monitoring = Monitoring::Low; // sigma 0.6
         })
         .humans(12)
@@ -279,7 +292,10 @@ fn skill_decays_one_point_per_ten_idle_cycles() {
 #[test]
 fn high_effort_for_two_cycles_carries_no_debt_and_three_carries_one_hour() {
     let mut h = WorldBuilder::new("freeport")
-        .with_preset(|p| p.params.population.collapse_enabled = false)
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.dormancy_absent_cycles = 1000; // no presence in these fixtures
+        })
         .humans(1)
         .pantry(0, Good::Food, 48 * 4)
         .org(OrgKind::Firm, "x")

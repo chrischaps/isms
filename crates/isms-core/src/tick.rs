@@ -193,7 +193,8 @@ fn phase_1_open(_b: &mut TickBuilder) {}
 
 /// 2. Standing plans, in shuffled order (S0.9 fills the executor).
 fn phase_2_standing_plans(b: &mut TickBuilder) {
-    let _order = b.shuffled_active_citizens();
+    let order = b.shuffled_active_citizens();
+    crate::plan::phase_2_standing_plans(b, &order);
 }
 
 /// 3. Labor hours and multipliers (S0.6).
@@ -257,7 +258,9 @@ fn cycle_end_8h_hardship_and_fatigue(b: &mut TickBuilder) {
 }
 fn cycle_end_8i_norms_ledger(_b: &mut TickBuilder) {}
 fn cycle_end_8j_votes_and_vacancies(_b: &mut TickBuilder) {}
-fn cycle_end_8k_dormancy(_b: &mut TickBuilder) {}
+fn cycle_end_8k_dormancy(b: &mut TickBuilder) {
+    crate::plan::cycle_end_8k_dormancy(b);
+}
 fn cycle_end_8l_householder_fill(_b: &mut TickBuilder) {}
 
 /// 8m. Per-cycle aggregates and the collapse counter (S0.13 fills the metrics).
