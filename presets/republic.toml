@@ -26,7 +26,7 @@ public_dwellings = 0
 public_bank = false
 
 [params]
-legacy_firms = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
+seeded_workplaces = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
 initial_dwellings = 40
 
 [scoreboard]
