@@ -233,10 +233,8 @@ fn validate(preset: &Preset) -> Result<(), ConfigError> {
     {
         return fail("governance=none requires redistribution=none and pricing != administered");
     }
-    if let Some(split) = preset.policy.materials_split
-        && (split.wares + split.machines + split.dwellings - 1.0).abs() > 1e-9
-    {
-        return fail("materials_split must sum to 1");
+    if let Err(reason) = preset.policy.validate_against(c) {
+        return fail(&reason);
     }
     Ok(())
 }

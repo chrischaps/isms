@@ -47,7 +47,7 @@ pub fn society_dwelling_of(world: &World, citizen: crate::ids::CitizenId) -> Opt
 }
 
 /// Step 8b (collective systems): every active unhoused citizen is assigned a
-/// free society dwelling, in citizen order (GDD 6.2, 6.3; Q50).
+/// free society dwelling, in citizen order (GDD 6.2, 6.3; Q51).
 pub fn cycle_end_8b_assign_dwellings(b: &mut TickBuilder) {
     let unhoused: Vec<crate::ids::CitizenId> = b
         .world

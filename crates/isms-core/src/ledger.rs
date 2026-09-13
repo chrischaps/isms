@@ -112,7 +112,7 @@ fn add_goods(goods: &mut BTreeMap<Good, i128>, map: &BTreeMap<Good, u32>) {
     }
 }
 
-/// Where a society-owned org's goods live (S0.15, Q57): the Common Store in
+/// Where a society-owned org's goods live (S0.15, Q48): the Common Store in
 /// moneyless societies, the state stock in administered ones, else the org's
 /// own inventory. Production, inputs, machines and building materials all go
 /// through this, so the Freeport paths are unchanged.
@@ -131,7 +131,7 @@ pub fn stock_holder(world: &World, org: OrgId) -> Holder {
     }
 }
 
-/// The purse an org pays from (Q60): the state's till for state enterprises,
+/// The purse an org pays from (S0.16a): the state's till for state enterprises,
 /// else the org's treasury.
 #[must_use]
 pub fn payer_of(world: &World, org: OrgId) -> Holder {

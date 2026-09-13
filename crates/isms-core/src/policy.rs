@@ -103,6 +103,82 @@ pub struct Policy {
     pub lending_rule: Option<LendingRule>,
 }
 
+impl Policy {
+    /// Whether every field set is one the constitution's system uses, and the
+    /// values are well-formed (S0.15b). Config loading and `SetPolicy` both
+    /// call this, so a society can never hold a policy its axes do not have.
+    pub fn validate_against(&self, c: &crate::constitution::Constitution) -> Result<(), String> {
+        use crate::constitution::{CapitalMode, LaborMode, Ownership, Pricing, Redistribution};
+        let only = |set: bool, ok: bool, what: &str| {
+            if set && !ok {
+                Err(format!("{what} is not a policy of this constitution"))
+            } else {
+                Ok(())
+            }
+        };
+        only(
+            self.rationing.is_some(),
+            c.pricing == Pricing::None,
+            "rationing",
+        )?;
+        only(
+            self.work_norm_hours.is_some(),
+            c.labor == LaborMode::Norm,
+            "work_norm_hours",
+        )?;
+        only(
+            self.materials_split.is_some(),
+            c.ownership == Ownership::Collective,
+            "materials_split",
+        )?;
+        let administered = c.pricing == Pricing::Administered;
+        only(self.price_list.is_some(), administered, "price_list")?;
+        only(self.wage_grades.is_some(), administered, "wage_grades")?;
+        only(
+            self.plan_bonus_fraction.is_some(),
+            administered,
+            "plan_bonus_fraction",
+        )?;
+        only(self.ratchet.is_some(), administered, "ratchet")?;
+        let tax = c.redistribution == Redistribution::TaxTransfer;
+        only(self.tax_rate.is_some(), tax, "tax_rate")?;
+        only(self.tax_brackets.is_some(), tax, "tax_brackets")?;
+        only(self.need_floor_food.is_some(), tax, "need_floor_food")?;
+        only(self.minimum_wage.is_some(), tax, "minimum_wage")?;
+        only(self.public_dwellings.is_some(), tax, "public_dwellings")?;
+        only(self.public_bank.is_some(), tax, "public_bank")?;
+        let bank = c.capital == CapitalMode::PublicBank;
+        only(self.capital_levy.is_some(), bank, "capital_levy")?;
+        only(self.lending_rule.is_some(), bank, "lending_rule")?;
+        only(
+            self.minimum_food_ration.is_some(),
+            c.redistribution == Redistribution::Provision,
+            "minimum_food_ration",
+        )?;
+        if let Some(split) = self.materials_split
+            && (split.wares + split.machines + split.dwellings - 1.0).abs() > 1e-9
+        {
+            return Err("materials_split must sum to 1".into());
+        }
+        if let Some(g) = &self.wage_grades
+            && (g.is_empty() || g.windows(2).any(|w| w[0] > w[1]))
+        {
+            return Err("wage_grades must be non-empty and ascending".into());
+        }
+        if self.tax_rate.is_some_and(|r| !(0.0..=1.0).contains(&r))
+            || self
+                .tax_brackets
+                .as_ref()
+                .is_some_and(|b| b.iter().any(|x| !(0.0..=1.0).contains(&x.rate)))
+            || self.capital_levy.is_some_and(|r| !(0.0..=1.0).contains(&r))
+            || self.plan_bonus_fraction.is_some_and(|r| r < 0.0)
+        {
+            return Err("rates must lie in 0..=1".into());
+        }
+        Ok(())
+    }
+}
+
 mod opt_credits {
     use crate::money::{Money, credits};
     use serde::{Deserialize, Deserializer, Serialize, Serializer};

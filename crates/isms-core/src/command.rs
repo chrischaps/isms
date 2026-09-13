@@ -209,6 +209,8 @@ pub enum Command {
         hours: Option<u8>,
         goods: Option<(Good, u32)>,
         term_cycles: u32,
+        /// The org pledged to; `None` pledges to the assembly (Q57).
+        to: Option<OrgId>,
     },
     // authority
     SetPolicy {
@@ -218,7 +220,7 @@ pub enum Command {
     EndEpoch {
         reason: String,
     },
-    // --- Phase 0b (appended, Q64) ---------------------------------------------
+    // --- Phase 0b (appended, Q50) ---------------------------------------------
     /// Draw from the Common Store this tick, within the need entitlement (S0.15).
     RequestStoreDraw {
         good: Good,
@@ -534,10 +536,13 @@ pub fn handle(
         Command::RequestStoreDraw { good, qty } => {
             crate::store::request_store_draw(world, envelope, *good, *qty)
         }
-        other => Err(Reject::new(
-            RejectCode::NotImplemented,
-            format!("{} is not implemented yet", other.kind()),
-        )),
+        Command::Pledge {
+            hours,
+            goods,
+            term_cycles,
+            to,
+        } => crate::norms::pledge(world, envelope, *hours, *goods, *term_cycles, *to),
+        Command::SetPolicy { policy } => set_policy(world, envelope, policy),
     }
 }
 
@@ -642,6 +647,29 @@ fn seen(world: &World, envelope: &Envelope<Command>) -> Result<Vec<Event>, Rejec
         events.push(Event::CitizenReturned { citizen: id });
     }
     Ok(events)
+}
+
+/// `SetPolicy`: a full replacement of the society's policy by `System` (the
+/// sim's stand-in for the assembly, committee or legislature until Phase 2
+/// governance lands; Q56), validated against the constitution.
+fn set_policy(
+    world: &World,
+    envelope: &Envelope<Command>,
+    policy: &Policy,
+) -> Result<Vec<Event>, Reject> {
+    if envelope.actor != Actor::System {
+        return Err(Reject::new(
+            RejectCode::NotAuthorized,
+            "policy is set by the society's authority (System in Phase 0)",
+        ));
+    }
+    policy
+        .validate_against(&world.constitution)
+        .map_err(|reason| Reject::new(RejectCode::NotInThisSociety, reason))?;
+    Ok(vec![Event::PolicyChanged {
+        policy: Box::new(policy.clone()),
+        by: envelope.actor,
+    }])
 }
 
 fn end_epoch(world: &World, envelope: &Envelope<Command>) -> Result<Vec<Event>, Reject> {

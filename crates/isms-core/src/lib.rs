@@ -24,6 +24,7 @@ pub mod market;
 pub mod metrics;
 pub mod money;
 pub mod needs;
+pub mod norms;
 pub mod orgs;
 pub mod params;
 pub mod plan;

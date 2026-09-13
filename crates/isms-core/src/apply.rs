@@ -15,7 +15,7 @@ use crate::world::{
 use std::collections::BTreeMap;
 
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
-pub const UNIMPLEMENTED: &[&str] = &["PolicyChanged"];
+pub const UNIMPLEMENTED: &[&str] = &[];
 
 /// Fold one event into the world.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)] // a flat dispatcher
@@ -947,12 +947,54 @@ pub fn apply(world: &mut World, event: &Event) {
                 world.ledger_meta.burned_money += *money;
             }
         }
-        Event::PolicyChanged { .. } => {
-            debug_assert!(
-                UNIMPLEMENTED.contains(&event.kind()),
-                "apply: {} is neither implemented nor listed as unimplemented",
-                event.kind()
+        Event::PolicyChanged { policy, .. } => {
+            world.policy = (**policy).clone();
+        }
+        Event::Pledged {
+            contract,
+            citizen,
+            to,
+            hours,
+            goods,
+            term_cycles,
+        } => {
+            world.contracts.insert(
+                *contract,
+                crate::world::Contract {
+                    id: *contract,
+                    parties: crate::norms::pledge_parties(*citizen, *to),
+                    created_tick: world.meta.tick,
+                    term_cycles: Some(*term_cycles),
+                    status: crate::world::ContractStatus::Active,
+                    body: crate::world::ContractBody::Pledge {
+                        hours: *hours,
+                        goods: *goods,
+                    },
+                },
             );
+            if world.next.contract.0 <= contract.0 {
+                world.next.contract = contract.next();
+            }
+        }
+        Event::PledgeClosed { contract, .. } => {
+            if let Some(k) = world.contracts.get_mut(contract) {
+                k.status = crate::world::ContractStatus::Ended;
+            }
+        }
+        Event::NormsLedgerClosed { entries, .. } => {
+            for e in entries {
+                if let Some(c) = world.citizens.get_mut(&e.citizen) {
+                    let r = &mut c.contribution;
+                    r.cycles += 1;
+                    r.tick_hours_total += u64::from(e.tick_hours);
+                    r.attributed_total += e.attributed;
+                    if e.met_norm {
+                        r.norm_met_cycles += 1;
+                    }
+                    r.last_cycle_tick_hours = e.tick_hours;
+                    r.last_cycle_attributed = e.attributed;
+                }
+            }
         }
     }
 }
@@ -1162,6 +1204,7 @@ fn reset_material_state(world: &mut World) {
         c.last_cycle_wages = Money::ZERO;
         c.cycle_wages = Money::ZERO;
         c.cycle = crate::metrics::CitizenCycle::default();
+        c.contribution = crate::world::ContributionRecord::default();
         world.ledger_meta.minted += endowment;
     }
 }
@@ -1217,6 +1260,7 @@ fn join(
         last_cycle_wages: Money::ZERO,
         cycle_wages: Money::ZERO,
         cycle: crate::metrics::CitizenCycle::default(),
+        contribution: crate::world::ContributionRecord::default(),
     };
     world.ledger_meta.minted += endowment;
     if let Some(d) = dwelling

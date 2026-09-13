@@ -8,7 +8,7 @@ use crate::command::{Command, Envelope, Reject, RejectCode, acting_citizen};
 use crate::event::{Event, WorkerOutput};
 use crate::explain::{Explain, RuleId};
 use crate::ids::{CitizenId, WorkplaceId};
-use crate::kinds::{Effort, Good, JobFamily};
+use crate::kinds::{Effort, Good, JobFamily, WorkplaceKind};
 use crate::params::Params;
 use crate::tick::TickBuilder;
 use crate::world::{Allocation, Skill, World};
@@ -104,6 +104,27 @@ pub fn phase_4_production(b: &mut TickBuilder, labor: &BTreeMap<WorkplaceId, Vec
     let sigma = b.rules.capabilities.monitoring_sigma;
     let noise = (sigma > 0.0).then(|| Normal::new(0.0, sigma).expect("sigma is finite"));
     let ticks_per_cycle = params.time.ticks_per_cycle;
+    // The Materials split (GDD 6.2, 6.3; Q59): where the society's stock feeds
+    // the three Materials sinks, each sink kind may consume at most its share
+    // of the Materials on hand at the start of the tick.
+    let mut split_allowance: BTreeMap<(crate::ledger::Holder, WorkplaceKind), u32> =
+        BTreeMap::new();
+    if let Some(split) = b.world.policy.materials_split {
+        for holder in [
+            crate::ledger::Holder::Store,
+            crate::ledger::Holder::StateStock,
+        ] {
+            let on_hand = f64::from(crate::ledger::goods_at(&b.world, holder, Good::Materials));
+            for (kind, frac) in [
+                (WorkplaceKind::Workshop, split.wares),
+                (WorkplaceKind::MachineShop, split.machines),
+                (WorkplaceKind::Builder, split.dwellings),
+            ] {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                split_allowance.insert((holder, kind), (on_hand * frac).floor() as u32);
+            }
+        }
+    }
     for (wp_id, workers) in labor {
         let Some(wp) = b.world.workplaces.get(wp_id) else {
             continue;
@@ -161,6 +182,16 @@ pub fn phase_4_production(b: &mut TickBuilder, labor: &BTreeMap<WorkplaceId, Vec
         if units > possible {
             units = possible;
             remainder = 0.0;
+        }
+        if let Some(per) = recipe.consumes.get(&Good::Materials)
+            && let Some(allow) = split_allowance.get_mut(&(stock, wp.kind))
+        {
+            let cap = *allow / *per;
+            if units > cap {
+                units = cap;
+                remainder = 0.0;
+            }
+            *allow -= per * units;
         }
         let inputs_consumed: BTreeMap<Good, u32> = recipe
             .consumes
@@ -259,7 +290,12 @@ pub fn cycle_end_8g_skill_and_effort(b: &mut TickBuilder) {
             0
         };
     }
-    for wp in b.world.workplaces.values_mut() {
+}
+
+/// Reset the per-cycle workplace accumulators. Called at step 8m (after the
+/// norms ledger at 8i has read them; Q58); the deltas carry the reset.
+pub fn reset_cycle_accumulators(world: &mut crate::world::World) {
+    for wp in world.workplaces.values_mut() {
         wp.cycle_output = 0.0;
         for a in wp.workers.values_mut() {
             a.cycle_tick_hours = 0;
