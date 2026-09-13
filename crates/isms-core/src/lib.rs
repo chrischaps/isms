@@ -12,6 +12,7 @@ pub mod constitution;
 pub mod employment;
 pub mod event;
 pub mod explain;
+pub mod housing;
 pub mod ids;
 pub mod kinds;
 pub mod labor;

@@ -19,19 +19,11 @@ pub const UNIMPLEMENTED: &[&str] = &[
     "HouseholderEmigrated",
     "MemberAdmitted",
     "MemberLeft",
-    "DwellingBuilt",
-    "DwellingTransferred",
-    "DwellingOccupied",
     "CreditOffered",
     "CreditAccepted",
     "CreditInstallment",
     "CreditRepaid",
     "CreditDefaulted",
-    "LeaseOffered",
-    "LeaseAccepted",
-    "RentPaid",
-    "RentMissed",
-    "LeaseEnded",
     "Drew",
     "PolicyChanged",
 ];
@@ -264,8 +256,8 @@ pub fn apply(world: &mut World, event: &Event) {
             offer,
             buyer,
             seller,
+            asset,
             price,
-            ..
         } => {
             if let Some(a) = world.escrow.remove(&crate::world::EscrowKey::Offer(*offer)) {
                 credit(world, Holder::from(*buyer), a);
@@ -276,6 +268,11 @@ pub fn apply(world: &mut World, event: &Event) {
                 && let Some(h) = crate::shares::holder_of(*buyer, org)
             {
                 move_shares(world, org, None, Some(h), q);
+            }
+            if let crate::world::SaleAsset::Dwelling(d) = asset
+                && let Some(dw) = world.dwellings.get_mut(d)
+            {
+                dw.owner = crate::housing::owner_of(*buyer);
             }
             let paid = match price {
                 crate::world::Price::Money(m) => Asset::Money(*m),
@@ -509,6 +506,149 @@ pub fn apply(world: &mut World, event: &Event) {
         } => {
             debit(world, Holder::Org(*org), Asset::Money(*amount));
             credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+        }
+        Event::DwellingBuilt {
+            dwelling,
+            org,
+            materials_consumed,
+            ..
+        } => {
+            debit(
+                world,
+                Holder::Org(*org),
+                Asset::Good(Good::Materials, *materials_consumed),
+            );
+            LedgerMeta::add(
+                &mut world.ledger_meta.consumed,
+                Good::Materials,
+                *materials_consumed,
+            );
+            world.ledger_meta.dwellings_built += 1;
+            world.dwellings.insert(
+                *dwelling,
+                crate::world::Dwelling {
+                    id: *dwelling,
+                    owner: crate::world::Owner::Org(*org),
+                    occupant: None,
+                    lease: None,
+                    built_tick: world.meta.tick,
+                },
+            );
+            if world.next.dwelling.0 <= dwelling.0 {
+                world.next.dwelling = dwelling.next();
+            }
+        }
+        Event::DwellingTransferred { dwelling, to } => {
+            if let Some(d) = world.dwellings.get_mut(dwelling) {
+                d.owner = *to;
+            }
+        }
+        Event::DwellingOccupied { dwelling, citizen } => {
+            let previous = world.dwellings.get(dwelling).and_then(|d| d.occupant);
+            if let Some(p) = previous
+                && let Some(c) = world.citizens.get_mut(&p)
+            {
+                c.household.dwelling = None;
+            }
+            if let Some(d) = world.dwellings.get_mut(dwelling) {
+                d.occupant = *citizen;
+                if citizen.is_none() {
+                    d.lease = None;
+                }
+            }
+            if let Some(c) = citizen.and_then(|c| world.citizens.get_mut(&c)) {
+                c.household.dwelling = Some(*dwelling);
+            }
+        }
+        Event::LeaseOffered { offer, body } => {
+            let by = match body {
+                crate::world::OfferBody::Lease {
+                    asset: crate::world::LeaseAsset::Dwelling(d),
+                    ..
+                } => match world.dwellings.get(d).map(|d| d.owner) {
+                    Some(crate::world::Owner::Citizen(c)) => Party::Citizen(c),
+                    Some(crate::world::Owner::Org(o)) => Party::Org(o),
+                    _ => return,
+                },
+                _ => return,
+            };
+            world.offers.insert(
+                *offer,
+                crate::world::Offer {
+                    id: *offer,
+                    by,
+                    created_tick: world.meta.tick,
+                    body: body.clone(),
+                },
+            );
+            bump_offer(world, *offer);
+        }
+        Event::LeaseAccepted {
+            contract,
+            owner,
+            tenant,
+            asset,
+            rent_per_cycle,
+            term_cycles,
+        } => {
+            world.contracts.insert(
+                *contract,
+                crate::world::Contract {
+                    id: *contract,
+                    parties: (*owner, *tenant),
+                    created_tick: world.meta.tick,
+                    term_cycles: *term_cycles,
+                    status: crate::world::ContractStatus::Active,
+                    body: crate::world::ContractBody::Lease {
+                        asset: *asset,
+                        rent_per_cycle: *rent_per_cycle,
+                        missed_cycles: 0,
+                    },
+                },
+            );
+            if let crate::world::LeaseAsset::Dwelling(d) = asset {
+                if let Some(dw) = world.dwellings.get_mut(d) {
+                    dw.lease = Some(*contract);
+                }
+                let taken: Vec<crate::ids::OfferId> = world
+                    .offers
+                    .iter()
+                    .filter(|(_, o)| {
+                        matches!(o.body, crate::world::OfferBody::Lease { asset: crate::world::LeaseAsset::Dwelling(x), .. } if x == *d)
+                    })
+                    .map(|(id, _)| *id)
+                    .collect();
+                for id in taken {
+                    world.offers.remove(&id);
+                }
+            }
+            if world.next.contract.0 <= contract.0 {
+                world.next.contract = contract.next();
+            }
+        }
+        Event::RentPaid {
+            contract, amount, ..
+        } => {
+            if let Some(k) = world.contracts.get_mut(contract) {
+                if let crate::world::ContractBody::Lease { missed_cycles, .. } = &mut k.body {
+                    *missed_cycles = 0;
+                }
+                let (owner, tenant) = k.parties;
+                debit(world, Holder::from(tenant), Asset::Money(*amount));
+                credit(world, Holder::from(owner), Asset::Money(*amount));
+            }
+        }
+        Event::RentMissed { contract, .. } => {
+            if let Some(k) = world.contracts.get_mut(contract)
+                && let crate::world::ContractBody::Lease { missed_cycles, .. } = &mut k.body
+            {
+                *missed_cycles += 1;
+            }
+        }
+        Event::LeaseEnded { contract, .. } => {
+            if let Some(k) = world.contracts.get_mut(contract) {
+                k.status = crate::world::ContractStatus::Ended;
+            }
         }
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {

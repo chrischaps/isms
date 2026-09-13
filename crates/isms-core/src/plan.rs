@@ -351,6 +351,7 @@ pub fn touches(event: &Event, id: CitizenId) -> bool {
             lender, borrower, ..
         } => *lender == P(id) || *borrower == P(id),
         Event::LeaseAccepted { owner, tenant, .. } => *owner == P(id) || *tenant == P(id),
+        Event::DwellingOccupied { citizen, .. } => *citizen == Some(id),
         _ => false,
     }
 }

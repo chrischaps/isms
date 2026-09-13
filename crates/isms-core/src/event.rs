@@ -227,6 +227,7 @@ pub enum Event {
         dwelling: DwellingId,
         org: OrgId,
         workplace: Option<WorkplaceId>,
+        materials_consumed: u32,
     },
     DwellingTransferred {
         dwelling: DwellingId,
