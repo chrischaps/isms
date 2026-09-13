@@ -25,13 +25,20 @@ pub struct WorldBuilder {
     org_inventory: Vec<(usize, Good, u32)>,
     assignments: Vec<(usize, usize, u8, Effort)>,
     dwellings: Vec<usize>,
+    seed_epoch: bool,
+    /// The preset's population floor, restored by `seed_epoch`; fixtures
+    /// otherwise run with a floor of 0 so the fill rule never adds citizens.
+    preset_floor: u32,
 }
 
 impl WorldBuilder {
     #[must_use]
     pub fn new(preset_name: &str) -> Self {
+        let mut preset = super::preset(preset_name);
+        let preset_floor = preset.params.population.floor;
+        preset.params.population.floor = 0;
         WorldBuilder {
-            preset: super::preset(preset_name),
+            preset,
             society_id: 1,
             seed: 1,
             citizens: Vec::new(),
@@ -42,6 +49,8 @@ impl WorldBuilder {
             org_inventory: Vec::new(),
             assignments: Vec::new(),
             dwellings: Vec::new(),
+            seed_epoch: false,
+            preset_floor,
         }
     }
 
@@ -123,6 +132,15 @@ impl WorldBuilder {
     #[must_use]
     pub fn dwelling(mut self, org: usize) -> Self {
         self.dwellings.push(org);
+        self
+    }
+
+    /// Seed the society like `start_epoch` does (legacy orgs, dwellings,
+    /// householders, managers) after the explicit fixtures.
+    #[must_use]
+    pub fn seed_epoch(mut self) -> Self {
+        self.seed_epoch = true;
+        self.preset.params.population.floor = self.preset_floor;
         self
     }
 
@@ -249,6 +267,14 @@ impl WorldBuilder {
                     effort: *effort,
                 }],
             });
+        }
+        if self.seed_epoch {
+            // EpochStarted is already the second event; append the rest of the seeding.
+            let world = super::fold::fold(&log);
+            let rules = crate::rules::Rules::from_world(&world);
+            let mut seeded = crate::seeding::start_epoch(&world, &rules, 0);
+            seeded.retain(|e| !matches!(e, Event::EpochStarted { .. }));
+            log.extend(seeded);
         }
         log
     }
