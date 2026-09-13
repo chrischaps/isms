@@ -1,5 +1,6 @@
 # The Chronicle's voice in Freeport (TDD 9.4, GDD 12). One headline per matching
-# event; `{{field}}` reads the event payload, `{{citizen:field}}` and
+# event about a human; the forty seeded householders are scenery until they
+# emigrate. `{{field}}` reads the event payload, `{{citizen:field}}` and
 # `{{org:field}}` turn ids into names, `{{credits:field}}` prints cents as
 # credits. A template whose field is missing or null is skipped.
 
@@ -16,7 +17,6 @@ DestitutionBegan = "{{citizen:citizen}} is destitute. The longer contracts are c
 DestitutionEnded = "{{citizen:citizen}} is back on their feet."
 CreditDefaulted = "A loan is called in; the collateral changes hands."
 HouseholderEmigrated = "{{citizen:citizen}} has left Freeport."
-HouseholderJoined = "{{handle}} arrives with {{credits:endowment}} credits and nothing else."
 CitizenJoined = "{{handle}} arrives with {{credits:endowment}} credits and nothing else."
 EpochStarted = "Epoch {{epoch}} opens. Everything is for sale again."
 EpochEnded = "The epoch ends after cycle {{cycle}}. The ledgers close."
