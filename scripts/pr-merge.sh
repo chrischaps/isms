@@ -27,11 +27,19 @@ for attempt in 1 2 3 4; do
     if gh pr checks "$num" 2>/dev/null | grep -qE "pending|pass|fail"; then break; fi
     sleep 5
   done
-  gh pr checks "$num" --watch --interval 15 --fail-fast || true
-  if gh pr checks "$num" 2>/dev/null | grep -q "fail"; then
-    echo "CI failed on attempt $attempt" >&2
-    exit 1
-  fi
+  # Watch until every check on the PR's *current* head has a conclusion (a
+  # push during the watch starts a new run; never merge on a pending one).
+  while true; do
+    gh pr checks "$num" --watch --interval 15 --fail-fast || true
+    rollup="$(gh pr view "$num" --json statusCheckRollup --jq '[.statusCheckRollup[] | (.conclusion // .status // "PENDING")] | join(",")')"
+    case "$rollup" in
+      *FAILURE*|*CANCELLED*|*TIMED_OUT*|*ERROR*) echo "CI failed on attempt $attempt: $rollup" >&2; exit 1 ;;
+      "") sleep 10; continue ;;
+    esac
+    if [ "$(printf '%s' "$rollup" | tr ',' '
+' | grep -vc SUCCESS)" -eq 0 ]; then break; fi
+    sleep 15
+  done
   if gh pr merge "$num" --squash 2>merge.err; then
     rm -f merge.err
     state="$(gh pr view "$num" --json state --jq .state)"

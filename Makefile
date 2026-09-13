@@ -22,8 +22,9 @@ fmt:
 fmt-check:
 	cargo fmt --all -- --check
 
+# Offline like CI, so a query without cached metadata fails here first (run `make sqlx-prepare`).
 clippy:
-	cargo clippy --workspace --all-targets -- -D warnings
+	SQLX_OFFLINE=true cargo clippy --workspace --all-targets -- -D warnings
 
 # .env (git-ignored) supplies DATABASE_URL for the store and server tests (sqlx::test).
 test:
