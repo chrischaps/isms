@@ -15,6 +15,8 @@ use isms_core::{Preset, apply};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
+pub mod accounts;
+
 /// Migrations embedded from `crates/isms-store/migrations`.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 

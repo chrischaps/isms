@@ -12,7 +12,7 @@ export DATABASE_URL ?= postgres://isms:isms@localhost:5433/isms
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check fmt fmt-check clippy test web-check db db-stop dev sim sim-check sim-all sqlx-prepare api-types
+.PHONY: check fmt fmt-check clippy test web-check db db-stop dev sim sim-check sim-all sqlx-prepare openapi-lint api-types
 
 check: fmt-check clippy test web-check
 
@@ -57,6 +57,11 @@ sim-check:
 # All five presets over seeds 1..5, tables printed in turn; --check makes a miss exit 1 (S0.18 gate).
 sim-all:
 	cargo run -p isms-sim --release -- all --epochs $(EPOCHS) --seeds 1..5 --out docs/tuning/runs --check
+
+# Dump the OpenAPI document from the binary (no database needed) and lint it.
+openapi-lint:
+	cargo run -q -p isms-server -- openapi > target/openapi.json
+	pnpm --package=@redocly/cli@1 dlx redocly lint target/openapi.json
 
 api-types:
 	@echo "make api-types arrives with S1.7"; exit 1

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT society_id, citizen_id, account_id, handle FROM citizens\n             WHERE account_id = $1 ORDER BY society_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "society_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "citizen_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "account_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "handle",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3ec57469fef7cb2437aaa90bf459deb0d776a880f61712ed723295592627c40b"
+}

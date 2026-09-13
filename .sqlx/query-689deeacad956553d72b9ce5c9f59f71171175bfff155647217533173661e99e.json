@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE magic_links SET used_at = now()\n             WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()\n             RETURNING account_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "account_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "689deeacad956553d72b9ce5c9f59f71171175bfff155647217533173661e99e"
+}
