@@ -38,7 +38,7 @@ const AUTH_IP_BURST: f64 = 10.0;
 
 // -- helpers -------------------------------------------------------------------
 
-fn society(state: &AppState, id: i64) -> ApiResult<SocietyEntry> {
+pub(crate) fn society(state: &AppState, id: i64) -> ApiResult<SocietyEntry> {
     state
         .society(id)
         .ok_or_else(|| ApiError::NotFound(format!("no society {id}")))
@@ -65,7 +65,7 @@ fn normalize_email(email: &str) -> ApiResult<String> {
 }
 
 /// The caller's citizen in this society, if any. An API key must belong to it.
-async fn citizen_in(
+pub(crate) async fn citizen_in(
     state: &AppState,
     auth: &Auth,
     society_id: i64,
@@ -84,7 +84,11 @@ async fn citizen_in(
 }
 
 /// Reading the game counts as presence (TDD 10.2): a throttled `Seen`.
-async fn touch_presence(state: &AppState, auth: &Auth, entry: &SocietyEntry) -> ApiResult<()> {
+pub(crate) async fn touch_presence(
+    state: &AppState,
+    auth: &Auth,
+    entry: &SocietyEntry,
+) -> ApiResult<()> {
     let Some(citizen) = citizen_in(state, auth, entry.row.id).await? else {
         return Ok(());
     };
@@ -516,7 +520,12 @@ async fn join(
             kind: CitizenKind::Human,
         },
     );
-    let events = entry.handle.command(env).await?.map_err(ApiError::Reject)?;
+    let events = entry
+        .handle
+        .command(env)
+        .await?
+        .map_err(ApiError::Reject)?
+        .events;
     let citizen = events
         .iter()
         .find_map(|e| match e {
@@ -599,6 +608,7 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(lexicon))
         .routes(routes!(welcome))
         .routes(routes!(join))
+        .merge(crate::society_api::routes())
 }
 
 /// The `OpenAPI` document, without a running server (`isms-server openapi`).

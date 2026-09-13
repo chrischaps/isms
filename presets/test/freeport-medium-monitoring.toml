@@ -1,0 +1,30 @@
+# Test-only fixture (TDD S1.4): Freeport with A7 = medium, so attribution noise
+# is non-zero and the visibility rules (manager sees the attributed figure,
+# the worker sees their true output) have something to hide. Never seeded in
+# production. Loaded by name "test/freeport-medium-monitoring".
+name = "test/freeport-medium-monitoring"
+display = "Freeport (medium monitoring, test)"
+gdd_section = "6.1"
+
+[constitution]
+ownership = "private"        # A1
+pricing = "market"           # A2
+compensation = "contract"    # A3
+labor = "free"               # A4
+capital = "open"             # A5
+redistribution = "none"      # A6
+monitoring = "medium"        # A7 (the one difference from freeport.toml)
+governance = "none"          # A8
+contracts = ["employment", "sale_book", "sale_direct", "credit", "lease", "share"]
+org_kinds = ["firm", "association"]
+communication = ["square", "org", "dm", "notice_board", "chronicle"]
+
+[policy]
+monitoring = "inherit"
+
+[params]
+seeded_workplaces = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
+initial_dwellings = 40
+
+[scoreboard]
+primary = ["net_worth", "firm_valuation", "self_made"]

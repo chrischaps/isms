@@ -96,6 +96,7 @@ async fn hundred_concurrent_commands_keep_conservation(pool: PgPool) {
                 .await
                 .unwrap()
                 .unwrap()
+                .events
             })
         })
         .collect();
