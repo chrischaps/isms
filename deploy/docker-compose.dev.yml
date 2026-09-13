@@ -1,0 +1,22 @@
+# Local development database (TDD 17 "Environments"). Started by `make db`.
+# Production compose arrives with S1.14 as deploy/docker-compose.yml.
+services:
+  db:
+    image: postgres:17
+    container_name: isms-dev-db
+    environment:
+      POSTGRES_USER: isms
+      POSTGRES_PASSWORD: isms
+      POSTGRES_DB: isms
+    ports:
+      - "${ISMS_DB_PORT:-5433}:5432"   # 5433: other projects tend to own 5432 on a dev box
+    volumes:
+      - isms-dev-db:/var/lib/postgresql/data
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U isms"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+volumes:
+  isms-dev-db:

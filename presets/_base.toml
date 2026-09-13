@@ -29,7 +29,7 @@ decay_per_idle_cycles = 10     # -1 skill per 10 idle cycles
 
 [params.needs]
 food_decay_per_tick = 4
-food_meter_per_unit = 4        # [new tunable] TDD 5.5
+food_meter_per_unit = 6        # [new tunable] TDD 5.5; 4 -> 6 per Q20 (decided 2026-09-13, S1.0)
 shelter_decay_unhoused = 2
 shelter_recovery_per_tick = 2  # [new tunable]
 comfort_decay_per_tick = 1

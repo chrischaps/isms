@@ -51,8 +51,14 @@ fn food_decays_per_effort_level() {
 
 #[test]
 fn one_food_per_tick_holds_steady_at_normal_and_loses_1_2_at_high() {
+    // The S0.5 table test at the GDD value (one Food = +4). Q20 raised the
+    // preset to 6 in S1.0 so a human can climb out of hardship; the mechanic
+    // under test is unchanged, so the fixture pins the original constant.
     let mut h = WorldBuilder::new("freeport")
-        .with_preset(|p| p.params.population.collapse_enabled = false)
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.needs.food_meter_per_unit = 4;
+        })
         .humans(1)
         .pantry(0, Good::Food, 48)
         .build();
