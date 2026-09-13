@@ -151,11 +151,11 @@ pub fn phase_4_production(b: &mut TickBuilder, labor: &BTreeMap<WorkplaceId, Vec
         let mut remainder = raw - uncapped;
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let mut units = uncapped as u32;
-        let org = &b.world.orgs[&org_id];
+        let stock = crate::ledger::stock_holder(&b.world, org_id);
         let possible = recipe
             .consumes
             .iter()
-            .map(|(g, per)| org.inventory.get(g).copied().unwrap_or(0) / *per)
+            .map(|(g, per)| crate::ledger::goods_at(&b.world, stock, *g) / *per)
             .min()
             .unwrap_or(u32::MAX);
         if units > possible {

@@ -218,6 +218,12 @@ pub enum Command {
     EndEpoch {
         reason: String,
     },
+    // --- Phase 0b (appended, Q64) ---------------------------------------------
+    /// Draw from the Common Store this tick, within the need entitlement (S0.15).
+    RequestStoreDraw {
+        good: Good,
+        qty: u32,
+    },
 }
 
 impl Command {
@@ -260,6 +266,7 @@ impl Command {
             Command::Pledge { .. } => "Pledge",
             Command::SetPolicy { .. } => "SetPolicy",
             Command::EndEpoch { .. } => "EndEpoch",
+            Command::RequestStoreDraw { .. } => "RequestStoreDraw",
         }
     }
 }
@@ -302,6 +309,11 @@ pub enum RejectCode {
     SelfDeal,
     AlreadyExists,
     HandleTaken,
+    // Phase 0b (appended)
+    /// The society has no Common Store.
+    NoStore,
+    /// A store draw above the citizen's need entitlement.
+    OverEntitlement,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -378,6 +390,7 @@ impl Capabilities {
                 self.allows_contract(ContractKind::Lease)
             }
             Command::Pledge { .. } => self.allows_contract(ContractKind::Pledge),
+            Command::RequestStoreDraw { .. } => self.common_store,
         }
     }
 }
@@ -518,6 +531,9 @@ pub fn handle(
             qty,
         } => crate::orgs::uninstall_machines(world, envelope, *org, *workplace, *qty),
         Command::EndEpoch { reason: _ } => end_epoch(world, envelope),
+        Command::RequestStoreDraw { good, qty } => {
+            crate::store::request_store_draw(world, envelope, *good, *qty)
+        }
         other => Err(Reject::new(
             RejectCode::NotImplemented,
             format!("{} is not implemented yet", other.kind()),
@@ -581,8 +597,8 @@ fn join(
     } else {
         (Money::ZERO, None)
     };
-    // Dwelling assignment in collective systems arrives with S0.15.
-    let dwelling = None;
+    // Collective systems assign a dwelling from the society's stock at join (GDD 6.2).
+    let dwelling = crate::housing::free_society_dwelling(world);
     Ok(vec![match kind {
         CitizenKind::Human => Event::CitizenJoined {
             citizen,

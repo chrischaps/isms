@@ -515,6 +515,18 @@ pub struct OrderBook {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommonStore {
     pub stock: BTreeMap<Good, u32>,
+    /// This tick's draw requests in arrival order; resolved in phase 6 and
+    /// cleared by `TickResolved` (S0.15).
+    pub requests: Vec<StoreRequest>,
+}
+
+/// One citizen's request to draw from the Common Store this tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoreRequest {
+    pub citizen: CitizenId,
+    pub good: Good,
+    pub qty: u32,
+    pub tick: Tick,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

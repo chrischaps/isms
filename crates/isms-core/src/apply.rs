@@ -6,7 +6,7 @@
 use crate::event::{CitizenDelta, Event, WorkplaceDelta};
 use crate::ids::CitizenId;
 use crate::kinds::{CitizenKind, Good};
-use crate::ledger::{Asset, Holder, LedgerMeta, Party};
+use crate::ledger::{Asset, Holder, LedgerMeta, Party, stock_holder};
 use crate::money::Money;
 use crate::world::{
     Citizen, CitizenFlags, Household, LaborPlan, LaborState, Needs, StandingPlan, VoteDefault,
@@ -15,7 +15,7 @@ use crate::world::{
 use std::collections::BTreeMap;
 
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
-pub const UNIMPLEMENTED: &[&str] = &["Drew", "PolicyChanged"];
+pub const UNIMPLEMENTED: &[&str] = &["PolicyChanged"];
 
 /// Fold one event into the world.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)] // a flat dispatcher
@@ -178,7 +178,8 @@ pub fn apply(world: &mut World, event: &Event) {
         }
         Event::MachinesInstalled { workplace, qty } => {
             if let Some(org) = world.workplaces.get(workplace).map(|w| w.org) {
-                debit(world, Holder::Org(org), Asset::Good(Good::Machines, *qty));
+                let from = stock_holder(world, org);
+                debit(world, from, Asset::Good(Good::Machines, *qty));
                 credit(
                     world,
                     Holder::Workplace(*workplace),
@@ -193,7 +194,8 @@ pub fn apply(world: &mut World, event: &Event) {
                     Holder::Workplace(*workplace),
                     Asset::Good(Good::Machines, *qty),
                 );
-                credit(world, Holder::Org(org), Asset::Good(Good::Machines, *qty));
+                let to = stock_holder(world, org);
+                credit(world, to, Asset::Good(Good::Machines, *qty));
             }
         }
         Event::MachinesDepreciated { workplace, qty, .. } => {
@@ -460,7 +462,11 @@ pub fn apply(world: &mut World, event: &Event) {
             amount,
             ..
         } => {
-            debit(world, Holder::Org(*org), Asset::Money(*amount));
+            debit(
+                world,
+                crate::ledger::payer_of(world, *org),
+                Asset::Money(*amount),
+            );
             credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.wages_total += *amount;
@@ -509,11 +515,17 @@ pub fn apply(world: &mut World, event: &Event) {
             materials_consumed,
             ..
         } => {
+            let from = stock_holder(world, *org);
             debit(
                 world,
-                Holder::Org(*org),
+                from,
                 Asset::Good(Good::Materials, *materials_consumed),
             );
+            let owner = if from == Holder::Org(*org) {
+                crate::world::Owner::Org(*org)
+            } else {
+                crate::world::Owner::Society
+            };
             LedgerMeta::add(
                 &mut world.ledger_meta.consumed,
                 Good::Materials,
@@ -525,7 +537,7 @@ pub fn apply(world: &mut World, event: &Event) {
                 *dwelling,
                 crate::world::Dwelling {
                     id: *dwelling,
-                    owner: crate::world::Owner::Org(*org),
+                    owner,
                     occupant: None,
                     lease: None,
                     built_tick: world.meta.tick,
@@ -882,6 +894,9 @@ pub fn apply(world: &mut World, event: &Event) {
         } => {
             world.meta.tick = tick.wrapping_add(1);
             world.price_index = *price_index;
+            if let Some(s) = &mut world.store {
+                s.requests.clear();
+            }
             for b in world.books.values_mut() {
                 b.tick_volume = 0;
                 b.tick_value = Money::ZERO;
@@ -893,7 +908,46 @@ pub fn apply(world: &mut World, event: &Event) {
                 apply_workplace_delta(world, d);
             }
         }
-        _ => {
+        Event::Drew { citizen, goods, .. } => {
+            for (g, q) in goods {
+                debit(world, Holder::Store, Asset::Good(*g, *q));
+                credit(world, Holder::Citizen(*citizen), Asset::Good(*g, *q));
+            }
+        }
+        Event::StoreDrawRequested {
+            citizen,
+            good,
+            qty,
+            tick,
+        } => {
+            if let Some(s) = &mut world.store {
+                s.requests.push(crate::world::StoreRequest {
+                    citizen: *citizen,
+                    good: *good,
+                    qty: *qty,
+                    tick: *tick,
+                });
+            }
+        }
+        Event::StoreReturned {
+            citizen,
+            holder,
+            goods,
+            money,
+        } => {
+            for (g, q) in goods {
+                debit(world, Holder::Citizen(*citizen), Asset::Good(*g, *q));
+                credit(world, *holder, Asset::Good(*g, *q));
+            }
+            debit(world, Holder::Citizen(*citizen), Asset::Money(*money));
+            if *holder == Holder::StateStock {
+                credit(world, *holder, Asset::Money(*money));
+            } else {
+                // The Common Store holds no money; a producer never sends any.
+                world.ledger_meta.burned_money += *money;
+            }
+        }
+        Event::PolicyChanged { .. } => {
             debug_assert!(
                 UNIMPLEMENTED.contains(&event.kind()),
                 "apply: {} is neither implemented nor listed as unimplemented",
@@ -1257,9 +1311,10 @@ fn apply_workplace_added(
     slot: Option<crate::ids::SlotId>,
     materials_consumed: u32,
 ) {
+    let from = stock_holder(world, org);
     debit(
         world,
-        Holder::Org(org),
+        from,
         Asset::Good(Good::Materials, materials_consumed),
     );
     LedgerMeta::add(
@@ -1303,12 +1358,13 @@ fn apply_produced(
     let Some(org) = world.workplaces.get(&workplace).map(|w| w.org) else {
         return;
     };
+    let holder = stock_holder(world, org);
     for (g, q) in inputs_consumed {
-        debit(world, Holder::Org(org), Asset::Good(*g, *q));
+        debit(world, holder, Asset::Good(*g, *q));
         LedgerMeta::add(&mut world.ledger_meta.consumed, *g, *q);
     }
     if units > 0 {
-        credit(world, Holder::Org(org), Asset::Good(output, units));
+        credit(world, holder, Asset::Good(output, units));
         LedgerMeta::add(&mut world.ledger_meta.produced, output, units);
         *world.cycle.produced.entry(output).or_insert(0) += u64::from(units);
     }

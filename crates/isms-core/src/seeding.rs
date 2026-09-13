@@ -70,6 +70,15 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
     let mut next_cit = world.next.citizen;
     let mut builders: Vec<OrgId> = Vec::new();
     let mut orgs: Vec<OrgId> = Vec::new();
+    // Society-owned orgs keep their goods in the society's stock (Q57).
+    let society_owned = matches!(ownership_for(kind, 0), Ownership::Society);
+    let society_stock = if society_owned && world.store.is_some() {
+        Some(Holder::Store)
+    } else if society_owned && world.state_stock.is_some() {
+        Some(Holder::StateStock)
+    } else {
+        None
+    };
 
     for wk in WorkplaceKind::ALL {
         let n = p.seeded_workplaces.get(&wk).copied().unwrap_or(0);
@@ -108,7 +117,7 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
                 for (good, qty) in stock {
                     if *qty > 0 {
                         events.push(Event::Seeded {
-                            holder: Holder::Org(org),
+                            holder: society_stock.unwrap_or(Holder::Org(org)),
                             asset: Asset::Good(*good, *qty),
                         });
                     }
@@ -126,6 +135,7 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
     } else {
         builders
     };
+    let first_dwelling = next_dw;
     if !owners.is_empty() {
         for i in 0..p.initial_dwellings {
             let dwelling = next_dw;
@@ -161,11 +171,16 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
         .unwrap_or(0)
         .saturating_sub(active_humans)
         .saturating_sub(householders);
+    // In collective systems the dwellings just built are the society's and are
+    // assigned at join (GDD 6.2), one per householder while they last.
+    let mut society_dwellings = (first_dwelling.0..next_dw.0)
+        .map(DwellingId)
+        .filter(|_| society_stock.is_some());
     let mut new_hh: Vec<CitizenId> = Vec::new();
     for _ in 0..fill {
         let citizen = next_cit;
         next_cit = next_cit.next();
-        events.push(householder_joined(world, citizen));
+        events.push(householder_joined(world, citizen, society_dwellings.next()));
         new_hh.push(citizen);
     }
     // A householder manager per seeded org, round-robin.
@@ -188,11 +203,10 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
             });
         }
     }
-    let _ = DwellingId(0);
     events
 }
 
-fn householder_joined(world: &World, citizen: CitizenId) -> Event {
+fn householder_joined(world: &World, citizen: CitizenId, dwelling: Option<DwellingId>) -> Event {
     let (endowment, explain) = if world.constitution.has_money() {
         let e = world.params.money.endowment;
         (
@@ -206,7 +220,7 @@ fn householder_joined(world: &World, citizen: CitizenId) -> Event {
         citizen,
         handle: format!("H-{}", citizen.0),
         endowment,
-        dwelling: None,
+        dwelling,
         explain,
     }
 }
@@ -228,7 +242,8 @@ pub fn cycle_end_8l_householder_fill(b: &mut TickBuilder) {
     if have < target {
         for _ in 0..(target - have) {
             let citizen = b.world.next.citizen;
-            let e = householder_joined(&b.world, citizen);
+            let dwelling = crate::housing::free_society_dwelling(&b.world);
+            let e = householder_joined(&b.world, citizen, dwelling);
             b.emit(e);
         }
     } else if have > target {
@@ -237,6 +252,8 @@ pub fn cycle_end_8l_householder_fill(b: &mut TickBuilder) {
         for id in leaving {
             emigrate(b, id);
         }
+        // Dwellings the emigrants released go to anyone still waiting (S0.15).
+        crate::housing::cycle_end_8b_assign_dwellings(b);
     }
 }
 
@@ -315,6 +332,27 @@ fn emigrate(b: &mut TickBuilder, id: CitizenId) {
             _ => {}
         }
     }
+    // Positions held without a contract (norm and assigned systems).
+    let assigned: Vec<WorkplaceId> = b
+        .world
+        .workplaces
+        .values()
+        .filter(|w| w.workers.get(&id).is_some_and(|a| a.contract.is_none()))
+        .map(|w| w.id)
+        .collect();
+    for workplace in assigned {
+        b.emit(Event::Unassigned {
+            workplace,
+            citizen: id,
+        });
+    }
+    // A society dwelling goes back to the stock.
+    if let Some(dwelling) = crate::housing::society_dwelling_of(&b.world, id) {
+        b.emit(Event::DwellingOccupied {
+            dwelling,
+            citizen: None,
+        });
+    }
     // Managed orgs pass to another householder, or fall vacant.
     let managed: Vec<OrgId> = b
         .world
@@ -335,21 +373,45 @@ fn emigrate(b: &mut TickBuilder, id: CitizenId) {
             citizen: successor,
         });
     }
-    // Burn what is left.
+    // What is left returns to the society's stock where one exists (Q52), else
+    // it is burned (T19).
     let c = &b.world.citizens[&id];
-    let burned_money = c.household.balance;
-    let burned_goods = c.household.pantry.clone();
-    let explain = Explain::new(
-        RuleId::Emigration,
-        "balance and pantry burned",
-        burned_money,
-    )
-    .input("balance", burned_money);
-    b.emit(Event::HouseholderEmigrated {
-        citizen: id,
-        burned_money,
-        burned_goods,
-        explain,
-    });
-    let _ = (ContractKind::Employment, Good::Food, WorkplaceId(0));
+    let balance = c.household.balance;
+    let pantry = c.household.pantry.clone();
+    let society_stock = if b.world.store.is_some() {
+        Some(Holder::Store)
+    } else if b.world.state_stock.is_some() {
+        Some(Holder::StateStock)
+    } else {
+        None
+    };
+    if let Some(holder) = society_stock {
+        b.emit(Event::StoreReturned {
+            citizen: id,
+            holder,
+            goods: pantry,
+            money: balance,
+        });
+        b.emit(Event::HouseholderEmigrated {
+            citizen: id,
+            burned_money: Money::ZERO,
+            burned_goods: BTreeMap::new(),
+            explain: Explain::new(
+                RuleId::Emigration,
+                "balance and pantry returned to the society",
+                Money::ZERO,
+            )
+            .input("balance", balance),
+        });
+    } else {
+        let explain = Explain::new(RuleId::Emigration, "balance and pantry burned", balance)
+            .input("balance", balance);
+        b.emit(Event::HouseholderEmigrated {
+            citizen: id,
+            burned_money: balance,
+            burned_goods: pantry,
+            explain,
+        });
+    }
+    let _ = (ContractKind::Employment, Good::Food);
 }

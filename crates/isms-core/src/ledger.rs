@@ -112,6 +112,62 @@ fn add_goods(goods: &mut BTreeMap<Good, i128>, map: &BTreeMap<Good, u32>) {
     }
 }
 
+/// Where a society-owned org's goods live (S0.15, Q57): the Common Store in
+/// moneyless societies, the state stock in administered ones, else the org's
+/// own inventory. Production, inputs, machines and building materials all go
+/// through this, so the Freeport paths are unchanged.
+#[must_use]
+pub fn stock_holder(world: &World, org: OrgId) -> Holder {
+    let society = world
+        .orgs
+        .get(&org)
+        .is_some_and(|o| o.ownership == Ownership::Society);
+    if society && world.store.is_some() {
+        Holder::Store
+    } else if society && world.state_stock.is_some() {
+        Holder::StateStock
+    } else {
+        Holder::Org(org)
+    }
+}
+
+/// The purse an org pays from (Q60): the state's till for state enterprises,
+/// else the org's treasury.
+#[must_use]
+pub fn payer_of(world: &World, org: OrgId) -> Holder {
+    let society = world
+        .orgs
+        .get(&org)
+        .is_some_and(|o| o.ownership == Ownership::Society);
+    if society && world.state_stock.is_some() {
+        Holder::StateStock
+    } else {
+        Holder::Org(org)
+    }
+}
+
+/// A holder's current stock of one good (zero for money-only holders).
+#[must_use]
+pub fn goods_at(world: &World, holder: Holder, good: Good) -> u32 {
+    let get = |m: &BTreeMap<Good, u32>| m.get(&good).copied().unwrap_or(0);
+    match holder {
+        Holder::Citizen(id) => world
+            .citizens
+            .get(&id)
+            .map_or(0, |c| get(&c.household.pantry)),
+        Holder::Org(id) => world.orgs.get(&id).map_or(0, |o| get(&o.inventory)),
+        Holder::Workplace(id) if good == Good::Machines => {
+            world.workplaces.get(&id).map_or(0, |w| w.machines)
+        }
+        Holder::Store => world.store.as_ref().map_or(0, |s| get(&s.stock)),
+        Holder::StateStock => world.state_stock.as_ref().map_or(0, |s| get(&s.stock)),
+        Holder::Workplace(_)
+        | Holder::OrderEscrow(_)
+        | Holder::ContractEscrow(_)
+        | Holder::Treasury => 0,
+    }
+}
+
 /// Sum every holder of money and goods, per good.
 #[must_use]
 pub fn holdings(world: &World) -> (Money, BTreeMap<Good, i128>) {
