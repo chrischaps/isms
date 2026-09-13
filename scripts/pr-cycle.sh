@@ -24,5 +24,10 @@ for _ in $(seq 1 40); do
 done
 gh pr checks "$num" --watch --interval 15 --fail-fast
 gh pr merge "$num" --squash --delete-branch
-git switch -q main && git pull -q
-echo "merged #$num -> main $(git rev-parse --short HEAD)"
+# In a secondary worktree main is checked out elsewhere; just refresh the ref.
+if git switch -q main 2>/dev/null; then
+  git pull -q
+else
+  git fetch -q origin main:main 2>/dev/null || git fetch -q origin main
+fi
+echo "merged #$num -> main $(git rev-parse --short origin/main)"
