@@ -356,6 +356,8 @@ pub enum RejectCode {
     NotOnPriceList,
     /// No transfer request is pending for the citizen.
     NoRequestPending,
+    /// An employment offer below the society's wage floor.
+    BelowMinimumWage,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]

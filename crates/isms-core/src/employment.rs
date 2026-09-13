@@ -47,6 +47,23 @@ pub fn offer_employment(
             "pay must be positive",
         ));
     }
+    // The society's wage floor (Q82): hourly as is, piece rates at the base rate.
+    let floor = crate::tax::wage_floor(world, org);
+    if floor > Money::ZERO {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+        let hourly = match pay {
+            Pay::Hourly(w) => w,
+            Pay::PieceRate(r) => {
+                Money((r.0 as f64 * world.params.recipes[&wp.kind].base_rate).floor() as i64)
+            }
+        };
+        if hourly < floor {
+            return Err(Reject::new(
+                RejectCode::BelowMinimumWage,
+                format!("{hourly} an hour is below the minimum wage of {floor}"),
+            ));
+        }
+    }
     if max_hours == 0 || max_hours > world.params.labor.base_budget_hours {
         return Err(Reject::new(
             RejectCode::InvalidQuantity,

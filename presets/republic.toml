@@ -21,7 +21,7 @@ monitoring = "inherit"
 tax_rate = 0.20                # QUESTIONS Q14 [new tunable] S0.2
 tax_brackets = []
 need_floor_food = 24           # QUESTIONS Q14
-minimum_wage_credits = 0.0
+minimum_wage_credits = 6.00        # S0.17a (Q82): enforced on offers; below the legacy wage of 8.00
 public_dwellings = 0
 public_bank = false
 

@@ -18,6 +18,10 @@ Householders are the AI citizens that fill a society up to its population floor.
 5. **Let dwellings** it owns at the legacy rent, one open offer per empty dwelling.
 6. **Stay for sale.** Every share the firm still holds is on offer at book value (treasury plus inventory and machines at last price, per share); the offer is relisted when book value moves by more than ten percent. Whoever buys more than half becomes the controlling owner and manager; the householder steps down.
 
+## In the Republic
+
+The same householder and the same legacy firms as in Freeport. The householder pays its income tax at every cycle end and takes the need floor when the treasury tops it up, like anyone else; it never changes its plan because of either, and a legacy firm never offers below the minimum wage (its offers are at the legacy wage, above it).
+
 ## In the Commune
 
 The same householder, in a society with no money, no prices and a Common Store:

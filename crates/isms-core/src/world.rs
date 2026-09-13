@@ -204,6 +204,8 @@ pub struct Citizen {
     pub cycle: crate::metrics::CitizenCycle,
     /// The Ledger of Contribution (norm systems, S0.15b).
     pub contribution: ContributionRecord,
+    /// Income since the last tax assessment (tax-transfer systems, Q79).
+    pub taxable_income: Money,
 }
 
 /// A citizen's public contribution record (GDD §6.2): hours exact, output as

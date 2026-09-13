@@ -82,6 +82,8 @@ pub struct Row {
     pub plan_fulfillment: Option<f64>,
     pub rations_issued: u64,
     pub contribution_gini: f64,
+    pub tax_collected_credits: f64,
+    pub floor_paid_credits: f64,
 }
 
 /// What to run.
@@ -232,11 +234,13 @@ fn make_row(
         stocked_out,
         store_food: store_stock(world, Good::Food),
         state_food: state_stock(world, Good::Food),
-        treasury_credits: world.treasury.as_credits_f64(),
+        treasury_credits: a.treasury.as_credits_f64(),
         till_credits: a.till.as_credits_f64(),
         plan_fulfillment: a.plan_fulfillment,
         rations_issued: a.rations_issued,
         contribution_gini: a.contribution_gini,
+        tax_collected_credits: a.tax_collected.as_credits_f64(),
+        floor_paid_credits: a.floor_paid.as_credits_f64(),
     }
 }
 

@@ -419,6 +419,8 @@ pub fn touches(event: &Event, id: CitizenId) -> bool {
         | Event::RationIssued { citizen, .. }
         | Event::TransferRequested { citizen, .. }
         | Event::TransferDecided { citizen, .. }
+        | Event::TaxAssessed { citizen, .. }
+        | Event::NeedFloorPaid { citizen, .. }
         | Event::HardshipBegan { citizen, .. }
         | Event::HardshipEnded { citizen, .. }
         | Event::DestitutionBegan { citizen, .. }

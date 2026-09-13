@@ -169,6 +169,11 @@ impl Policy {
         {
             return Err("wage_grades must be non-empty and ascending".into());
         }
+        if let Some(b) = &self.tax_brackets
+            && b.windows(2).any(|w| w[0].above >= w[1].above)
+        {
+            return Err("tax_brackets must have strictly ascending thresholds".into());
+        }
         if self.tax_rate.is_some_and(|r| !(0.0..=1.0).contains(&r))
             || self
                 .tax_brackets

@@ -1,6 +1,6 @@
 # Tuning reports
 
-Per-preset stability reports from the headless simulator (Phase 0). `freeport-00.md` is the first raw run (S0.13); `freeport-01.md` the tuned result and Phase 0a exit (S0.14b, S0.14); `commune-01.md` the first stable Commune (S0.15); `directorate-01.md` the first stable Directorate (S0.16).
+Per-preset stability reports from the headless simulator (Phase 0). `freeport-00.md` is the first raw run (S0.13); `freeport-01.md` the tuned result and Phase 0a exit (S0.14b, S0.14); `commune-01.md` the first stable Commune (S0.15); `directorate-01.md` the first stable Directorate (S0.16); `republic-01.md` the first stable Republic (S0.17a).
 
 ## Running a sweep
 
