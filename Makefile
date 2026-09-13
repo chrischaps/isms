@@ -34,10 +34,10 @@ dev:
 	@echo "make dev arrives with S1.2 (Postgres + server + Vite)"; exit 1
 
 sim:
-	cargo run -p isms-sim --release -- run --preset $(PRESET) --epochs $(EPOCHS) --seed $(SEED)
+	cargo run -p isms-sim --release -- run --preset $(PRESET) --epochs $(EPOCHS) --seed $(SEED) --out docs/tuning/runs
 
 sim-check:
-	cargo test -p isms-sim --release -- --ignored stability_$(PRESET)
+	cargo test -p isms-sim --release -- --ignored --nocapture stability_$(PRESET)
 
 api-types:
 	@echo "make api-types arrives with S1.7"; exit 1

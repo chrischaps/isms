@@ -40,8 +40,8 @@ fn cost_plus_prices_start_at_the_anchors() {
     let h = seeded(1);
     // labor 8.00 / 15 = 0.533 + 0 inputs -> x1.15 = 0.61 vs start 0.60
     assert_eq!(cost_plus(&h.world, WorkplaceKind::Farm), Money::cents(61));
-    // Mill: 8/15 = 0.533 + Grain 0.60 = 1.133 x 1.15 = 1.30
-    assert_eq!(cost_plus(&h.world, WorkplaceKind::Mill), Money::cents(130));
+    // Mill: 53.33 + reference Grain 61 = 114.33 cents x 1.15 = 131.5 -> 1.31
+    assert_eq!(cost_plus(&h.world, WorkplaceKind::Mill), Money::cents(131));
     assert!(cost_plus(&h.world, WorkplaceKind::MachineShop) >= Money::credits(9));
 }
 

@@ -1,0 +1,18 @@
+name: cross-arch determinism
+# TDD 5.9: the golden replay must hash identically on x86_64 and aarch64.
+# arm64 hosted runners are not free on a private repo, so this is manual.
+on:
+  workflow_dispatch:
+jobs:
+  replay:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+      - run: cargo test -p isms-core --test householder golden_three_cycle_freeport
+      - run: cargo test -p isms-core --test market golden_twenty_order_tape

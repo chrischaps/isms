@@ -537,7 +537,7 @@ fn a_term_contract_ends_at_its_last_cycle_and_a_destitute_cannot_sign_long_ones(
             workplace: WorkplaceId(0),
             pay: Pay::Hourly(Money::cents(100)),
             max_hours: 2,
-            term_cycles: None,
+            term_cycles: Some(6),
             notice_cycles: 1,
             places: 1,
         },

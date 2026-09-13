@@ -103,7 +103,9 @@ pub fn accept_employment(
     if places == 0 {
         return Err(Reject::new(RejectCode::UnknownOffer, "no places left"));
     }
-    let long = term_cycles.is_none_or(|t| t > world.params.contracts.long_contract_cycles);
+    // A contract's commitment is its notice period; open-ended with short notice is short (Q26).
+    let threshold = world.params.contracts.long_contract_cycles;
+    let long = term_cycles.is_some_and(|t| t > threshold) || notice_cycles > threshold;
     if citizen.flags.options_narrowed && long {
         return Err(Reject::new(
             RejectCode::OptionsNarrowed,

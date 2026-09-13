@@ -166,7 +166,7 @@ pub fn accept_lease(
             "cannot rent from yourself",
         ));
     }
-    let long = term_cycles.is_none_or(|t| t > world.params.contracts.long_contract_cycles);
+    let long = term_cycles.is_some_and(|t| t > world.params.contracts.long_contract_cycles);
     if citizen.flags.options_narrowed && long {
         return Err(Reject::new(
             RejectCode::OptionsNarrowed,
