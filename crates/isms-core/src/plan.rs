@@ -89,6 +89,17 @@ pub fn default_max_price(last: Money) -> Money {
     Money(last.0 + (last.0 + 2) / 4)
 }
 
+/// The price a plan bid is placed at: the best resting ask when one rests
+/// (capped at `limit`), else the last price (capped). Bidding at `limit`
+/// itself would let every incoming ask fill at the bidder's ceiling and ratchet
+/// the last price upward each tick (Q44).
+fn bid_price(world: &World, instrument: Instrument, last: Money, limit: Money) -> Money {
+    let best_ask = crate::market::depth(world, instrument, Side::Ask)
+        .first()
+        .map(|(p, _)| *p);
+    best_ask.map_or(last.min(limit), |a| a.min(limit))
+}
+
 fn plan_envelope(citizen: CitizenId, command: Command, tick: Tick) -> Envelope<Command> {
     Envelope {
         actor: Actor::Citizen(citizen),
@@ -190,6 +201,57 @@ fn execute_market_plan(b: &mut TickBuilder, id: CitizenId) {
         );
     }
 
+    // Re-price resting plan bids that a crossable ask now sits above (Q44): a
+    // bid placed at the last price would otherwise rest below a cost-plus ask
+    // one cent higher until it expired.
+    for good in [Good::Food, Good::Wares] {
+        // Standing orders are the citizen's own prices; only the rules' bids re-price.
+        if plan
+            .standing_orders
+            .iter()
+            .any(|o| o.instrument == Instrument::Good(good) && o.side == Side::Bid)
+        {
+            continue;
+        }
+        let limit = match good {
+            Good::Food => plan.max_food_price,
+            _ => plan.buy_wares_when.and_then(|r| r.max_price),
+        };
+        let Some(last) = last_price(&b.world, Instrument::Good(good)) else {
+            continue;
+        };
+        let limit = limit.unwrap_or_else(|| default_max_price(last));
+        let Some((best_ask, _)) = crate::market::depth(&b.world, Instrument::Good(good), Side::Ask)
+            .first()
+            .copied()
+        else {
+            continue;
+        };
+        if best_ask > limit {
+            continue;
+        }
+        let stale: Vec<crate::ids::OrderId> = b
+            .world
+            .books
+            .get(&Instrument::Good(good))
+            .map(|bk| {
+                bk.orders
+                    .values()
+                    .filter(|o| {
+                        o.owner == crate::ledger::Party::Citizen(id)
+                            && o.side == Side::Bid
+                            && o.source == OrderSource::Standing
+                            && o.limit_price < best_ask
+                    })
+                    .map(|o| o.id)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for oid in stale {
+            run_plan_command(b, id, Command::CancelOrder { order: oid });
+        }
+    }
+
     // Consumption rules: Food shortfall, then Wares.
     let Some(c) = b.world.citizens.get(&id) else {
         return;
@@ -218,6 +280,7 @@ fn execute_market_plan(b: &mut TickBuilder, id: CitizenId) {
         let limit = plan
             .max_food_price
             .unwrap_or_else(|| default_max_price(last));
+        let limit = bid_price(&b.world, Instrument::Good(Good::Food), last, limit);
         if limit > Money::ZERO {
             let affordable = (spendable.0 / limit.0) as u32;
             let qty = (plan.keep_food_at_least - food_have)
@@ -249,6 +312,7 @@ fn execute_market_plan(b: &mut TickBuilder, id: CitizenId) {
             && let Some(last) = last_price(&b.world, Instrument::Good(Good::Wares))
         {
             let limit = rule.max_price.unwrap_or_else(|| default_max_price(last));
+            let limit = bid_price(&b.world, Instrument::Good(Good::Wares), last, limit);
             let per = u16::from(params.needs.comfort_per_wares);
             let wanted = u32::from((100 - comfort_points).div_ceil(per)).max(1);
             let affordable = (spendable.0 / limit.0.max(1)) as u32;

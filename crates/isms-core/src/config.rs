@@ -73,6 +73,37 @@ pub enum ConfigError {
 
 /// Load `<dir>/_base.toml` and `<dir>/<name>.toml`, overlay params, validate.
 pub fn load_preset(dir: &Path, name: &str) -> Result<Preset, ConfigError> {
+    load_preset_with_overrides(dir, name, &[])
+}
+
+/// Set a dotted key (`params.needs.food_decay_per_tick`) in a table, creating tables on the way.
+fn set_path(table: &mut Table, path: &str, value: Value) -> Result<(), ConfigError> {
+    let mut parts: Vec<&str> = path.split('.').collect();
+    let last = parts.pop().ok_or_else(|| ConfigError::OverlayShape {
+        name: "override".into(),
+        key: path.to_owned(),
+    })?;
+    let mut cur = table;
+    for p in parts {
+        cur = cur
+            .entry(p)
+            .or_insert_with(|| Value::Table(Table::new()))
+            .as_table_mut()
+            .ok_or_else(|| ConfigError::OverlayShape {
+                name: "override".into(),
+                key: path.to_owned(),
+            })?;
+    }
+    cur.insert(last.to_owned(), value);
+    Ok(())
+}
+
+/// `load_preset` with `params.*` overrides (the simulator's `--param key=value`).
+pub fn load_preset_with_overrides(
+    dir: &Path,
+    name: &str,
+    overrides: &[(String, Value)],
+) -> Result<Preset, ConfigError> {
     let base_path = dir.join("_base.toml");
     let preset_path = dir.join(format!("{name}.toml"));
     let base: BaseFile = read_toml(&base_path)?;
@@ -86,6 +117,14 @@ pub fn load_preset(dir: &Path, name: &str) -> Result<Preset, ConfigError> {
 
     let mut merged = base.params;
     overlay(&mut merged, file.params, &file.name, "params")?;
+    let mut root = Table::new();
+    root.insert("params".into(), Value::Table(merged));
+    for (k, v) in overrides {
+        set_path(&mut root, k, v.clone())?;
+    }
+    let Some(Value::Table(merged)) = root.remove("params") else {
+        unreachable!("params table was just inserted")
+    };
     let params: Params = Value::Table(merged)
         .try_into()
         .map_err(|source| ConfigError::Parse {

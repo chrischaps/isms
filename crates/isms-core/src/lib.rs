@@ -40,7 +40,7 @@ pub mod world;
 pub use apply::apply;
 pub use capabilities::Capabilities;
 pub use command::{Command, Envelope, Reject, RejectCode, handle};
-pub use config::{ConfigError, Preset, load_preset};
+pub use config::{ConfigError, Preset, load_preset, load_preset_with_overrides};
 pub use constitution::Constitution;
 pub use event::Event;
 pub use explain::{Explain, RuleId};

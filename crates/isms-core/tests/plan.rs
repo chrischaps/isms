@@ -128,8 +128,8 @@ fn the_plan_buys_the_food_shortfall_at_or_below_the_limit() {
     assert_eq!(order.owner, Party::Citizen(me));
     assert_eq!(
         (order.qty, order.limit_price),
-        (14, Money::cents(163)),
-        "shortfall 24 - 10 at start price 1.30 x 1.25"
+        (14, Money::cents(132)),
+        "shortfall 24 - 10, placed at the best resting ask (limit 1.63)"
     );
     assert_eq!(order.source, isms_core::world::OrderSource::Standing);
     assert!(
@@ -152,7 +152,7 @@ fn the_plan_buys_the_food_shortfall_at_or_below_the_limit() {
 fn the_saving_floor_caps_the_bid_and_the_wares_rule_fires() {
     let mut h = shop(1, 132);
     let me = nth(&h, 0);
-    // balance 1000, floor 990: only 10 credits to spend at 1.65 -> 6 Food
+    // balance 1000, floor 990: only 10 credits to spend at the 1.32 ask -> 7 Food
     h.cmd(Envelope::citizen(
         me,
         Command::SetStandingPlan {
@@ -168,7 +168,7 @@ fn the_saving_floor_caps_the_bid_and_the_wares_rule_fires() {
     else {
         panic!()
     };
-    assert_eq!(order.qty, 6);
+    assert_eq!(order.qty, 7);
     assert!(h.citizen(me).household.balance >= Money::credits(990));
     // Wares: comfort must fall below 60 first (unhoused: -2/tick), and balance > 200 must hold
     let mut h = shop(1, 132);

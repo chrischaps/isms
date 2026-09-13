@@ -222,6 +222,36 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
     cmds
 }
 
+/// The reference price of a good: labor at the legacy wage per unit at the base
+/// rate plus reference-priced inputs, times the markup (TDD 5.7 derives the
+/// start prices this way). Bottom-up over the commodity graph, so it never
+/// depends on a market price and cannot compound (Q44).
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn reference_price(world: &World, good: Good) -> Money {
+    let producer = WorkplaceKind::ALL
+        .iter()
+        .find(|k| world.params.recipes[k].produces.as_good() == Some(good));
+    let Some(kind) = producer else {
+        return world
+            .params
+            .money
+            .start_prices
+            .get(&good)
+            .copied()
+            .unwrap_or(Money::ZERO);
+    };
+    let recipe = &world.params.recipes[kind];
+    let labor = world.params.money.legacy_wage.0 as f64 / recipe.base_rate;
+    let inputs: f64 = recipe
+        .consumes
+        .iter()
+        .map(|(g, per)| reference_price(world, *g).0 as f64 * f64::from(*per))
+        .sum();
+    Money(((labor + inputs) * (1.0 + world.params.householder.legacy_markup)).round() as i64)
+        .max(Money(1))
+}
+
 /// Cost-plus ask price for a workplace kind (Q40): labor cost per unit at the
 /// legacy wage plus inputs at last price, times the markup, never below the
 /// start price.
@@ -234,7 +264,7 @@ pub fn cost_plus(world: &World, kind: WorkplaceKind) -> Money {
     let inputs: f64 = recipe
         .consumes
         .iter()
-        .map(|(g, per)| price_of(world, *g).0 as f64 * f64::from(*per))
+        .map(|(g, per)| reference_price(world, *g).0 as f64 * f64::from(*per))
         .sum();
     let price = ((labor + inputs) * (1.0 + world.params.householder.legacy_markup)).round() as i64;
     let floor = recipe.produces.as_good().map_or(0, |g| {
@@ -340,8 +370,8 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
             let have = org.inventory.get(g).copied().unwrap_or(0) + open_bid_qty(world, me, *g);
             if need > have {
                 let limit = Money(
-                    (price_of(world, *g).0 as f64 * (1.0 + p.householder.legacy_markup)).round()
-                        as i64,
+                    (reference_price(world, *g).0 as f64 * (1.0 + p.householder.legacy_markup))
+                        .round() as i64,
                 );
                 let affordable = if limit > Money::ZERO {
                     (input_budget.0 / limit.0) as u32
@@ -397,8 +427,8 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
             Money((payroll.0 as f64 * p.householder.legacy_machine_buy_payroll_mult) as i64);
         #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
         let machine_price = Money(
-            (price_of(world, Good::Machines).0 as f64 * (1.0 + p.householder.legacy_markup)).round()
-                as i64,
+            (reference_price(world, Good::Machines).0 as f64 * (1.0 + p.householder.legacy_markup))
+                .round() as i64,
         );
         if workers > 0
             && org.treasury > threshold + machine_price
