@@ -61,6 +61,8 @@ fn csv_columns_match_the_tdd() {
         "food_last_price",
         "rejected_commands",
         "food_available",
+        "food_unfilled",
+        "stocked_out",
         "store_food",
         "state_food",
         "treasury_credits",
@@ -102,6 +104,12 @@ fn targets_derive_from_capabilities() {
             .iter()
             .all(|r| r.food_available == r.food_ask_depth)
     );
+    assert!(
+        market
+            .rows
+            .iter()
+            .all(|r| r.stocked_out == (r.food_ask_depth == 0))
+    );
 
     let commune = run(presets(), &RunSpec::new("commune", 1, 1)).unwrap();
     let t = StabilityTargets::for_capabilities(&commune.capabilities);
@@ -111,6 +119,12 @@ fn targets_derive_from_capabilities() {
             .rows
             .iter()
             .all(|r| r.food_available == r.store_food)
+    );
+    assert!(
+        commune
+            .rows
+            .iter()
+            .all(|r| r.stocked_out == (r.food_unfilled > 0))
     );
     let s = summarize(&commune.rows);
     assert!(s.iter().all(|e| e.min_price_index.is_none()));

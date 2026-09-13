@@ -140,7 +140,7 @@ pub fn aggregates(world: &World, low_population_cycles: u32) -> CycleAggregates 
 
     let unemployed = active
         .iter()
-        .filter(|c| !crate::employment::employed(world, c.id))
+        .filter(|c| !crate::labor::has_position(world, c.id))
         .count();
     let credit_outstanding: Money = world
         .contracts

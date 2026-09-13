@@ -61,6 +61,9 @@ pub struct TimeParams {
 #[serde(deny_unknown_fields)]
 pub struct LaborParams {
     pub base_budget_hours: u8,
+    /// Relative staffing weights per workplace kind for the balancing rule that
+    /// places a citizen where labor is scarcest (norm and assigned systems, S0.15c).
+    pub balance_weights: BTreeMap<WorkplaceKind, u32>,
     pub max_workplaces: u8,
     pub max_workers_per_workplace: u32,
     pub effort_output_mult: EffortTable<f64>,

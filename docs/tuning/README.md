@@ -1,6 +1,6 @@
 # Tuning reports
 
-Per-preset stability reports from the headless simulator (Phase 0). `freeport-00.md` is the first raw run (S0.13); `freeport-01.md` the tuned result and Phase 0a exit (S0.14b, S0.14).
+Per-preset stability reports from the headless simulator (Phase 0). `freeport-00.md` is the first raw run (S0.13); `freeport-01.md` the tuned result and Phase 0a exit (S0.14b, S0.14); `commune-01.md` the first stable Commune (S0.15).
 
 ## Running a sweep
 
@@ -14,14 +14,15 @@ make sim-all                                       # all five presets over seeds
 
 Every preset has its own `stability_<preset>` test (`make sim-check PRESET=commune` and so on); the
 targets are derived from the preset's capabilities by `StabilityTargets::for_capabilities`, so a
-moneyless society is never judged on a price index and "stock-out" is read from whatever holds the
-society's Food (resting asks, the Common Store, or the state stock: the `food_available` column).
+moneyless society is never judged on a price index and "stock-out" means what it means in that
+system: no Food asks resting at cycle end (market), or Food requested from the store and not served
+during the cycle (Common Store and state stock; the `food_unfilled` and `stocked_out` columns).
 
 `--param` takes `params.<section>.<key>=<toml value>` and applies before validation, so any tunable in `_base.toml` or the preset can be swept without editing files. `--check` exits 1 when any epoch misses a target.
 
 ## Reading the table
 
-One line per epoch: mean need-fulfillment (target >= 95%), min/max price index over the epoch (target 0.7..1.3), mean consumption Gini, mean investment share (Materials to Machine Shops over Materials produced; band 0.05..0.6), the worst hardship count, the worst unemployment, the longest run of cycles with no Food asks resting (stock-out; at most 3), and rejected householder commands (must be 0: a rejection is a script bug).
+One line per epoch: mean need-fulfillment (target >= 95%), min/max price index over the epoch (target 0.7..1.3), mean consumption Gini, mean investment share (Materials to Machine Shops over Materials produced; band 0.05..0.6), the worst hardship count, the worst unemployment, the longest run of stocked-out cycles (at most 3), and rejected householder commands (must be 0: a rejection is a script bug).
 
 The CSV has one row per cycle with every `CycleAggregates` field plus the Food and Wares ask depth and the Food last price, so a sweep can be plotted or diffed.
 
