@@ -392,6 +392,23 @@ pub enum Event {
         /// The collapse counter after this cycle (phase 8m).
         low_population_cycles: u32,
     },
+
+    // --- Phase 0b (appended: postcard tags variants by index, Q64) ----------
+    /// A Common Store draw request filed for this tick (S0.15).
+    StoreDrawRequested {
+        citizen: CitizenId,
+        good: Good,
+        qty: u32,
+        tick: Tick,
+    },
+    /// A departing citizen's pantry and balance return to the society's stock
+    /// instead of being burned (Q52).
+    StoreReturned {
+        citizen: CitizenId,
+        holder: Holder,
+        goods: BTreeMap<Good, u32>,
+        money: Money,
+    },
 }
 
 /// Per-worker attribution inside `Produced` (TDD §5.4). `true_output` is only
@@ -536,6 +553,8 @@ impl Event {
             Event::PolicyChanged { .. } => "PolicyChanged",
             Event::TickResolved { .. } => "TickResolved",
             Event::CycleClosed { .. } => "CycleClosed",
+            Event::StoreDrawRequested { .. } => "StoreDrawRequested",
+            Event::StoreReturned { .. } => "StoreReturned",
         }
     }
 
@@ -606,5 +625,7 @@ impl Event {
         "PolicyChanged",
         "TickResolved",
         "CycleClosed",
+        "StoreDrawRequested",
+        "StoreReturned",
     ];
 }

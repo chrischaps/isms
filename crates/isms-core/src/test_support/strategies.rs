@@ -305,6 +305,12 @@ pub enum CmdStep {
         who: usize,
         which: usize,
     },
+    /// A Common Store draw; `qty` is clipped to the entitlement at resolve time.
+    RequestStoreDraw {
+        who: usize,
+        good: Good,
+        qty: u32,
+    },
 }
 
 pub fn arb_cmd_step(n: usize) -> impl Strategy<Value = CmdStep> {
@@ -358,6 +364,11 @@ pub fn arb_cmd_step(n: usize) -> impl Strategy<Value = CmdStep> {
             }
         ),
         (0..n, 0usize..8).prop_map(|(who, which)| CmdStep::CancelOrder { who, which }),
+        (0..n, arb_good(), 1u32..20).prop_map(|(who, good, qty)| CmdStep::RequestStoreDraw {
+            who,
+            good,
+            qty
+        }),
     ]
 }
 
@@ -491,6 +502,21 @@ pub fn resolve_cmd(
             },
             tick,
         ),
+        CmdStep::RequestStoreDraw { who, good, qty } => {
+            let c = h.citizen(id(*who));
+            let allowed = crate::store::entitlement(&h.world, c, *good);
+            if allowed == 0 {
+                return None;
+            }
+            Envelope::citizen(
+                id(*who),
+                Command::RequestStoreDraw {
+                    good: *good,
+                    qty: (*qty).min(allowed),
+                },
+                tick,
+            )
+        }
     })
 }
 

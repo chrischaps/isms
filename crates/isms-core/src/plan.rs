@@ -112,7 +112,7 @@ fn plan_envelope(citizen: CitizenId, command: Command, tick: Tick) -> Envelope<C
 
 /// Run one citizen's plan against the scratch world: commands go through
 /// `handle`; their events are emitted as ordinary events.
-fn run_plan_command(b: &mut TickBuilder, citizen: CitizenId, command: Command) -> bool {
+pub(crate) fn run_plan_command(b: &mut TickBuilder, citizen: CitizenId, command: Command) -> bool {
     let env = plan_envelope(citizen, command, b.tick);
     match handle(&b.world, b.rules, &env) {
         Ok(events) => {
@@ -125,15 +125,18 @@ fn run_plan_command(b: &mut TickBuilder, citizen: CitizenId, command: Command) -
     }
 }
 
-/// Phase 2 for market systems: the consumption rules, the saving floor, and the
-/// standing orders, in the tick's shuffled order. Store and state-store rules
-/// arrive with S0.15/S0.16.
+/// Phase 2: the same plan fields drive bids in market systems and store draws
+/// in Common Store systems (TDD §6), in the tick's shuffled order. State-store
+/// requests arrive with S0.16.
 pub fn phase_2_standing_plans(b: &mut TickBuilder, order: &[CitizenId]) {
-    if !b.rules.capabilities.order_books {
-        return;
-    }
-    for &id in order {
-        execute_market_plan(b, id);
+    if b.rules.capabilities.order_books {
+        for &id in order {
+            execute_market_plan(b, id);
+        }
+    } else if b.rules.capabilities.common_store {
+        for &id in order {
+            crate::store::execute_store_plan(b, id);
+        }
     }
 }
 
@@ -362,6 +365,13 @@ pub fn cycle_end_8k_dormancy(b: &mut TickBuilder) {
         for (order, released) in orders {
             b.emit(Event::OrderCancelled { order, released });
         }
+        // A collective dwelling is released while its occupant is away (GDD 9.3, Q25).
+        if let Some(dwelling) = crate::housing::society_dwelling_of(&b.world, id) {
+            b.emit(Event::DwellingOccupied {
+                dwelling,
+                citizen: None,
+            });
+        }
         b.emit(Event::CitizenDormant { citizen: id });
     }
 }
@@ -397,6 +407,8 @@ pub fn touches(event: &Event, id: CitizenId) -> bool {
         | Event::Paid { citizen, .. }
         | Event::PaymentMissed { citizen, .. }
         | Event::Drew { citizen, .. }
+        | Event::StoreDrawRequested { citizen, .. }
+        | Event::StoreReturned { citizen, .. }
         | Event::HardshipBegan { citizen, .. }
         | Event::HardshipEnded { citizen, .. }
         | Event::DestitutionBegan { citizen, .. }

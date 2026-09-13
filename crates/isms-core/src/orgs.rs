@@ -196,7 +196,11 @@ pub fn add_workplace(
 ) -> Result<Vec<Event>, Reject> {
     let o = managed_org(world, envelope, org)?;
     let materials = world.params.founding.materials;
-    let have = o.inventory.get(&Good::Materials).copied().unwrap_or(0);
+    let have = crate::ledger::goods_at(
+        world,
+        crate::ledger::stock_holder(world, org),
+        Good::Materials,
+    );
     if have < materials {
         return Err(Reject::new(
             RejectCode::InsufficientGoods,
@@ -252,7 +256,11 @@ pub fn install_machines(
             "qty must be positive",
         ));
     }
-    let have = o.inventory.get(&Good::Machines).copied().unwrap_or(0);
+    let have = crate::ledger::goods_at(
+        world,
+        crate::ledger::stock_holder(world, org),
+        Good::Machines,
+    );
     if have < qty {
         return Err(Reject::new(
             RejectCode::InsufficientGoods,

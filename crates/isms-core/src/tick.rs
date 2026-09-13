@@ -219,6 +219,8 @@ fn phase_6_markets(b: &mut TickBuilder) {
         let (vwap, index) = crate::market::phase_6_markets(b);
         b.vwap = vwap;
         b.price_index = index;
+    } else if b.rules.capabilities.common_store {
+        crate::store::phase_6_store(b);
     }
 }
 
@@ -248,7 +250,11 @@ fn phase_8_cycle_end(b: &mut TickBuilder) {
 fn cycle_end_8a_payroll(b: &mut TickBuilder) {
     crate::employment::cycle_end_8a_payroll(b);
 }
-fn cycle_end_8b_tax_and_provision(_b: &mut TickBuilder) {}
+/// 8b. Provision: society-owned dwellings go to the unhoused (S0.15); tax and
+/// the other floors arrive with S0.16/S0.17.
+fn cycle_end_8b_tax_and_provision(b: &mut TickBuilder) {
+    crate::housing::cycle_end_8b_assign_dwellings(b);
+}
 fn cycle_end_8c_credit_installments(b: &mut TickBuilder) {
     crate::credit::cycle_end_8c_credit_installments(b);
 }
@@ -308,12 +314,14 @@ fn phase_9_epoch_checks(b: &mut TickBuilder) {
 /// 10. Emit: discrete events in order, then `TickResolved`.
 fn phase_10_emit(b: TickBuilder) -> Vec<Event> {
     let mut events = b.events;
-    // Continuous state of every non-dormant citizen, as it now stands in the scratch world.
+    // Continuous state of every non-dormant citizen, as it now stands in the
+    // scratch world. A citizen who ate this tick and then left (emigration at
+    // 8l) still gets a delta, or the live pantry would keep the eaten unit.
     let citizen_deltas = b
         .world
         .citizens
         .values()
-        .filter(|c| !c.dormant)
+        .filter(|c| !c.dormant || b.consumed.contains_key(&c.id))
         .map(|c| {
             let (food_eaten, wares_consumed) = b.consumed.get(&c.id).copied().unwrap_or((0, 0));
             CitizenDelta {

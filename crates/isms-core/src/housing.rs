@@ -28,6 +28,45 @@ pub fn owner_of(party: Party) -> Owner {
     }
 }
 
+/// The first society-owned dwelling nobody occupies (collective systems).
+#[must_use]
+pub fn free_society_dwelling(world: &World) -> Option<DwellingId> {
+    world
+        .dwellings
+        .values()
+        .find(|d| d.owner == Owner::Society && d.occupant.is_none() && d.lease.is_none())
+        .map(|d| d.id)
+}
+
+/// The society-owned dwelling this citizen occupies without a lease, if any.
+#[must_use]
+pub fn society_dwelling_of(world: &World, citizen: crate::ids::CitizenId) -> Option<DwellingId> {
+    let d = world.citizens.get(&citizen)?.household.dwelling?;
+    let dw = world.dwellings.get(&d)?;
+    (dw.owner == Owner::Society && dw.lease.is_none()).then_some(d)
+}
+
+/// Step 8b (collective systems): every active unhoused citizen is assigned a
+/// free society dwelling, in citizen order (GDD 6.2, 6.3; Q50).
+pub fn cycle_end_8b_assign_dwellings(b: &mut TickBuilder) {
+    let unhoused: Vec<crate::ids::CitizenId> = b
+        .world
+        .citizens
+        .values()
+        .filter(|c| !c.dormant && c.household.dwelling.is_none())
+        .map(|c| c.id)
+        .collect();
+    for citizen in unhoused {
+        let Some(dwelling) = free_society_dwelling(&b.world) else {
+            return;
+        };
+        b.emit(Event::DwellingOccupied {
+            dwelling,
+            citizen: Some(citizen),
+        });
+    }
+}
+
 /// Whether the dwelling is under an open sale or lease offer.
 #[allow(clippy::match_same_arms)]
 fn under_offer(world: &World, id: DwellingId) -> bool {
