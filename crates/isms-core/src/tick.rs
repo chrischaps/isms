@@ -223,7 +223,9 @@ fn phase_6_markets(b: &mut TickBuilder) {
 }
 
 /// 7. Evictions and defaults from last cycle's misses (S0.11).
-fn phase_7_contracts(_b: &mut TickBuilder) {}
+fn phase_7_contracts(b: &mut TickBuilder) {
+    crate::housing::phase_7_evictions(b);
+}
 
 /// 8. Cycle end, in the TDD's exact sub-order.
 fn phase_8_cycle_end(b: &mut TickBuilder) {
@@ -247,7 +249,9 @@ fn cycle_end_8a_payroll(b: &mut TickBuilder) {
 }
 fn cycle_end_8b_tax_and_provision(_b: &mut TickBuilder) {}
 fn cycle_end_8c_credit_installments(_b: &mut TickBuilder) {}
-fn cycle_end_8d_rent(_b: &mut TickBuilder) {}
+fn cycle_end_8d_rent(b: &mut TickBuilder) {
+    crate::housing::cycle_end_8d_rent(b);
+}
 fn cycle_end_8e_dividends(b: &mut TickBuilder) {
     crate::shares::cycle_end_8e_dividends(b);
 }

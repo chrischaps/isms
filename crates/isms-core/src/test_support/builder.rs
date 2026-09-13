@@ -24,6 +24,7 @@ pub struct WorldBuilder {
     workplaces: Vec<(WorkplaceKind, usize, u32)>,
     org_inventory: Vec<(usize, Good, u32)>,
     assignments: Vec<(usize, usize, u8, Effort)>,
+    dwellings: Vec<usize>,
 }
 
 impl WorldBuilder {
@@ -40,6 +41,7 @@ impl WorldBuilder {
             workplaces: Vec::new(),
             org_inventory: Vec::new(),
             assignments: Vec::new(),
+            dwellings: Vec::new(),
         }
     }
 
@@ -114,6 +116,13 @@ impl WorldBuilder {
     #[must_use]
     pub fn assign(mut self, citizen: usize, workplace: usize, hours: u8, effort: Effort) -> Self {
         self.assignments.push((citizen, workplace, hours, effort));
+        self
+    }
+
+    /// Seed a dwelling owned by the `org`-th org (no Materials consumed).
+    #[must_use]
+    pub fn dwelling(mut self, org: usize) -> Self {
+        self.dwellings.push(org);
         self
     }
 
@@ -214,6 +223,14 @@ impl WorldBuilder {
             log.push(Event::Seeded {
                 holder: Holder::Org(OrgId(u32::try_from(*org).unwrap())),
                 asset: Asset::Good(*good, *qty),
+            });
+        }
+        for (i, org) in self.dwellings.iter().enumerate() {
+            log.push(Event::DwellingBuilt {
+                dwelling: crate::ids::DwellingId(u32::try_from(i).unwrap()),
+                org: OrgId(u32::try_from(*org).unwrap()),
+                workplace: None,
+                materials_consumed: 0,
             });
         }
         for (citizen, workplace, hours, effort) in &self.assignments {

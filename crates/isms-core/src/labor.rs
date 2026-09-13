@@ -98,7 +98,7 @@ pub fn phase_3_labor(world: &World) -> BTreeMap<WorkplaceId, Vec<WorkerTick>> {
 }
 
 /// Phase 4: production per workplace, in workplace id order.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::single_match_else)]
 pub fn phase_4_production(b: &mut TickBuilder, labor: &BTreeMap<WorkplaceId, Vec<WorkerTick>>) {
     let params = b.world.params.clone();
     let sigma = b.rules.capabilities.monitoring_sigma;
@@ -109,10 +109,7 @@ pub fn phase_4_production(b: &mut TickBuilder, labor: &BTreeMap<WorkplaceId, Vec
             continue;
         };
         let recipe = &params.recipes[&wp.kind];
-        // Q17: dwellings arrive in S0.11; a Builder produces nothing until then.
-        let Some(output_good) = recipe.produces.as_good() else {
-            continue;
-        };
+        let output_good = recipe.produces.as_good();
         let org_id = wp.org;
         let headcount = u32::try_from(workers.len()).unwrap_or(u32::MAX);
         let cap_mult = capital_mult(wp.machines, headcount, &params);
@@ -195,15 +192,33 @@ pub fn phase_4_production(b: &mut TickBuilder, labor: &BTreeMap<WorkplaceId, Vec
             s.level = skill_level(s.tick_hours, ticks_per_cycle, &params);
         }
         let consumed_any = inputs_consumed.values().any(|q| *q > 0);
-        if units > 0 || consumed_any {
-            b.emit(Event::Produced {
-                workplace: *wp_id,
-                tick: b.tick,
-                output: output_good,
-                units,
-                inputs_consumed,
-                per_worker,
-            });
+        match output_good {
+            Some(output) => {
+                if units > 0 || consumed_any {
+                    b.emit(Event::Produced {
+                        workplace: *wp_id,
+                        tick: b.tick,
+                        output,
+                        units,
+                        inputs_consumed,
+                        per_worker,
+                    });
+                }
+            }
+            None => {
+                // A Builder's output is a dwelling asset per unit (GDD 4.1).
+                let per_unit =
+                    inputs_consumed.get(&Good::Materials).copied().unwrap_or(0) / units.max(1);
+                for _ in 0..units {
+                    let dwelling = b.world.next.dwelling;
+                    b.emit(Event::DwellingBuilt {
+                        dwelling,
+                        org: org_id,
+                        workplace: Some(*wp_id),
+                        materials_consumed: per_unit,
+                    });
+                }
+            }
         }
     }
 }

@@ -188,6 +188,13 @@ pub enum Command {
     EndLease {
         contract: ContractId,
     },
+    /// An owner occupies their own dwelling (Q34).
+    MoveIn {
+        dwelling: crate::ids::DwellingId,
+    },
+    MoveOut {
+        dwelling: crate::ids::DwellingId,
+    },
     RequestMembership {
         org: OrgId,
     },
@@ -245,6 +252,8 @@ impl Command {
             Command::OfferLease { .. } => "OfferLease",
             Command::AcceptLease { .. } => "AcceptLease",
             Command::EndLease { .. } => "EndLease",
+            Command::MoveIn { .. } => "MoveIn",
+            Command::MoveOut { .. } => "MoveOut",
             Command::RequestMembership { .. } => "RequestMembership",
             Command::AdmitMember { .. } => "AdmitMember",
             Command::LeaveOrg { .. } => "LeaveOrg",
@@ -327,6 +336,8 @@ impl Capabilities {
             | Command::AdmitMember { .. }
             | Command::LeaveOrg { .. }
             | Command::EndEpoch { .. }
+            | Command::MoveIn { .. }
+            | Command::MoveOut { .. }
             | Command::SetPolicy { .. }
             | Command::AddWorkplace { .. }
             | Command::AppointManager { .. }
@@ -453,6 +464,15 @@ pub fn handle(
         Command::DeclareDividend { org, per_share } => {
             crate::shares::declare_dividend(world, envelope, *org, *per_share)
         }
+        Command::OfferLease {
+            asset,
+            rent_per_cycle,
+            term_cycles,
+        } => crate::housing::offer_lease(world, envelope, *asset, *rent_per_cycle, *term_cycles),
+        Command::AcceptLease { offer } => crate::housing::accept_lease(world, envelope, *offer),
+        Command::EndLease { contract } => crate::housing::end_lease(world, envelope, *contract),
+        Command::MoveIn { dwelling } => crate::housing::move_in(world, envelope, *dwelling),
+        Command::MoveOut { dwelling } => crate::housing::move_out(world, envelope, *dwelling),
         Command::FoundOrg {
             kind,
             name,

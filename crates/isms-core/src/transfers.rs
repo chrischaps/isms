@@ -126,15 +126,11 @@ pub fn transfer(
     }])
 }
 
-/// The escrowable form of a sale asset; shares are checked separately.
-fn sale_asset_as_asset(asset: SaleAsset) -> Result<Option<Asset>, Reject> {
+/// The escrowable form of a sale asset; shares and dwellings are checked separately.
+fn sale_asset_as_asset(asset: SaleAsset) -> Option<Asset> {
     match asset {
-        SaleAsset::Good(g, q) => Ok(Some(Asset::Good(g, q))),
-        SaleAsset::Shares(..) => Ok(None),
-        SaleAsset::Dwelling(_) => Err(Reject::new(
-            RejectCode::NotImplemented,
-            "dwelling sales arrive in S0.11",
-        )),
+        SaleAsset::Good(g, q) => Some(Asset::Good(g, q)),
+        SaleAsset::Shares(..) | SaleAsset::Dwelling(_) => None,
     }
 }
 
@@ -155,8 +151,14 @@ pub fn offer_sale(
     to: Option<Party>,
 ) -> Result<Vec<Event>, Reject> {
     let seller = acting_party(world, envelope)?;
-    match sale_asset_as_asset(asset)? {
+    match sale_asset_as_asset(asset) {
         Some(escrowed) => check_has(world, seller, escrowed)?,
+        None if matches!(asset, SaleAsset::Dwelling(_)) => {
+            let SaleAsset::Dwelling(d) = asset else {
+                unreachable!()
+            };
+            crate::housing::check_dwelling_sale(world, seller, d)?;
+        }
         None => {
             let SaleAsset::Shares(org, qty) = asset else {
                 unreachable!()

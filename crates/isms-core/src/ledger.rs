@@ -65,6 +65,8 @@ pub struct LedgerMeta {
     pub consumed: BTreeMap<Good, u64>,
     pub depreciated: BTreeMap<Good, u64>,
     pub burned: BTreeMap<Good, u64>,
+    /// Dwellings built, for real output (they are assets, not goods).
+    pub dwellings_built: u64,
 }
 
 impl LedgerMeta {
