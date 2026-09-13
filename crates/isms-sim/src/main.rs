@@ -2,7 +2,7 @@
 //! `isms-sim all --epochs 5 --seeds 1..5` for the five presets side by side.
 
 use clap::{Parser, Subcommand};
-use isms_sim::{PRESETS, sweep};
+use isms_sim::{DetailOptions, PRESETS, sweep};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -38,6 +38,16 @@ enum Cmd {
         /// Fail (exit 1) if any epoch misses the GDD §17 targets.
         #[arg(long)]
         check: bool,
+        /// Also write per-citizen, per-org, flow, trade, move and depth CSVs
+        /// under `<detail-dir>/<preset>-<seed>/` (S0.14e).
+        #[arg(long)]
+        detail: bool,
+        /// With --detail, also write `citizens_ticks.csv` (one row per citizen per tick).
+        #[arg(long)]
+        detail_ticks: bool,
+        /// Parent directory for detail output (gitignored by default).
+        #[arg(long, default_value = "target/sim")]
+        detail_dir: PathBuf,
     },
     /// Run all five presets over the same seeds and print their tables in turn.
     All {
@@ -55,6 +65,16 @@ enum Cmd {
         /// Fail (exit 1) if any preset misses its targets in any epoch.
         #[arg(long)]
         check: bool,
+        /// Also write per-citizen, per-org, flow, trade, move and depth CSVs
+        /// under `<detail-dir>/<preset>-<seed>/` (S0.14e).
+        #[arg(long)]
+        detail: bool,
+        /// With --detail, also write `citizens_ticks.csv` (one row per citizen per tick).
+        #[arg(long)]
+        detail_ticks: bool,
+        /// Parent directory for detail output (gitignored by default).
+        #[arg(long, default_value = "target/sim")]
+        detail_dir: PathBuf,
     },
 }
 
@@ -80,6 +100,10 @@ fn presets_dir(presets: Option<PathBuf>) -> PathBuf {
     presets.unwrap_or_else(|| PathBuf::from(isms_core::WORKSPACE_PRESETS_DIR))
 }
 
+fn detail_options(detail: bool, ticks: bool, dir: PathBuf) -> Option<DetailOptions> {
+    (detail || ticks).then_some(DetailOptions { dir, ticks })
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.cmd {
@@ -92,7 +116,11 @@ fn main() -> ExitCode {
             out,
             presets,
             check,
+            detail,
+            detail_ticks,
+            detail_dir,
         } => {
+            let detail = detail_options(detail, detail_ticks, detail_dir);
             let overrides: Result<Vec<_>, _> = params.iter().map(|p| parse_override(p)).collect();
             let overrides = match overrides {
                 Ok(o) => o,
@@ -109,6 +137,7 @@ fn main() -> ExitCode {
                 seed_list,
                 &overrides,
                 out.as_deref(),
+                detail.as_ref(),
             ) {
                 Ok(failures) if check && !failures.is_empty() => ExitCode::FAILURE,
                 Ok(_) => ExitCode::SUCCESS,
@@ -124,7 +153,11 @@ fn main() -> ExitCode {
             out,
             presets,
             check,
+            detail,
+            detail_ticks,
+            detail_dir,
         } => {
+            let detail = detail_options(detail, detail_ticks, detail_dir);
             let dir = presets_dir(presets);
             let seed_list = parse_seeds(&seeds, 1);
             let mut failed = Vec::new();
@@ -137,6 +170,7 @@ fn main() -> ExitCode {
                     seed_list.iter().copied(),
                     &[],
                     out.as_deref(),
+                    detail.as_ref(),
                 ) {
                     Ok(f) if f.is_empty() => println!("{preset}: stable"),
                     Ok(f) => {

@@ -24,6 +24,12 @@ use isms_core::world::{Instrument, Side, World};
 use serde::Serialize;
 use std::path::Path;
 
+pub mod detail;
+pub mod observer;
+
+pub use detail::{DetailOptions, DetailWriter};
+pub use observer::{NoObserver, Observer};
+
 /// The five presets, in the order `make sim-all` prints them.
 pub const PRESETS: [&str; 5] = [
     "freeport",
@@ -237,6 +243,16 @@ fn make_row(
 /// Run a householder-only society for `epochs` epochs. Collapse is off (the
 /// simulator never has humans). Between ticks the householder scripts run once.
 pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError> {
+    run_with(presets_dir, spec, &mut NoObserver)
+}
+
+/// `run` with an [`Observer`] called after each applied step (S0.14e). The
+/// observer only reads; with `NoObserver` this is byte-for-byte `run`.
+pub fn run_with(
+    presets_dir: &Path,
+    spec: &RunSpec,
+    obs: &mut dyn Observer,
+) -> Result<RunResult, ConfigError> {
     let mut overrides = spec.overrides.clone();
     overrides.push((
         "params.population.collapse_enabled".into(),
@@ -258,10 +274,12 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
     let mut events: u64 = 1;
     let mut rejected_total = 0u32;
     for epoch in 0..spec.epochs {
-        for e in start_epoch(&world, &rules, epoch) {
-            apply(&mut world, &e);
+        let started = start_epoch(&world, &rules, epoch);
+        for e in &started {
+            apply(&mut world, e);
             events += 1;
         }
+        obs.epoch_started(&world, epoch, &started);
         let mut rejected_cycle = 0u32;
         let mut unfilled_cycle = 0u32;
         loop {
@@ -292,6 +310,7 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
                 apply(&mut world, e);
             }
             events += tick_events.len() as u64;
+            obs.tick_done(&world, epoch, now, &round, &tick_events);
             if let Some((cycle, a)) = closed {
                 rows.push(make_row(
                     spec,
@@ -303,6 +322,7 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
                     rejected_cycle,
                     unfilled_cycle,
                 ));
+                obs.cycle_closed(&world, epoch, cycle, rows.last().expect("just pushed"));
                 rejected_cycle = 0;
                 unfilled_cycle = 0;
             }
@@ -311,6 +331,7 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
             }
         }
     }
+    obs.finished(&world);
     Ok(RunResult {
         rows,
         events,
@@ -499,6 +520,7 @@ pub fn sweep(
     seeds: impl IntoIterator<Item = u64>,
     overrides: &[(String, toml::Value)],
     out: Option<&Path>,
+    detail: Option<&DetailOptions>,
 ) -> Result<Vec<String>, SweepError> {
     let mut failures = Vec::new();
     for seed in seeds {
@@ -509,7 +531,19 @@ pub fn sweep(
             overrides: overrides.to_vec(),
         };
         let started = std::time::Instant::now();
-        let result = run(presets_dir, &spec).map_err(SweepError::Config)?;
+        let mut writer = detail
+            .map(|d| DetailWriter::create(d, preset, seed))
+            .transpose()
+            .map_err(SweepError::Io)?;
+        let result = match writer.as_mut() {
+            Some(w) => run_with(presets_dir, &spec, w),
+            None => run(presets_dir, &spec),
+        }
+        .map_err(SweepError::Config)?;
+        if let Some(w) = writer.take() {
+            let dir = w.finish().map_err(SweepError::Io)?;
+            println!("wrote {}{}", dir.display(), std::path::MAIN_SEPARATOR);
+        }
         let summary = summarize(&result.rows);
         println!(
             "{preset} seed {seed}: {epochs} epochs, {} events, {} rejected commands, {:.1}s",

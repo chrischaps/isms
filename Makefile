@@ -65,3 +65,8 @@ openapi-lint:
 
 api-types:
 	@echo "make api-types arrives with S1.7"; exit 1
+
+# One run with the per-citizen, per-org, flow, trade, move and depth CSVs under target/sim/<preset>-<seed>/ (S0.14e).
+.PHONY: sim-detail
+sim-detail:
+	cargo run -p isms-sim --release -- run --preset $(PRESET) --epochs $(EPOCHS) --seed $(SEED) --out docs/tuning/runs --detail

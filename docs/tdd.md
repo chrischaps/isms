@@ -839,6 +839,14 @@ Phase 0 is split into **0a** (engine core + Freeport slice + simulator; the crit
 - **Done gate.** `make sim-check PRESET=freeport` green: need-fulfillment ≥ 95 %, no persistent stock-out, price index within ±30 % of basket over each epoch, Materials sinks within a documented band, across seeds 1–5.
 - **Hand-off.** **Phase 0a exit.** Phase 1 sessions S1.1+ may begin; Phase 0b continues in parallel.
 
+#### S0.14e — Simulator detail output
+- **Goal.** `isms-sim --detail` writes the per-citizen, per-org, recipe-flow, trade-tape, goods-movement and order-book-depth series a tuning report needs, from the same run, with no engine change.
+- **Read.** GDD §17; TDD §13, §18.2 S0.13–S0.14; `docs/tuning/README.md`; `docs/tuning/freeport-01.md` "What a richer report needs" (the Phase 0a ledger).
+- **Build.** An `Observer` trait with empty defaults and `run_with(presets, spec, &mut dyn Observer)` (`run` is `run_with(.., NoObserver)`), called after the epoch start, after every tick (both the householder round's and the tick's events), at cycle close, and at the end; `DetailWriter` folding those into `citizens.csv`, `orgs.csv`, `flows.csv`, `trades.csv`, `moves.csv`, `depth.csv` and, with `--detail-ticks`, `citizens_ticks.csv`, under `--detail-dir` (default `target/sim/<preset>-<seed>/`); headers written eagerly so an empty file still names its columns; `make sim-detail`; the schema table in `docs/tuning/README.md`.
+- **Out of scope.** Engine changes; a parameter-grid driver; a run manifest or archive convention; regenerating the Phase 0a report (follow-ups).
+- **Done gate.** `make check` green; `tests/detail.rs`: the observed run is byte-identical to the plain run (world hash, event count, aggregate CSV) and two detail runs of one seed write identical files; the observer sees every event but `SocietyCreated`; the column headers match the README; per-cycle wage means agree with `Row.mean_cycle_wage`; skill-hour differences cover the hours `Produced` reports; the Commune writes `drew` moves and header-only tape and depth; `citizens_ticks.csv` is opt-in. `make sim-check PRESET=freeport` unchanged.
+- **Hand-off.** The README schema table is the contract for the next report. A five-epoch Freeport seed writes about 20 MB, mostly the trade tape; keep `target/sim` out of the repo.
+
 ### 18.3 Phase 0b — the other four presets (engine slices)
 
 These can interleave with Phase 1's server/web sessions. Each adds capability-gated mechanics plus householder behavior plus a tuning pass; none touches the API or UI.
