@@ -41,6 +41,18 @@ dotenvy = "0.15"
 tracing = "0.1"
 metrics = "0.24"
 tokio-util = "0.7"
+# api
+axum = { version = "0.8", features = ["macros", "ws"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = ["trace", "limit", "set-header", "cors"] }
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+utoipa-axum = "0.2"
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+sha2 = "0.10"
+base64 = "0.22"
+axum-test = "18"
+time = "0.3"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # tests
 proptest = "1"
