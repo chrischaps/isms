@@ -13,7 +13,14 @@ export type Explain = {
 function show(v: unknown): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "number") return Number.isInteger(v) ? String(v) : v.toFixed(2);
-  if (typeof v === "object") return JSON.stringify(v);
+  if (typeof v === "object") {
+    // The engine's `Num`: {"Float": x}, {"Int": n}, or {"Money": cents}.
+    const o = v as Record<string, unknown>;
+    if (typeof o.Money === "number") return `${(o.Money / 100).toFixed(2)} cr`;
+    if (typeof o.Float === "number") return o.Float.toFixed(2);
+    if (typeof o.Int === "number") return String(o.Int);
+    return JSON.stringify(v);
+  }
   return String(v);
 }
 
@@ -52,19 +59,18 @@ export function Num({
             ?
           </button>
           {open ? (
-            <div id={id} role="dialog" className="explain absolute left-0 z-10 mt-1">
-              <div className="mb-2 font-mono text-xs">{explain.rule}</div>
-              <dl>
-                {inputs.map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-4">
-                    <dt>{k}</dt>
-                    <dd className="num">{show(v)}</dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="rule mt-2 pt-2 font-mono text-xs">{explain.formula}</div>
-              <div className="mt-1 text-right">= {show(explain.result)}</div>
-            </div>
+            // Spans throughout: a Num often sits inside a <p>, where block elements are invalid.
+            <span id={id} role="dialog" className="explain absolute left-0 z-10 mt-1 block">
+              <span className="mb-2 block font-mono text-xs">{explain.rule}</span>
+              {inputs.map(([k, v]) => (
+                <span key={k} className="flex justify-between gap-4">
+                  <span className="text-muted">{k}</span>
+                  <span className="num">{show(v)}</span>
+                </span>
+              ))}
+              <span className="rule mt-2 block pt-2 font-mono text-xs">{explain.formula}</span>
+              <span className="mt-1 block text-right">= {show(explain.result)}</span>
+            </span>
           ) : null}
         </span>
       ) : null}

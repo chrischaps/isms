@@ -79,11 +79,15 @@ export function useWelcome(id: number) {
   });
 }
 
+/** Ticks land over the stream; the interval is the fallback when it is down. */
+export const TICK_FALLBACK_MS = 15_000;
+
 export function useHome(id: number) {
   return useQuery({
     queryKey: keys.home(id),
     queryFn: async () =>
       unwrap(await api.GET("/s/{id}/home", { params: { path: { id } } })),
+    refetchInterval: TICK_FALLBACK_MS,
   });
 }
 
@@ -107,18 +111,34 @@ export function useStream(id: number | undefined, onFrame?: (f: StreamFrame) => 
     const base = import.meta.env.VITE_API_BASE
       ? import.meta.env.VITE_API_BASE.replace(/^http/, "ws")
       : `${proto}://${location.host}`;
-    const ws = new WebSocket(`${base}/s/${id}/stream`);
-    ws.onmessage = (m) => {
-      try {
-        const frame = JSON.parse(String(m.data)) as StreamFrame;
-        onFrame?.(frame);
-        if (frame.events.length > 0) {
-          void qc.invalidateQueries({ queryKey: keys.society(id) });
+    let ws: WebSocket | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    // Reconnect with a backoff: the server refuses the stream until you are a
+    // citizen, and a tick or a deploy can drop it.
+    const connect = (delay: number) => {
+      ws = new WebSocket(`${base}/s/${id}/stream`);
+      ws.onmessage = (m) => {
+        try {
+          const frame = JSON.parse(String(m.data)) as StreamFrame;
+          onFrame?.(frame);
+          if (frame.events.length > 0) {
+            void qc.invalidateQueries({ queryKey: keys.society(id) });
+          }
+        } catch {
+          // a malformed frame is ignored; the next one will do
         }
-      } catch {
-        // a malformed frame is ignored; the next one will do
-      }
+      };
+      ws.onclose = () => {
+        if (stopped) return;
+        timer = setTimeout(() => connect(Math.min(delay * 2, 30_000)), delay);
+      };
     };
-    return () => ws.close();
+    connect(2_000);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      ws?.close();
+    };
   }, [id, qc, onFrame]);
 }

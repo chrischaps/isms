@@ -93,9 +93,3 @@ button, input, select {
   font-size: var(--text-sm);
   max-width: 28rem;
 }
-.explain dt {
-  color: var(--color-muted);
-}
-.explain dd {
-  margin: 0 0 var(--spacing-1) 0;
-}

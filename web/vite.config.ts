@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 const api = process.env.ISMS_API ?? "http://127.0.0.1:8080";
 // Anchored regexes: a bare "/s" prefix would also catch "/src/main.tsx".
 const proxy = Object.fromEntries(
-  ["^/auth/", "^/me$", "^/me/", "^/societies", "^/s/\d+", "^/healthz", "^/openapi.json", "^/docs"].map(
+  ["^/auth/", "^/me$", "^/me/", "^/societies", "^/s/[0-9]+", "^/healthz", "^/openapi.json", "^/docs"].map(
     (p) => [p, { target: api, changeOrigin: false, ws: true }],
   ),
 );
