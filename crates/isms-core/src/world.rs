@@ -204,7 +204,7 @@ pub struct Citizen {
     pub cycle: crate::metrics::CitizenCycle,
     /// The Ledger of Contribution (norm systems, S0.15b).
     pub contribution: ContributionRecord,
-    /// Income since the last tax assessment (tax-transfer systems, Q79).
+    /// Income since the last tax assessment (tax-transfer systems, Q83).
     pub taxable_income: Money,
 }
 
@@ -356,12 +356,49 @@ pub struct Org {
     pub declared_dividend: Option<Money>,
 }
 
-/// Who holds shares (ADR-0005).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+/// Who holds shares (ADR-0005). Serialized as a string (`citizen:7`, `org_self`)
+/// because it keys the share registry, and JSON maps (the event log, S1.1)
+/// can only be keyed by strings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ShareHolder {
     Citizen(CitizenId),
     OrgSelf,
+}
+
+impl std::fmt::Display for ShareHolder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShareHolder::Citizen(c) => write!(f, "citizen:{}", c.0),
+            ShareHolder::OrgSelf => f.write_str("org_self"),
+        }
+    }
+}
+
+impl std::str::FromStr for ShareHolder {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "org_self" {
+            return Ok(ShareHolder::OrgSelf);
+        }
+        s.strip_prefix("citizen:")
+            .and_then(|n| n.parse::<u32>().ok())
+            .map(|n| ShareHolder::Citizen(CitizenId(n)))
+            .ok_or_else(|| format!("not a share holder: {s}"))
+    }
+}
+
+impl Serialize for ShareHolder {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for ShareHolder {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

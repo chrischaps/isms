@@ -16,6 +16,7 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
 pub mod accounts;
+pub mod reads;
 
 /// Migrations embedded from `crates/isms-store/migrations`.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
@@ -179,7 +180,7 @@ impl PgEventStore {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn row_to_event(
+pub(crate) fn row_to_event(
     seq: i64,
     tick: i32,
     cycle: i32,

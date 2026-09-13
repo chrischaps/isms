@@ -2,6 +2,8 @@
 //! the server, the CLI, and the `OpenAPI` document. Engine enums are re-exported
 //! where the wire shape is the engine's own serde form.
 
+pub mod society;
+
 use chrono::{DateTime, Utc};
 use isms_core::Capabilities;
 use isms_core::constitution::{

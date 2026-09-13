@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT seq, tick, cycle, epoch, actor, client_kind, payload, received_at\n             FROM events WHERE society_id = $1 AND kind = $2 AND tick >= $3 ORDER BY seq LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "tick",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "cycle",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "epoch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "actor",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "client_kind",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "payload",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "received_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "583b5af860e77d9abf55fd2d09bfff088a4dba69956e284ff7e3cc3fd4f7fdfb"
+}

@@ -51,7 +51,7 @@ utoipa-axum = "0.2"
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 sha2 = "0.10"
 base64 = "0.22"
-axum-test = "18"
+axum-test = { version = "18", features = ["ws"] }
 time = "0.3"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # tests

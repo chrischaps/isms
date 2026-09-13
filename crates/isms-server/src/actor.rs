@@ -9,7 +9,7 @@
 use isms_core::command::{Command, Envelope, Reject};
 use isms_core::event::{Actor, Event};
 use isms_core::householder::run_round;
-use isms_core::ids::{Epoch, Tick};
+use isms_core::ids::{Cycle, Epoch, Tick};
 use isms_core::kinds::ClientKind;
 use isms_core::rules::Rules;
 use isms_core::tick::{TickError, TickInput, tick};
@@ -25,6 +25,19 @@ use tokio::task::JoinHandle;
 #[derive(Debug)]
 pub struct Batch {
     pub first_seq: i64,
+    /// The clock the events were stored under (the tick they belong to).
+    pub tick: Tick,
+    pub cycle: Cycle,
+    pub events: Vec<Event>,
+}
+
+/// What an accepted command produced.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CommandOk {
+    /// Log position of the first event; `None` when nothing was produced.
+    pub first_seq: Option<i64>,
+    pub tick: Tick,
+    pub cycle: Cycle,
     pub events: Vec<Event>,
 }
 
@@ -51,7 +64,7 @@ pub enum ActorError {
 pub enum ActorMsg {
     Command {
         envelope: Envelope<Command>,
-        reply: oneshot::Sender<Result<Result<Vec<Event>, Reject>, ActorError>>,
+        reply: oneshot::Sender<Result<Result<CommandOk, Reject>, ActorError>>,
     },
     Tick {
         reply: oneshot::Sender<Result<TickOutcome, ActorError>>,
@@ -102,7 +115,7 @@ impl SocietyHandle {
     pub async fn command(
         &self,
         envelope: Envelope<Command>,
-    ) -> Result<Result<Vec<Event>, Reject>, ActorError> {
+    ) -> Result<Result<CommandOk, Reject>, ActorError> {
         self.send(|reply| ActorMsg::Command { envelope, reply })
             .await
     }
@@ -217,11 +230,12 @@ impl SocietyActor {
     }
 
     /// Persist, apply, broadcast: the single-writer contract (TDD 5.1).
-    async fn commit(&mut self, batch: Vec<NewEvent>) -> Result<(), ActorError> {
+    async fn commit(&mut self, batch: Vec<NewEvent>) -> Result<Option<i64>, ActorError> {
         if batch.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         let first_seq = self.next_seq;
+        let (tick, cycle) = (batch[0].meta.tick, batch[0].meta.cycle);
         if let Err(e) = self.store.append_batch(self.id, first_seq, &batch).await {
             if matches!(e, StoreError::SeqCollision { .. }) {
                 tracing::error!(
@@ -240,14 +254,19 @@ impl SocietyActor {
             }
         }
         self.next_seq += i64::try_from(events.len()).expect("batch fits in i64");
-        let _ = self.events.send(Arc::new(Batch { first_seq, events }));
-        Ok(())
+        let _ = self.events.send(Arc::new(Batch {
+            first_seq,
+            tick,
+            cycle,
+            events,
+        }));
+        Ok(Some(first_seq))
     }
 
     async fn command(
         &mut self,
         mut envelope: Envelope<Command>,
-    ) -> Result<Result<Vec<Event>, Reject>, ActorError> {
+    ) -> Result<Result<CommandOk, Reject>, ActorError> {
         let started = Instant::now();
         let kind = envelope.command.kind();
         let world_arc = Arc::clone(&self.world);
@@ -278,8 +297,13 @@ impl SocietyActor {
                         event,
                     })
                     .collect();
-                self.commit(batch).await?;
-                Ok(Ok(events))
+                let first_seq = self.commit(batch).await?;
+                Ok(Ok(CommandOk {
+                    first_seq,
+                    tick: meta.tick,
+                    cycle: meta.cycle,
+                    events,
+                }))
             }
         };
         metrics::counter!("isms_commands_total", "society" => self.id.to_string(), "kind" => kind)

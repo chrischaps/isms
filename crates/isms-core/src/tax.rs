@@ -19,7 +19,7 @@ use crate::world::{Instrument, World};
 
 /// Marginal income tax on one cycle's income: everything up to the lowest
 /// bracket at `tax_rate`, each slice above a bracket's threshold at that
-/// bracket's rate; brackets ascending; an empty list is a flat tax (Q80).
+/// bracket's rate; brackets ascending; an empty list is a flat tax (Q84).
 /// Each slice is floored to the cent.
 #[must_use]
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
