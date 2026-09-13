@@ -1,3 +1,5 @@
+# Byte-sensitive tests (preset text, migration checksums) need LF working copies on every OS.
+* text=auto eol=lf
 # Append-only logs from two parallel tracks: keep both sides instead of conflicting.
 docs/SESSIONS.md merge=union
 # Migrations are checksummed by sqlx: keep their bytes identical on every OS.
