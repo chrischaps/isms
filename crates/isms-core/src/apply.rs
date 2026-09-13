@@ -471,6 +471,7 @@ pub fn apply(world: &mut World, event: &Event) {
             if let Some(c) = world.citizens.get_mut(citizen) {
                 c.wages_total += *amount;
                 c.cycle_wages += *amount;
+                c.taxable_income += *amount;
             }
         }
         Event::PaymentMissed { org, contract, .. } => {
@@ -508,6 +509,27 @@ pub fn apply(world: &mut World, event: &Event) {
         } => {
             debit(world, Holder::Org(*org), Asset::Money(*amount));
             credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.taxable_income += *amount;
+            }
+        }
+        Event::TaxAssessed { citizen, tax, .. } => {
+            debit(world, Holder::Citizen(*citizen), Asset::Money(*tax));
+            credit(world, Holder::Treasury, Asset::Money(*tax));
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.taxable_income = Money::ZERO;
+            }
+            world.cycle.tax_collected += *tax;
+        }
+        Event::NeedFloorPaid {
+            citizen,
+            amount,
+            from,
+            ..
+        } => {
+            debit(world, *from, Asset::Money(*amount));
+            credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+            world.cycle.floor_paid += *amount;
         }
         Event::DwellingBuilt {
             dwelling,
@@ -1279,6 +1301,7 @@ fn reset_material_state(world: &mut World) {
         c.cycle_wages = Money::ZERO;
         c.cycle = crate::metrics::CitizenCycle::default();
         c.contribution = crate::world::ContributionRecord::default();
+        c.taxable_income = Money::ZERO;
         world.ledger_meta.minted += endowment;
     }
 }
@@ -1335,6 +1358,7 @@ fn join(
         cycle_wages: Money::ZERO,
         cycle: crate::metrics::CitizenCycle::default(),
         contribution: crate::world::ContributionRecord::default(),
+        taxable_income: Money::ZERO,
     };
     world.ledger_meta.minted += endowment;
     if let Some(d) = dwelling

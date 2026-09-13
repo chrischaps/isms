@@ -155,6 +155,26 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
             });
         }
     }
+    // Public dwellings (tax-transfer systems, Q81): built by the Builders and
+    // handed to the society, so the shared assignment rule houses the unhoused.
+    if let Some(n) = world.policy.public_dwellings
+        && !owners.is_empty()
+    {
+        for i in 0..n {
+            let dwelling = next_dw;
+            next_dw = next_dw.next();
+            events.push(Event::DwellingBuilt {
+                dwelling,
+                org: owners[usize::try_from(i).unwrap_or(0) % owners.len()],
+                workplace: None,
+                materials_consumed: 0,
+            });
+            events.push(Event::DwellingTransferred {
+                dwelling,
+                to: crate::world::Owner::Society,
+            });
+        }
+    }
     // Householders up to the floor.
     // A later epoch resets the roster first (Q41): humans start dormant and the
     // old householders are gone, so the fill is the whole floor.
@@ -180,9 +200,10 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
         .saturating_sub(householders);
     // In collective systems the dwellings just built are the society's and are
     // assigned at join (GDD 6.2), one per householder while they last.
+    let public_from = first_dwelling.0 + p.initial_dwellings;
     let mut society_dwellings = (first_dwelling.0..next_dw.0)
         .map(DwellingId)
-        .filter(|_| society_stock.is_some());
+        .filter(|d| society_stock.is_some() || d.0 >= public_from);
     let assigned = world.constitution.labor == crate::constitution::LaborMode::Assigned;
     let mut new_hh: Vec<CitizenId> = Vec::new();
     for _ in 0..fill {

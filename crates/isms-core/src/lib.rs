@@ -36,6 +36,7 @@ pub mod seeding;
 pub mod shares;
 pub mod state_store;
 pub mod store;
+pub mod tax;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 pub mod tick;

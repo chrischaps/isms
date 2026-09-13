@@ -479,6 +479,20 @@ pub enum Event {
         to_workplace: WorkplaceId,
         approved: bool,
     },
+    /// Income tax on the cycle's earnings, to the treasury (S0.17a).
+    TaxAssessed {
+        citizen: CitizenId,
+        income: Money,
+        tax: Money,
+        explain: Explain,
+    },
+    /// The need floor: a top-up from a public purse (the treasury, or the bank).
+    NeedFloorPaid {
+        citizen: CitizenId,
+        amount: Money,
+        from: Holder,
+        explain: Explain,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -575,6 +589,11 @@ pub struct CycleAggregates {
     pub till: Money,
     /// Gini of last cycle's hours on the Ledger of Contribution (norm systems).
     pub contribution_gini: f64,
+    // --- S0.17a --------------------------------------------------------------
+    /// The tax treasury at cycle end (tax-transfer systems).
+    pub treasury: Money,
+    pub tax_collected: Money,
+    pub floor_paid: Money,
 }
 
 impl Event {
@@ -660,6 +679,8 @@ impl Event {
             Event::TargetSet { .. } => "TargetSet",
             Event::TransferRequested { .. } => "TransferRequested",
             Event::TransferDecided { .. } => "TransferDecided",
+            Event::TaxAssessed { .. } => "TaxAssessed",
+            Event::NeedFloorPaid { .. } => "NeedFloorPaid",
         }
     }
 
@@ -743,5 +764,7 @@ impl Event {
         "TargetSet",
         "TransferRequested",
         "TransferDecided",
+        "TaxAssessed",
+        "NeedFloorPaid",
     ];
 }

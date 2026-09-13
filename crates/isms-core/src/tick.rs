@@ -253,9 +253,12 @@ fn cycle_end_8a_payroll(b: &mut TickBuilder) {
     crate::employment::cycle_end_8a_payroll(b);
     crate::planning::cycle_end_8a_scale_payroll(b);
 }
-/// 8b. Provision: society-owned dwellings go to the unhoused (S0.15); tax and
-/// the other floors arrive with S0.16/S0.17.
+/// 8b. Tax on the cycle's income and the resulting transfers and provision
+/// floors (TDD 5.5): the income tax and the money floor (tax-transfer), then
+/// society-owned dwellings for the unhoused, the Common Store's surplus shares,
+/// and the state's Food ration.
 fn cycle_end_8b_tax_and_provision(b: &mut TickBuilder) {
+    crate::tax::cycle_end_8b_tax(b);
     crate::housing::cycle_end_8b_assign_dwellings(b);
     if b.rules.capabilities.common_store {
         crate::store::cycle_end_8b_surplus_shares(b);

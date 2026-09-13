@@ -35,6 +35,9 @@ pub struct WorldCycle {
     pub store_unfilled: u64,
     /// Units issued at zero price by provision this cycle (S0.16a).
     pub rations_issued: u64,
+    /// Tax collected and need floor paid this cycle (S0.17a).
+    pub tax_collected: Money,
+    pub floor_paid: Money,
 }
 
 /// Gini coefficient of a non-negative sample; 0 for an empty or all-equal sample.
@@ -230,7 +233,21 @@ pub fn aggregates(world: &World, low_population_cycles: u32) -> CycleAggregates 
             .unwrap_or_default(),
         till: world.state_stock.as_ref().map_or(Money::ZERO, |s| s.till),
         contribution_gini,
+        treasury: world.treasury,
+        tax_collected: world.cycle.tax_collected,
+        floor_paid: world.cycle.floor_paid,
     }
+}
+
+/// The wellbeing index of one citizen over the cycle so far: the mean of the
+/// three meters, 0..=100 (the Republic's scoreboard alongside net worth).
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn wellbeing_index(citizen: &crate::world::Citizen) -> f64 {
+    if citizen.cycle.ticks == 0 {
+        return 0.0;
+    }
+    citizen.cycle.wellbeing_tenths as f64 / (f64::from(citizen.cycle.ticks) * 10.0)
 }
 
 /// Phase 5 hook: fold this tick's needs into the citizen's cycle accumulators.

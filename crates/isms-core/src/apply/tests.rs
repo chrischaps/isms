@@ -278,6 +278,8 @@ fn unimplemented_registry_matches_the_enum() {
         "TargetSet",
         "TransferRequested",
         "TransferDecided",
+        "TaxAssessed",
+        "NeedFloorPaid",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -296,10 +298,11 @@ fn unimplemented_registry_matches_the_enum() {
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
     // Phase 0b variants are appended after `CycleClosed` (Q64).
-    let last = Event::TransferDecided {
+    let last = Event::NeedFloorPaid {
         citizen: CitizenId(0),
-        to_workplace: crate::ids::WorkplaceId(0),
-        approved: false,
+        amount: Money::ZERO,
+        from: Holder::Treasury,
+        explain: crate::explain::Explain::new(crate::explain::RuleId::NeedFloorTransfer, "", 0u32),
     };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {
