@@ -39,6 +39,17 @@ pub struct Params {
     pub initial_dwellings: u32,
     pub seeding: SeedingParams,
     pub coop: CoopParams,
+    pub bank: BankParams,
+}
+
+/// The Public Investment Bank's lending formula (GDD §6.5; S0.17c, Q94).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BankParams {
+    pub rate_per_cycle_bp: u32,
+    #[serde(rename = "max_loan_credits", with = "crate::money::credits")]
+    pub max_loan: Money,
+    pub max_term_cycles: u32,
 }
 
 /// Cooperative defaults (GDD §6.5; S0.17b).
@@ -47,6 +58,8 @@ pub struct Params {
 pub struct CoopParams {
     /// How a new coop splits its surplus until it decides otherwise.
     pub default_share_rule: crate::world::ShareRule,
+    /// A coop's steward buys no Machine beyond this many per working member (Q98).
+    pub max_machines_per_member: u32,
 }
 
 /// What the seeded (legacy) orgs start with besides their treasury (ADR-0004).

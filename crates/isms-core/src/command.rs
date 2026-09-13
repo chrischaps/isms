@@ -261,6 +261,21 @@ pub enum Command {
         org: OrgId,
         rule: crate::world::ShareRule,
     },
+    /// A cooperative applies to the Public Investment Bank (S0.17c).
+    RequestBankLoan {
+        org: OrgId,
+        principal: Money,
+        term_cycles: u32,
+    },
+    /// A member proposes a candidate; the members vote (S0.17c).
+    ProposeAdmission {
+        org: OrgId,
+        citizen: CitizenId,
+    },
+    VoteAdmission {
+        proposal: crate::ids::ProposalId,
+        approve: bool,
+    },
 }
 
 impl Command {
@@ -311,6 +326,9 @@ impl Command {
             Command::RequestTransfer { .. } => "RequestTransfer",
             Command::DecideTransfer { .. } => "DecideTransfer",
             Command::SetShareRule { .. } => "SetShareRule",
+            Command::RequestBankLoan { .. } => "RequestBankLoan",
+            Command::ProposeAdmission { .. } => "ProposeAdmission",
+            Command::VoteAdmission { .. } => "VoteAdmission",
         }
     }
 }
@@ -434,7 +452,10 @@ impl Capabilities {
             | Command::CancelSale { .. } => self.allows_contract(ContractKind::SaleDirect),
             Command::OfferCredit { .. } | Command::AcceptCredit { .. } => {
                 self.allows_contract(ContractKind::Credit)
-                    || self.allows_contract(ContractKind::PublicCredit)
+            }
+            Command::RequestBankLoan { .. } => self.allows_contract(ContractKind::PublicCredit),
+            Command::ProposeAdmission { .. } | Command::VoteAdmission { .. } => {
+                self.allows_org(OrgKind::Cooperative)
             }
             Command::OfferLease { .. } | Command::AcceptLease { .. } | Command::EndLease { .. } => {
                 self.allows_contract(ContractKind::Lease)
@@ -634,6 +655,17 @@ pub fn handle(
         }
         Command::SetShareRule { org, rule } => {
             crate::coop::set_share_rule(world, envelope, *org, *rule)
+        }
+        Command::RequestBankLoan {
+            org,
+            principal,
+            term_cycles,
+        } => crate::bank::request_bank_loan(world, envelope, *org, *principal, *term_cycles),
+        Command::ProposeAdmission { org, citizen } => {
+            crate::bank::propose_admission(world, envelope, *org, *citizen)
+        }
+        Command::VoteAdmission { proposal, approve } => {
+            crate::bank::vote_admission(world, envelope, *proposal, *approve)
         }
     }
 }

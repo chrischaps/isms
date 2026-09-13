@@ -86,6 +86,10 @@ pub struct Row {
     pub floor_paid_credits: f64,
     pub coop_surplus_per_member: f64,
     pub mean_tenure_cycles: f64,
+    pub bank_pool_credits: f64,
+    pub bank_loans_credits: f64,
+    pub materials_produced: u64,
+    pub materials_to_machines: u64,
 }
 
 /// What to run.
@@ -245,6 +249,10 @@ fn make_row(
         floor_paid_credits: a.floor_paid.as_credits_f64(),
         coop_surplus_per_member: a.coop_surplus_per_member,
         mean_tenure_cycles: a.mean_tenure_cycles,
+        bank_pool_credits: a.levy_pool.as_credits_f64(),
+        bank_loans_credits: a.bank_loans_outstanding.as_credits_f64(),
+        materials_produced: a.materials_produced,
+        materials_to_machines: a.materials_to_machines,
     }
 }
 
@@ -359,6 +367,9 @@ pub struct EpochSummary {
     pub min_price_index: Option<f64>,
     pub max_price_index: Option<f64>,
     pub mean_gini: f64,
+    /// The epoch's Materials-to-Machines share as a ratio of sums: a mean of
+    /// per-cycle ratios lets one cycle with two units of Materials made and
+    /// forty consumed (a ratio of 19) carry the epoch (Q100).
     pub mean_investment_share: f64,
     pub max_hardship: u32,
     pub max_unemployed: u32,
@@ -393,7 +404,15 @@ pub fn summarize(rows: &[Row]) -> Vec<EpochSummary> {
             min_price_index: idx.iter().copied().reduce(f64::min),
             max_price_index: idx.iter().copied().reduce(f64::max),
             mean_gini: rs.iter().map(|r| r.consumption_gini).sum::<f64>() / n,
-            mean_investment_share: rs.iter().map(|r| r.investment_share).sum::<f64>() / n,
+            mean_investment_share: {
+                let made: u64 = rs.iter().map(|r| r.materials_produced).sum();
+                let to_machines: u64 = rs.iter().map(|r| r.materials_to_machines).sum();
+                if made == 0 {
+                    0.0
+                } else {
+                    to_machines as f64 / made as f64
+                }
+            },
             max_hardship: rs.iter().map(|r| r.hardship_count).max().unwrap_or(0),
             max_unemployed: rs.iter().map(|r| r.unemployed).max().unwrap_or(0),
             longest_food_stockout: longest,

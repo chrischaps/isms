@@ -154,3 +154,11 @@ low = 0.6
 
 [params.coop]
 default_share_rule = "hours_weighted"    # [new tunable] S0.17b: equal | hours_weighted, until the coop sets its own (SetShareRule)
+max_machines_per_member = 12             # [new tunable] S0.17c (Q98): a steward buys no Machine past this many per working member
+
+[params.bank]
+# [new tunable] S0.17c (Q94): the Public Investment Bank lends by formula, first come first served,
+# one loan per cooperative, at this rate and up to this principal and term (a Machine is about 10).
+rate_per_cycle_bp = 100
+max_loan_credits = 30.00
+max_term_cycles = 10

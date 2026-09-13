@@ -74,6 +74,10 @@ fn csv_columns_match_the_tdd() {
         "floor_paid_credits",
         "coop_surplus_per_member",
         "mean_tenure_cycles",
+        "bank_pool_credits",
+        "bank_loans_credits",
+        "materials_produced",
+        "materials_to_machines",
     ] {
         assert!(header.split(',').any(|h| h == col), "missing column {col}");
     }

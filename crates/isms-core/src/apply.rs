@@ -929,6 +929,77 @@ pub fn apply(world: &mut World, event: &Event) {
                 o.share_rule = Some(*rule);
             }
         }
+        Event::LevyPaid {
+            org, bank, amount, ..
+        } => {
+            debit(world, Holder::Org(*org), Asset::Money(*amount));
+            credit(world, Holder::Org(*bank), Asset::Money(*amount));
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.surplus_base = (o.surplus_base - *amount).max_zero();
+            }
+        }
+        Event::BankLoanRequested {
+            offer,
+            org,
+            principal,
+            term_cycles,
+        } => {
+            world.offers.insert(
+                *offer,
+                crate::world::Offer {
+                    id: *offer,
+                    by: Party::Org(*org),
+                    created_tick: world.meta.tick,
+                    body: crate::world::OfferBody::BankLoan {
+                        org: *org,
+                        principal: *principal,
+                        term_cycles: *term_cycles,
+                    },
+                },
+            );
+            if world.next.offer.0 <= offer.0 {
+                world.next.offer = offer.next();
+            }
+        }
+        Event::BankLoanDecided { application, .. } => {
+            world.offers.remove(application);
+        }
+        Event::AdmissionProposed {
+            proposal,
+            org,
+            citizen,
+            by,
+        } => {
+            world.proposals.insert(
+                *proposal,
+                crate::world::Proposal {
+                    id: *proposal,
+                    by: *by,
+                    opened_tick: world.meta.tick,
+                    title: format!("admit {citizen} to {org}"),
+                    kind: crate::world::ProposalKind::Admission {
+                        org: *org,
+                        citizen: *citizen,
+                    },
+                    votes: BTreeMap::from([(*by, true)]),
+                },
+            );
+            if world.next.proposal.0 <= proposal.0 {
+                world.next.proposal = proposal.next();
+            }
+        }
+        Event::AdmissionVoted {
+            proposal,
+            citizen,
+            approve,
+        } => {
+            if let Some(p) = world.proposals.get_mut(proposal) {
+                p.votes.insert(*citizen, *approve);
+            }
+        }
+        Event::ProposalClosed { proposal, .. } => {
+            world.proposals.remove(proposal);
+        }
         Event::HouseholderEmigrated {
             citizen,
             burned_money,
