@@ -251,6 +251,7 @@ fn phase_8_cycle_end(b: &mut TickBuilder) {
 
 fn cycle_end_8a_payroll(b: &mut TickBuilder) {
     crate::employment::cycle_end_8a_payroll(b);
+    crate::planning::cycle_end_8a_scale_payroll(b);
 }
 /// 8b. Provision: society-owned dwellings go to the unhoused (S0.15); tax and
 /// the other floors arrive with S0.16/S0.17.
@@ -361,6 +362,8 @@ fn phase_10_emit(b: TickBuilder) -> Vec<Event> {
                 machine_wear: w.machine_wear,
                 output_remainder: w.output_remainder,
                 cycle_output: w.cycle_output,
+                last_cycle_output: w.last_cycle_output,
+                last_fulfillment: w.last_fulfillment,
                 workers: w
                     .workers
                     .iter()

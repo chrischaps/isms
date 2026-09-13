@@ -68,6 +68,8 @@ pub struct World {
     pub share_escrow: BTreeMap<EscrowKey, (OrgId, u64)>,
     pub offices: Offices,
     pub proposals: BTreeMap<ProposalId, Proposal>,
+    /// Pending transfer requests (assigned-labor systems): citizen -> wanted workplace.
+    pub transfer_requests: BTreeMap<CitizenId, WorkplaceId>,
     pub ledger_meta: LedgerMeta,
     pub next: NextIds,
     /// Basket price index as of the last tick (market systems).
@@ -138,6 +140,7 @@ impl World {
             share_escrow: BTreeMap::new(),
             offices: Offices::default(),
             proposals: BTreeMap::new(),
+            transfer_requests: BTreeMap::new(),
             ledger_meta: LedgerMeta::default(),
             next: NextIds::default(),
             price_index: None,
@@ -388,6 +391,10 @@ pub struct Workplace {
     pub cycle_output: f64,
     /// Plan target (Directorate).
     pub target: Option<f64>,
+    /// Last closed cycle's output and fulfilment (output / target), for the
+    /// scoreboard and the planner (S0.16b).
+    pub last_cycle_output: f64,
+    pub last_fulfillment: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

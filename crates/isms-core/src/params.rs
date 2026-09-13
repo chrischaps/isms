@@ -64,6 +64,8 @@ pub struct LaborParams {
     /// Relative staffing weights per workplace kind for the balancing rule that
     /// places a citizen where labor is scarcest (norm and assigned systems, S0.15c).
     pub balance_weights: BTreeMap<WorkplaceKind, u32>,
+    /// Skill points per wage grade band (wage-scale systems, Q73).
+    pub skill_band: u8,
     pub max_workplaces: u8,
     pub max_workers_per_workplace: u32,
     pub effort_output_mult: EffortTable<f64>,
@@ -209,13 +211,12 @@ pub struct MetricsParams {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GovernanceParams {
-    pub plan_bonus_fraction: f64,
-    pub ratchet: bool,
     pub coordinator_term_cycles: u32,
     pub committee_term_cycles: u32,
     pub legislature_term_cycles: u32,
-    pub work_norm_hours: u8,
     pub sim_planner_target_growth: f64,
+    /// Next target = max(target, output x this) when a workplace overfulfils (Q70).
+    pub ratchet_mult: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

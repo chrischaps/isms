@@ -67,6 +67,9 @@ fn csv_columns_match_the_tdd() {
         "state_food",
         "treasury_credits",
         "till_credits",
+        "plan_fulfillment",
+        "rations_issued",
+        "contribution_gini",
     ] {
         assert!(header.split(',').any(|h| h == col), "missing column {col}");
     }
