@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use isms_server::runtime::{Runtime, RuntimeError, SeedSpec, StartOptions, seed_society};
 use isms_server::state::AppState;
 use isms_store::{EventStore, PgEventStore, load_world, verify_latest_snapshot};
+use sqlx::migrate::MigrateDatabase;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -138,7 +139,6 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
                 .database_url
                 .as_deref()
                 .ok_or_else(|| ServerError::Arg("DATABASE_URL is not set".into()))?;
-            use sqlx::migrate::MigrateDatabase;
             if !sqlx::Postgres::database_exists(url).await? {
                 sqlx::Postgres::create_database(url).await?;
                 tracing::info!("database created");
