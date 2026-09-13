@@ -104,6 +104,16 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
                     asset: Asset::Money(p.money.legacy_treasury),
                 });
             }
+            if let Some(stock) = p.seeding.legacy_inventory.get(&wk) {
+                for (good, qty) in stock {
+                    if *qty > 0 {
+                        events.push(Event::Seeded {
+                            holder: Holder::Org(org),
+                            asset: Asset::Good(*good, *qty),
+                        });
+                    }
+                }
+            }
             if wk == WorkplaceKind::Builder {
                 builders.push(org);
             }

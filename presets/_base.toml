@@ -135,6 +135,13 @@ legislature_term_cycles = 10
 work_norm_hours = 6                      # Commune
 sim_planner_target_growth = 1.05         # sim only, S0.16
 
+[params.seeding]
+# [new tunable] S0.14b (ADR-0004): stock the legacy orgs so the first cycle is not a famine.
+# One cycle of Food for 40 citizens is 960; three Mills hold 320 each. Inputs let the
+# chain start before the raw goods arrive. Seeding Materials into the Machine Shop tilts the
+# investment-share metric (seeded Materials are consumed but never produced), so it is not seeded.
+legacy_inventory = { mill = { food = 320, grain = 120 }, foundry = { ore = 60 } }
+
 [params.monitoring]
 # sigma per A7 setting
 high = 0.0

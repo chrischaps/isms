@@ -37,6 +37,16 @@ pub struct Params {
     pub seeded_workplaces: BTreeMap<WorkplaceKind, u32>,
     /// Dwellings seeded at epoch start (owned by the seeded Builders, or the society).
     pub initial_dwellings: u32,
+    pub seeding: SeedingParams,
+}
+
+/// What the seeded (legacy) orgs start with besides their treasury (ADR-0004).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SeedingParams {
+    /// Goods seeded into each legacy org's inventory, per workplace kind, so that
+    /// day one has stock to sell before the first production lands (Q45).
+    pub legacy_inventory: BTreeMap<WorkplaceKind, BTreeMap<Good, u32>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
