@@ -103,6 +103,7 @@ pub struct StartOptions {
 /// A running society: its actor and scheduler tasks.
 #[derive(Debug)]
 pub struct Running {
+    pub row: SocietyRow,
     pub handle: SocietyHandle,
     pub schedule: Schedule,
     actor_task: JoinHandle<()>,
@@ -142,6 +143,7 @@ pub async fn start_society(
         cancel.child_token(),
     ));
     Ok(Running {
+        row: row.clone(),
         handle,
         schedule,
         actor_task,

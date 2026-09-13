@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, account_id, society_id, citizen_id, label, prefix, key_hash, created_at, revoked_at\n             FROM api_keys WHERE account_id = $1 AND revoked_at IS NULL ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "account_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "society_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "citizen_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "key_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "8d3dd6a270e4a074cb43804df1ea58d356a04189ac97892f9101ef63b106596c"
+}

@@ -1,11 +1,13 @@
-//! `isms-server`: one binary, subsystems by subcommand (TDD 3). `migrate`,
-//! `rebuild`, `seed`, and `serve` (actors + scheduler; the API arrives in S1.3).
+//! `isms-server`: one binary, subsystems by subcommand (TDD 3): `migrate`,
+//! `rebuild`, `seed`, `invite`, `openapi`, and `serve` (actors, scheduler, API).
 
 use clap::{Parser, Subcommand};
 use isms_server::runtime::{Runtime, RuntimeError, SeedSpec, StartOptions, seed_society};
+use isms_server::state::AppState;
 use isms_store::{EventStore, PgEventStore, load_world, verify_latest_snapshot};
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -15,7 +17,7 @@ use std::process::ExitCode;
 struct Cli {
     /// Postgres URL (default: `DATABASE_URL` from the environment or `.env`).
     #[arg(long, env = "DATABASE_URL")]
-    database_url: String,
+    database_url: Option<String>,
     /// Presets directory (default: the workspace's; embedded in the image from S1.14).
     #[arg(long, env = "ISMS_PRESETS_DIR")]
     presets: Option<PathBuf>,
@@ -50,11 +52,24 @@ enum Cmd {
         #[arg(long = "param")]
         params: Vec<String>,
     },
-    /// Load every active society, run actors and schedulers until Ctrl-C.
+    /// Mint invite codes (Phase 1 sign-up is invite only) and print them.
+    Invite {
+        #[arg(long, default_value_t = 1)]
+        count: u32,
+    },
+    /// Print the `OpenAPI` document (no database needed).
+    Openapi,
+    /// Load every active society, run actors, schedulers, and the API until Ctrl-C.
     Serve {
         /// Replay the whole log against the latest snapshot before starting (TDD 9.1).
         #[arg(long)]
         verify_replay: bool,
+        /// Listen address.
+        #[arg(long, env = "ISMS_BIND", default_value = "127.0.0.1:8080")]
+        bind: String,
+        /// Public origin used in magic links and redirects.
+        #[arg(long, env = "ISMS_BASE_URL", default_value = "http://localhost:8080")]
+        base_url: String,
     },
 }
 
@@ -64,8 +79,12 @@ enum ServerError {
     Store(#[from] isms_store::StoreError),
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
+    #[error(transparent)]
+    Mail(#[from] isms_server::mail::MailError),
     #[error("{0}")]
     Arg(String),
+    #[error("listen: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 fn parse_override(s: &str) -> Result<(String, toml::Value), ServerError> {
@@ -80,17 +99,31 @@ fn parse_override(s: &str) -> Result<(String, toml::Value), ServerError> {
     Ok((k.trim().to_owned(), v))
 }
 
+async fn connect(url: Option<&str>) -> Result<PgEventStore, ServerError> {
+    let url = url.ok_or_else(|| ServerError::Arg("DATABASE_URL is not set".into()))?;
+    Ok(PgEventStore::connect(url).await?)
+}
+
 async fn run(cli: Cli) -> Result<(), ServerError> {
-    let store = PgEventStore::connect(&cli.database_url).await?;
     let presets_dir = cli
         .presets
         .unwrap_or_else(|| PathBuf::from(isms_core::WORKSPACE_PRESETS_DIR));
     match cli.cmd {
+        Cmd::Openapi => {
+            let doc = isms_server::api::openapi();
+            println!(
+                "{}",
+                doc.to_pretty_json()
+                    .map_err(|e| ServerError::Arg(e.to_string()))?
+            );
+        }
         Cmd::Migrate => {
+            let store = connect(cli.database_url.as_deref()).await?;
             store.migrate().await?;
             tracing::info!("migrations applied");
         }
         Cmd::Rebuild { society } => {
+            let store = connect(cli.database_url.as_deref()).await?;
             if let Some(seq) = verify_latest_snapshot(&store, society).await? {
                 tracing::info!(society, seq, "latest snapshot verified");
             } else {
@@ -115,6 +148,7 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
             cycle_boundary_hour,
             params,
         } => {
+            let store = connect(cli.database_url.as_deref()).await?;
             let overrides = params
                 .iter()
                 .map(|p| parse_override(p))
@@ -130,17 +164,66 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
             let row = seed_society(&store, &presets_dir, &spec).await?;
             println!("{}", row.id);
         }
-        Cmd::Serve { verify_replay } => {
-            let runtime = Runtime::start(&store, StartOptions { verify_replay }).await?;
-            tracing::info!(
-                societies = runtime.societies.len(),
-                "serving; Ctrl-C to stop"
-            );
-            let _ = tokio::signal::ctrl_c().await;
-            tracing::info!("shutting down");
-            runtime.shutdown().await?;
+        Cmd::Invite { count } => {
+            let store = connect(cli.database_url.as_deref()).await?;
+            for _ in 0..count {
+                let code = format!(
+                    "{}-{}",
+                    isms_server::auth::short_id(4),
+                    isms_server::auth::short_id(4)
+                );
+                store.create_invite_code(&code, None).await?;
+                println!("{code}");
+            }
+        }
+        Cmd::Serve {
+            verify_replay,
+            bind,
+            base_url,
+        } => {
+            serve(
+                cli.database_url.as_deref(),
+                presets_dir,
+                verify_replay,
+                &bind,
+                base_url,
+            )
+            .await?;
         }
     }
+    Ok(())
+}
+
+async fn serve(
+    database_url: Option<&str>,
+    presets_dir: PathBuf,
+    verify_replay: bool,
+    bind: &str,
+    base_url: String,
+) -> Result<(), ServerError> {
+    let store = connect(database_url).await?;
+    let mail: Arc<dyn isms_server::mail::MailSender> = Arc::from(isms_server::mail::from_env()?);
+    let runtime = Runtime::start(&store, StartOptions { verify_replay }).await?;
+    let state = AppState::new(
+        store.clone(),
+        AppState::entries_from(&runtime),
+        presets_dir,
+        mail,
+        base_url.trim_end_matches('/').to_owned(),
+    );
+    let app = isms_server::api::router(state);
+    let listener = tokio::net::TcpListener::bind(bind).await?;
+    tracing::info!(societies = runtime.societies.len(), %bind, "serving; Ctrl-C to stop");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+    })
+    .await?;
+    tracing::info!("shutting down");
+    runtime.shutdown().await?;
     Ok(())
 }
 
