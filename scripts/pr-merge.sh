@@ -7,6 +7,17 @@ set -euo pipefail
 num="$1"
 branch="$(git branch --show-current)"
 for attempt in 1 2 3 4; do
+  # A conflicting PR gets no CI run at all: rebase first, then wait.
+  if [ "$(gh pr view "$num" --json mergeable --jq .mergeable)" = "CONFLICTING" ]; then
+    echo "PR conflicts with main (attempt $attempt): rebasing" >&2
+    git fetch -q origin
+    if ! git rebase -q origin/main; then
+      python scripts/rebase-resolve.py
+      GIT_EDITOR=true git rebase --continue
+    fi
+    git push -q --force-with-lease origin "$branch"
+    sleep 20
+  fi
   # CI can take a minute to register on a fresh push.
   for _ in $(seq 1 60); do
     if gh pr checks "$num" 2>/dev/null | grep -qE "pending|pass|fail"; then break; fi
