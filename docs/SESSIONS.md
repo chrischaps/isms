@@ -98,6 +98,30 @@ New tunables: none.
 Next session should know: every joined citizen carries the default plan (keep Food at 24), so any fixture with money and a resting Food ask will see plan bids; tests that need a quiet book set `keep_food_at_least = 0` via `PlanChanged`. Long-running fixtures without `Seen` go dormant at cycle 7; raise `dormancy_absent_cycles` in `with_preset` when that is not the point.
 make check: green · new tests: 8 · sim-check: n/a
 
+## S0.10a — Employment contracts and payroll — 2026-09-12 — PR #13
+Built: `employment` module: `offer_employment` (manager-only, hourly or piece-rate, max hours, term, notice; the notice board's job ads), `accept_employment` (creates the contract and the `Assigned` assignment; destitute citizens cannot sign long terms, Q26), `terminate_employment` with the T18 rules (Q27), `accrued_pay`, `cycle_end_8a_payroll` (hourly from tick-hours, piece-rate from attributed output per T17, `Paid { explain }`, pro-rata `PaymentMissed` that ends the contract and flags the org), `employed`; `apply` arms for `EmploymentOffered/Accepted/Terminated`, `Paid` (wage counters) and `PaymentMissed`; `labor::set_labor` caps hours at the contract's `max_hours`.
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q26, Q27, Q28.
+New tunables: `contracts.long_contract_cycles` (5).
+Next session should know: `Assigned`/`Unassigned` (Q22) are emitted alongside the employment events, so assignments are the only labor link the tick knows about. Two goldens regenerated for the new param. (backfilled in S0.14c from the code and QUESTIONS.md)
+make check: green · new tests: 8 · sim-check: n/a
+
+## S0.10b — Shares, share trading, dividends, net worth — 2026-09-12 — PR #14
+Built: `shares` module: `holder_of`, `shares_held`, `citizen_held`, `issue_shares` (new shares land in the org's own holdings, ADR-0005), `declare_dividend` (controlling owner, one per org per cycle), `cycle_end_8e_dividends` (pro rata to the treasury, Q30), `book_value`, `share_value`, `net_worth` (balance plus holdings at last price, book value where no trade exists), `self_made` (net worth minus endowment), `control_change` (a fill or sale crossing 50 percent appoints the new controlling owner as manager, Q29); `Instrument::Share` on the order book (`market`), `OfferSale { Shares }` (`transfers`), `Org.declared_dividend`.
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q29, Q30.
+New tunables: none.
+Next session should know: S0.10 done gate complete (payslips differ exactly as the formulas say, dividends split by share count and are rejected with no controlling holder, conservation across a full cycle with 3 firms and 12 workers). (backfilled in S0.14c from the code and QUESTIONS.md)
+make check: green · new tests: 5 · sim-check: n/a
+
+## S0.11a — Dwellings, leases, rent, evictions, owner-occupancy — 2026-09-13 — PR #15
+Built: `housing` module: `owner_of`, `check_dwelling_sale` (an occupied dwelling keeps its tenancy, Q34), `offer_lease`/`accept_lease`/`end_lease` (either party, no notice, Q32), `move_in`/`move_out` (owner-occupancy, Q34), `cycle_end_8d_rent` (paid in full or missed, Q33), `phase_7_evictions` (after `lease_grace_cycles` misses, on the first tick of the next cycle; occupancy drives Shelter recovery); the Builder arm of production now emits `DwellingBuilt` (closes Q17); `LedgerMeta.dwellings_built`; `WorldBuilder::dwelling`. Workplace leases stay `NotImplemented` (Q31).
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q31, Q32, Q33, Q34.
+New tunables: `contracts.lease_grace_cycles` (1).
+Next session should know: a dormant tenant's rent is suspended with the contract (S0.9 freeze semantics). Dwellings are owned by orgs or citizens only; `Owner::Society` exists in the type for the collective presets and nothing creates it yet. (backfilled in S0.14c from the code and QUESTIONS.md)
+make check: green · new tests: 6 · sim-check: n/a
+
 ## S0.11b — Credit, defaults, associations — 2026-09-13 — PR #16
 Built: `credit` module: `schedule` (simple interest, equal integer-cent installments, remainder on the last), `offer_credit` (lender escrows the principal; `CreditOffered` now carries `by`), `accept_credit` (addressee, self-deal, destitute long-term, collateral ownership; share collateral escrowed under the contract), `cycle_end_8c_credit_installments` (`CreditInstallment` with Explain, `CreditRepaid`, or `CreditMissed`), `phase_7_defaults` (missed installments default on the first tick of the next cycle: collateral to the lender, contract ended, borrower flagged), `pledged` (a pledged dwelling cannot be sold or let), and associations: `request_membership` (`MembershipRequested`, new event), `admit_member` (manager), `leave_org` (a leaving manager vacates the chair). `ContractBody::Credit.missed` added; `CreditAccepted` carries the rate.
 Deviations from TDD: none.
@@ -105,6 +129,38 @@ Provisional answers added to QUESTIONS.md: Q35, Q36.
 New tunables: none.
 Next session should know: S0.11 done gate complete (the 100-credit, 5-cycle, 2% loan repays exactly 22 per cycle). S0.12a (seeding, fill, emigration) is drafted.
 make check: green · new tests: 5 · sim-check: n/a
+
+## S0.12a — Epoch seeding as events, householder fill and emigration — 2026-09-13 — PR #17
+Built: `seeding` module: `seeded_org_kind` (firm, cooperative, state enterprise or collective by constitution), `start_epoch` for epoch 0 (one legacy org per `seeded_workplaces` entry named `Legacy <Kind> No. n` with `legacy_treasury_credits`, workplaces on land slots, `initial_dwellings` round-robin among the Builders, householders to the population floor, a householder manager per org round-robin; all of it events, ADR-0003, Q38), `cycle_end_8l_householder_fill` (`max(0, floor - active_humans)` with `HouseholderJoined`/`HouseholderEmigrated`; the most recently joined leave first and their balance and pantry are burned, T19, Q37); `WorldBuilder::seed_epoch`.
+Deviations from TDD: none (ADR-0003 and ADR-0004 were written in S0.3a in anticipation).
+Provisional answers added to QUESTIONS.md: Q37, Q38.
+New tunables: none.
+Next session should know: sim humans join with `Actor::System` and `ClientKind::Sim` (Q10) and never `Seen`, so they go dormant at cycle 7 and the fill refills; tests account for that. (backfilled in S0.14c from the code and QUESTIONS.md)
+make check: green · new tests: 4 · sim-check: n/a
+
+## S0.12b — Householder and legacy-firm scripts, runner, SCRIPT.md, 3-cycle golden — 2026-09-13 — PR #18
+Built: `householder` module: `living_cost` (24 Food + 4 Wares at last price plus rent, Q15), `householder_plan` (Food target 24, Wares when Comfort is low and balance covers two living costs, save 10 percent, Q39), `decide` (keep the plan current; accept the best-paying open offer or `SetLabor` full hours; rent the cheapest dwelling within 25 percent of last cycle's income; ask surplus goods at last price), `cost_plus` and `decide_manager` (cost-plus asks at `legacy_markup`, input bids for the shortfall against one cycle's recipe demand at last price times markup, Q1; hiring at the median open offer or `legacy_wage` while inventory is under `legacy_hire_inventory_cycles_cap` cycles of sales, Q2; machine buys when the treasury exceeds `legacy_machine_buy_payroll_mult` cycles of payroll plus the price, Q43; dwelling leases at `legacy_rent`; a standing `OfferSale` of all shares at book value), `run_round` (every non-dormant householder in citizen order, then the orgs they manage, through `handle` and `apply`), `Rejection`; `Citizen.{wages_total, cycle_wages, last_cycle_wages}` rolled at `CycleClosed` (Q39); `docs/SCRIPT.md`; golden `s0_12_freeport_3_cycles`.
+Deviations from TDD: `decide` takes `&World` and a citizen id rather than the TDD's `CitizenView`/`PublicView`; the views are an API concern (S1.4) and the script must see exactly what the API would show (Q40).
+Provisional answers added to QUESTIONS.md: Q39, Q40, Q43 (and Q1, Q2, Q15 applied).
+New tunables: none (`householder.legacy_machine_buy_payroll_mult` lowered 3 -> 1.0, Q43; raised to 1.5 in S0.14).
+Next session should know: S0.12 done gate complete: 40 householders run 3 cycles with zero rejections, everyone employed and housed by cycle 2, legacy treasuries positive at cycle 3, a human buying a legacy share offer becomes the controlling owner and the householder manager steps down. Observed after 3 cycles at base rates: Food asks at about 1.31, Mills hold the largest stock; the full 42-cycle picture is in `docs/tuning/freeport-00.md` (S0.13b). (backfilled in S0.14c from the code and QUESTIONS.md)
+make check: green · new tests: 5 · sim-check: n/a
+
+## S0.13a — Cycle aggregates (TDD 13) and the epoch rollover — 2026-09-13 — PR #19
+Built: `metrics` module: `CitizenCycle` and `WorldCycle` accumulators (continuous state in `Citizen` and `World`), `gini`, `consumption_score` (Food eaten + Wares at basket weight + housed ticks at `housed_tick_weight`), `aggregates` (every TDD 13 field that applies: real output, median wellbeing, need-fulfillment, consumption Gini, investment share, price index, mean cycle wage, unemployed, firm count, credit outstanding, hardship count, store stock), `record_tick`, `cycle_end_8m_aggregates` (emits `CycleClosed { aggregates }` and resets the accumulators); `start_epoch(world, n)` for n >= 1 with `apply::reset_material_state` (constitution, params, id counters and the human roster survive; everything material is cleared and re-seeded, Q41).
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q41, Q42 (API share deferred to the server).
+New tunables: none.
+Next session should know: the 3-cycle golden was regenerated because `CycleClosed` now carries aggregates. `params.metrics.mobility_window_cycles` is parsed and unused (mobility needs cross-cycle deciles; deferred). (backfilled in S0.14c from the code and QUESTIONS.md)
+make check: green · new tests: 4 · sim-check: n/a
+
+## S0.13b — Headless simulator, seed sweeps, first tuning report — 2026-09-13 — PR #20
+Built: `crates/isms-sim`: `run` (forces `collapse_enabled = false`, `start_epoch` per epoch, `run_round` then `tick`), `Row` (one CSV row per cycle: every `CycleAggregates` field plus Food and Wares ask depth and the Food last price), `summarize`, `stability_failures` (the GDD 17 targets: need >= 95 percent, price index 0.7..1.3, Food stock-out at most 3 cycles, investment share 0.05..0.6, zero rejected householder commands), `table`, `write_csv`; CLI `run` with `--preset`, `--epochs`, `--seed`, `--seeds a..b`, `--param key=value` (applied before validation via `config::load_preset_with_overrides`), `--out`, `--check`; `make sim` and `make sim-check`; `.github/workflows/cross-arch.yml` (manual dispatch, x86_64 and arm64, replays the two goldens); `docs/tuning/README.md` and `docs/tuning/freeport-00.md`. Engine fixes found by the first 42-cycle run (Q44): legacy firms price on `reference_price` (labor at the legacy wage plus reference-priced inputs, times the markup) instead of the last trade, and plan bids are placed at the best resting ask or the last price and re-placed when a crossable ask appears above them.
+Deviations from TDD: the cross-architecture job is `workflow_dispatch` rather than on every PR because arm64 runners are not free on a private repo; run it by hand at phase gates.
+Provisional answers added to QUESTIONS.md: Q44 (Q26 revised: open-ended offers are short).
+New tunables: none.
+Next session should know: the first raw run fails three of four targets (need 2-4 percent, hardship 40, stock-out all epoch): the Q20 trap plus an empty day one. Five epochs of forty citizens take about a second. The investment-share band 0.05..0.6 is the simulator's own choice; the GDD asks only for a documented band. (backfilled in S0.14c from the code and QUESTIONS.md)
+make check: green · new tests: 5 (4 + 1 ignored stability test) · sim-check: red (need-fulfillment; see freeport-00.md)
 
 ## S0.14b — Legacy inventory seeding (engine session pre-authorised by the plan) — 2026-09-13 — PR #21
 Built: `params.seeding.legacy_inventory` (per workplace kind, goods seeded into each legacy org at `start_epoch`, counted in `seeded`; ADR-0004, Q45): Mills start with 320 Food and 120 Grain, Foundries with 60 Ore. Seeding test extended; goldens regenerated.
