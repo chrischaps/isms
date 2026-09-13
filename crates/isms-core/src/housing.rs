@@ -53,10 +53,12 @@ pub fn check_dwelling_sale(world: &World, seller: Party, id: DwellingId) -> Resu
             format!("{seller:?} does not own {id}"),
         ));
     }
-    if under_offer(world, id) {
+    if under_offer(world, id)
+        || crate::credit::pledged(world, crate::world::Collateral::Dwelling(id))
+    {
         return Err(Reject::new(
             RejectCode::AlreadyExists,
-            format!("{id} is already offered"),
+            format!("{id} is already offered or pledged"),
         ));
     }
     Ok(())

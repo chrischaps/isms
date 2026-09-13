@@ -9,6 +9,7 @@ pub mod capabilities;
 pub mod command;
 pub mod config;
 pub mod constitution;
+pub mod credit;
 pub mod employment;
 pub mod event;
 pub mod explain;

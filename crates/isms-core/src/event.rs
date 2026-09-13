@@ -181,6 +181,12 @@ pub enum Event {
         org: OrgId,
         citizen: Option<CitizenId>,
     },
+    /// A standing request to join a member org (the notice-board "membership" ad).
+    MembershipRequested {
+        offer: OfferId,
+        org: OrgId,
+        citizen: CitizenId,
+    },
     MemberAdmitted {
         org: OrgId,
         citizen: CitizenId,
@@ -262,6 +268,7 @@ pub enum Event {
     },
     CreditOffered {
         offer: OfferId,
+        by: Party,
         body: OfferBody,
     },
     CreditAccepted {
@@ -269,6 +276,7 @@ pub enum Event {
         lender: Party,
         borrower: Party,
         principal: Money,
+        rate_per_cycle_bp: u32,
         installment: Money,
         installments: u32,
         collateral: Option<Collateral>,
@@ -278,6 +286,11 @@ pub enum Event {
         amount: Money,
         remaining: u32,
         explain: Explain,
+    },
+    /// A due installment the borrower could not pay; resolves as a default in phase 7.
+    CreditMissed {
+        contract: ContractId,
+        owed: Money,
     },
     CreditRepaid {
         contract: ContractId,
@@ -464,6 +477,7 @@ impl Event {
             Event::Assigned { .. } => "Assigned",
             Event::Unassigned { .. } => "Unassigned",
             Event::ManagerAppointed { .. } => "ManagerAppointed",
+            Event::MembershipRequested { .. } => "MembershipRequested",
             Event::MemberAdmitted { .. } => "MemberAdmitted",
             Event::MemberLeft { .. } => "MemberLeft",
             Event::SharesIssued { .. } => "SharesIssued",
@@ -482,6 +496,7 @@ impl Event {
             Event::CreditOffered { .. } => "CreditOffered",
             Event::CreditAccepted { .. } => "CreditAccepted",
             Event::CreditInstallment { .. } => "CreditInstallment",
+            Event::CreditMissed { .. } => "CreditMissed",
             Event::CreditRepaid { .. } => "CreditRepaid",
             Event::CreditDefaulted { .. } => "CreditDefaulted",
             Event::LeaseOffered { .. } => "LeaseOffered",
@@ -532,6 +547,7 @@ impl Event {
         "Assigned",
         "Unassigned",
         "ManagerAppointed",
+        "MembershipRequested",
         "MemberAdmitted",
         "MemberLeft",
         "SharesIssued",
@@ -550,6 +566,7 @@ impl Event {
         "CreditOffered",
         "CreditAccepted",
         "CreditInstallment",
+        "CreditMissed",
         "CreditRepaid",
         "CreditDefaulted",
         "LeaseOffered",
