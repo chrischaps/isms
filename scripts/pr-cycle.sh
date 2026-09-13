@@ -23,7 +23,8 @@ for _ in $(seq 1 40); do
   sleep 5
 done
 gh pr checks "$num" --watch --interval 15 --fail-fast
-gh pr merge "$num" --squash --delete-branch
+gh pr merge "$num" --squash
+git push -q origin --delete "$branch" || true
 # In a secondary worktree main is checked out elsewhere; just refresh the ref.
 if git switch -q main 2>/dev/null; then
   git pull -q

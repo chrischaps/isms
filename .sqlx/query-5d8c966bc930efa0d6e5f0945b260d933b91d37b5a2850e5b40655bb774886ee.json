@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT epoch, tick, last_seq, world_hash, world FROM snapshots\n             WHERE society_id = $1 ORDER BY last_seq DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "epoch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "tick",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "world_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "world",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5d8c966bc930efa0d6e5f0945b260d933b91d37b5a2850e5b40655bb774886ee"
+}
