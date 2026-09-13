@@ -18,8 +18,12 @@ use crate::world::{
     Price, SaleAsset, ShareHolder, Side, StandingPlan, VoteDefault, World,
 };
 
+/// What a good costs a householder: the last market price, or the published
+/// list price where prices are administered (nothing where there is no money).
 fn price_of(world: &World, good: Good) -> Money {
-    last_price(world, Instrument::Good(good)).unwrap_or(Money::ZERO)
+    last_price(world, Instrument::Good(good))
+        .or_else(|| crate::state_store::list_price(world, good))
+        .unwrap_or(Money::ZERO)
 }
 
 /// One cycle's living cost: 24 Food and 4 Wares at last price, plus rent (Q15).

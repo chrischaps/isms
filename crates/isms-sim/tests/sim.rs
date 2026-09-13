@@ -94,6 +94,36 @@ fn runs_are_deterministic() {
     assert_eq!(a.events, b.events);
 }
 
+/// Five Directorate epochs: the System planner publishes targets from the
+/// second cycle on, and the state pays wages from its till.
+#[test]
+fn five_directorate_epochs_run_and_roll_over() {
+    let r = run(presets(), &RunSpec::new("directorate", 5, 1)).unwrap();
+    assert_eq!(r.rows.len(), 5 * 42);
+    assert_eq!(
+        r.rejected, 0,
+        "planner and householder scripts never rejected"
+    );
+    assert!(
+        r.rows
+            .iter()
+            .filter(|row| row.cycle > 0)
+            .all(|row| row.plan_fulfillment.is_some())
+    );
+    assert!(r.rows.iter().all(|row| row.rations_issued > 0));
+    isms_core::ledger::conservation_check(&r.world).unwrap();
+}
+
+/// Overrides reach the society's policy as well as its params.
+#[test]
+fn policy_overrides_reach_the_engine() {
+    let mut spec = RunSpec::new("directorate", 1, 3);
+    spec.overrides
+        .push(("policy.minimum_food_ration".into(), toml::Value::Integer(2)));
+    let r = run(presets(), &spec).unwrap();
+    assert_eq!(r.world.policy.minimum_food_ration, Some(2));
+}
+
 /// The targets follow the capabilities: a price band only where order books
 /// exist; the stock-out reading follows the society's Food holder.
 #[test]

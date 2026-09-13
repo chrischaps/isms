@@ -28,6 +28,7 @@ pub mod norms;
 pub mod orgs;
 pub mod params;
 pub mod plan;
+pub mod planner;
 pub mod planning;
 pub mod policy;
 pub mod rules;

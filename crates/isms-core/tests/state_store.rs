@@ -220,16 +220,17 @@ fn provision_assigns_a_dwelling_and_issues_the_minimum_food_ration() {
         })
         .collect();
     assert!(!issued.is_empty(), "provision fired at cycle end");
-    for (citizen, _) in &issued {
-        assert_eq!(
+    assert_eq!(issued.len(), 40, "every active citizen gets the ration");
+    for (citizen, qty) in &issued {
+        assert_eq!(*qty, ration, "a fixed issue, whatever the pantry held");
+        assert!(
             h.citizen(*citizen)
                 .household
                 .pantry
                 .get(&Good::Food)
                 .copied()
-                .unwrap_or(0),
-            ration,
-            "topped up to the minimum ration"
+                .unwrap_or(0)
+                >= ration
         );
     }
     h.check();

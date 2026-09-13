@@ -7,6 +7,8 @@
 //! preset, not a rule the society runs by. Which targets apply is derived
 //! from the preset's `Capabilities` (S0.14d): a price band only where order
 //! books exist, and "stock-out" measured on whatever holds the society's Food.
+//! In an administered society the System's scripted planner runs before the
+//! householders each round (S0.16c).
 
 use isms_core::apply::apply;
 use isms_core::capabilities::Capabilities;
@@ -15,6 +17,7 @@ use isms_core::event::Event;
 use isms_core::householder::run_round;
 use isms_core::kinds::Good;
 use isms_core::market::depth;
+use isms_core::planner::run_system_round;
 use isms_core::rules::Rules;
 use isms_core::tick::{TickInput, start_epoch, tick};
 use isms_core::world::{Instrument, Side, World};
@@ -263,9 +266,12 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
         let mut unfilled_cycle = 0u32;
         loop {
             let now = world.meta.tick;
+            // The System's script first (the sim's Committee), then the householders.
+            let (system_events, system_rejected) = run_system_round(&mut world, &rules, now);
+            events += system_events.len() as u64;
             let (round, rejected) = run_round(&mut world, &rules, now);
             events += round.len() as u64;
-            let n = u32::try_from(rejected.len()).unwrap_or(u32::MAX);
+            let n = u32::try_from(rejected.len() + system_rejected.len()).unwrap_or(u32::MAX);
             rejected_cycle += n;
             rejected_total += n;
             let input = TickInput::next_for(&world);
