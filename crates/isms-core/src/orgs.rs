@@ -324,6 +324,29 @@ pub fn appoint_manager(
     Ok(vec![Event::ManagerAppointed { org, citizen }])
 }
 
+/// The balancing rule (GDD 6.3 "by algorithm balancing the Plan", Q62): the
+/// workplace with room whose workers-per-weight is lowest, ties to the lowest
+/// id. Kinds with no weight are never chosen.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn least_staffed(world: &World) -> Option<WorkplaceId> {
+    let weights = &world.params.labor.balance_weights;
+    world
+        .workplaces
+        .values()
+        .filter(|w| check_room(world, w.id).is_ok())
+        .filter_map(|w| {
+            let weight = weights.get(&w.kind).copied().unwrap_or(0);
+            (weight > 0).then(|| (w.workers.len() as f64 / f64::from(weight), w.id))
+        })
+        .min_by(|a, b| {
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.1.cmp(&b.1))
+        })
+        .map(|(_, id)| id)
+}
+
 /// The citizen holding more than half of the issued shares, if any (ADR-0005).
 #[must_use]
 pub fn controlling_owner(org: &Org) -> Option<crate::ids::CitizenId> {

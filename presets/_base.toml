@@ -11,6 +11,10 @@ tick_seconds = 3600            # overridable per society; 0 in tests
 
 [params.labor]
 base_budget_hours = 8
+# [new tunable] S0.15c: the balancing rule places a joiner at the workplace with the fewest
+# workers per unit of weight (norm systems: the householder's choice; assigned systems: the
+# Committee's algorithm). Weights times the seeded workplace counts sum to 39 for a floor of 40.
+balance_weights = { farm = 3, mine = 2, foundry = 2, mill = 3, workshop = 2, machine_shop = 1, builder = 1 }
 max_workplaces = 2
 max_workers_per_workplace = 6  # [new tunable] TDD 5.7
 effort_output_mult = { low = 0.6, normal = 1.0, high = 1.3 }

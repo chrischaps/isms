@@ -51,8 +51,13 @@ pub fn householder_plan(world: &World, citizen: &crate::world::Citizen) -> Stand
     let balance_above = Money((living.0 as f64 * p.wares_balance_living_cost_mult) as i64);
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     let keep_balance = Money((citizen.wages_total.0 as f64 * p.save_fraction) as i64);
+    let labor = match world.constitution.labor {
+        crate::constitution::LaborMode::Norm => LaborPlan::FollowNorm,
+        crate::constitution::LaborMode::Assigned => LaborPlan::AcceptAssignment,
+        crate::constitution::LaborMode::Free => LaborPlan::Explicit,
+    };
     StandingPlan {
-        labor: LaborPlan::Explicit,
+        labor,
         keep_food_at_least: p.keep_food_at_least,
         max_food_price: None,
         buy_wares_when: money.then_some(BuyRule {
@@ -104,7 +109,14 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
         });
     }
 
-    // 2. Work: take the best open job when unemployed; allocate full hours once assigned.
+    // 2. Work: take the best open job when unemployed (or, under a work norm,
+    // the least-staffed workplace); allocate the contract's or the norm's hours
+    // once in a position.
+    let norm = world.constitution.labor == crate::constitution::LaborMode::Norm;
+    let norm_hours = world
+        .policy
+        .work_norm_hours
+        .unwrap_or(world.params.labor.base_budget_hours);
     let assigned: Vec<(WorkplaceId, u8, u8)> = world
         .workplaces
         .values()
@@ -113,18 +125,28 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
                 (
                     w.id,
                     a.hours,
-                    a.contract
-                        .map_or(8, |k| match world.contracts.get(&k).map(|k| &k.body) {
+                    a.contract.map_or(
+                        if norm {
+                            norm_hours
+                        } else {
+                            world.params.labor.base_budget_hours
+                        },
+                        |k| match world.contracts.get(&k).map(|k| &k.body) {
                             Some(crate::world::ContractBody::Employment { max_hours, .. }) => {
                                 *max_hours
                             }
-                            _ => 8,
-                        }),
+                            _ => world.params.labor.base_budget_hours,
+                        },
+                    ),
                 )
             })
         })
         .collect();
-    if assigned.is_empty() {
+    if assigned.is_empty() && norm {
+        if let Some(workplace) = crate::orgs::least_staffed(world) {
+            cmds.push(Command::JoinWorkplace { workplace });
+        }
+    } else if assigned.is_empty() {
         let best = world
             .offers
             .values()
@@ -294,6 +316,28 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         .is_none_or(|c| c.kind != CitizenKind::Householder || c.dormant)
     {
         return Vec::new();
+    }
+    // A collective or state enterprise has no prices to set and nobody to hire;
+    // its manager's one job is to put the society's Machines to work (Q61):
+    // one per workplace per round, so the stock spreads across the orgs.
+    if org.ownership == Ownership::Society {
+        let stock = crate::ledger::stock_holder(world, org_id);
+        let mut cmds = Vec::new();
+        let mut machines = crate::ledger::goods_at(world, stock, Good::Machines);
+        for wp_id in &org.workplaces {
+            let Some(wp) = world.workplaces.get(wp_id) else {
+                continue;
+            };
+            if wp.kind != WorkplaceKind::MachineShop && machines > 0 {
+                cmds.push(Command::InstallMachines {
+                    org: org_id,
+                    workplace: *wp_id,
+                    qty: 1,
+                });
+                machines -= 1;
+            }
+        }
+        return cmds;
     }
     if !world.constitution.has_money() || !world.rules_order_books() {
         return Vec::new();

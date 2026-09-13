@@ -18,6 +18,17 @@ Householders are the AI citizens that fill a society up to its population floor.
 5. **Let dwellings** it owns at the legacy rent, one open offer per empty dwelling.
 6. **Stay for sale.** Every share the firm still holds is on offer at book value (treasury plus inventory and machines at last price, per share); the offer is relisted when book value moves by more than ten percent. Whoever buys more than half becomes the controlling owner and manager; the householder steps down.
 
+## In the Commune
+
+The same householder, in a society with no money, no prices and a Common Store:
+
+1. **Keep a plan.** The plan says "follow the work norm"; the Food target and money rules do nothing here. Each hour the plan files a draw request for exactly the Food and Wares that would bring the meters to full (less what the pantry holds); the store serves everyone when it can and rations by the society's rule when it cannot.
+2. **Work.** With no position, join the workplace with the fewest workers per unit of weight (the published `balance_weights`, favouring the Food chain). Once in a position, work the published norm (six hours by default) at normal effort. Hours and attributed output go on the public Ledger of Contribution each cycle.
+3. **Live somewhere.** A dwelling from the collective stock is assigned on arrival and at every cycle end while one is free; nothing to rent.
+4. **Sell nothing.** There is no market; whatever the store holds beyond everyone's needs is shared out equally at cycle end.
+
+A collective's householder manager has one job: each hour, install one Machine from the Common Store at each of the collective's workplaces (never at the Machine Shop itself) while the store has any, so the society's Machines spread across its workplaces.
+
 ## When humans arrive
 
-Each cycle end, householders are kept at `floor − active humans`. The most recently arrived householders leave first: their orders and offers are cancelled, their jobs and tenancies end, any firm they managed passes to another householder, and their money and goods leave the economy.
+Each cycle end, householders are kept at `floor − active humans`. The most recently arrived householders leave first: their orders and offers are cancelled, their jobs and tenancies end, any firm they managed passes to another householder, and their money and goods leave the economy (in a society with a Common Store or a state stock, their pantry and balance go back to it instead).

@@ -62,6 +62,64 @@ pub fn pledge(
     }])
 }
 
+/// `JoinWorkplace` (norm systems, Q62): take a position at a workplace with
+/// room. Positions carry no contract; the Ledger of Contribution is the record.
+pub fn join_workplace(
+    world: &World,
+    envelope: &Envelope<Command>,
+    workplace: crate::ids::WorkplaceId,
+) -> Result<Vec<Event>, Reject> {
+    let citizen = acting_citizen(world, envelope)?;
+    let wp = crate::orgs::check_room(world, workplace)?;
+    if wp.workers.contains_key(&citizen.id) {
+        return Err(Reject::new(
+            RejectCode::AlreadyExists,
+            format!("{} already works at {workplace}", citizen.id),
+        ));
+    }
+    let held = world
+        .workplaces
+        .values()
+        .filter(|w| w.workers.contains_key(&citizen.id))
+        .count();
+    if held >= usize::from(world.params.labor.max_workplaces) {
+        return Err(Reject::new(
+            RejectCode::TooManyWorkplaces,
+            format!("at most {} workplaces", world.params.labor.max_workplaces),
+        ));
+    }
+    Ok(vec![Event::Assigned {
+        workplace,
+        citizen: citizen.id,
+        contract: None,
+    }])
+}
+
+/// `LeaveWorkplace`: give up a contract-less position.
+pub fn leave_workplace(
+    world: &World,
+    envelope: &Envelope<Command>,
+    workplace: crate::ids::WorkplaceId,
+) -> Result<Vec<Event>, Reject> {
+    let citizen = acting_citizen(world, envelope)?;
+    let wp = world.workplaces.get(&workplace).ok_or_else(|| {
+        Reject::new(
+            RejectCode::UnknownWorkplace,
+            format!("no workplace {workplace}"),
+        )
+    })?;
+    match wp.workers.get(&citizen.id) {
+        Some(a) if a.contract.is_none() => Ok(vec![Event::Unassigned {
+            workplace,
+            citizen: citizen.id,
+        }]),
+        _ => Err(Reject::new(
+            RejectCode::NotAssigned,
+            format!("{} holds no position at {workplace}", citizen.id),
+        )),
+    }
+}
+
 /// The parties of a pledge contract: the citizen and the org, or the citizen
 /// twice for a pledge to the assembly.
 #[must_use]

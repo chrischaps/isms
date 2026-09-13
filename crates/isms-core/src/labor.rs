@@ -292,6 +292,16 @@ pub fn cycle_end_8g_skill_and_effort(b: &mut TickBuilder) {
     }
 }
 
+/// Whether the citizen holds a position anywhere: an employment contract in
+/// free-labor systems, a norm or assigned position elsewhere (Q63).
+#[must_use]
+pub fn has_position(world: &crate::world::World, citizen: CitizenId) -> bool {
+    world
+        .workplaces
+        .values()
+        .any(|w| w.workers.contains_key(&citizen))
+}
+
 /// Reset the per-cycle workplace accumulators. Called at step 8m (after the
 /// norms ledger at 8i has read them; Q58); the deltas carry the reset.
 pub fn reset_cycle_accumulators(world: &mut crate::world::World) {

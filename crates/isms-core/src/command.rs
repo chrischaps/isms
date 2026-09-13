@@ -226,6 +226,13 @@ pub enum Command {
         good: Good,
         qty: u32,
     },
+    /// Take or give up a position without a contract (norm systems, S0.15c).
+    JoinWorkplace {
+        workplace: WorkplaceId,
+    },
+    LeaveWorkplace {
+        workplace: WorkplaceId,
+    },
 }
 
 impl Command {
@@ -269,6 +276,8 @@ impl Command {
             Command::SetPolicy { .. } => "SetPolicy",
             Command::EndEpoch { .. } => "EndEpoch",
             Command::RequestStoreDraw { .. } => "RequestStoreDraw",
+            Command::JoinWorkplace { .. } => "JoinWorkplace",
+            Command::LeaveWorkplace { .. } => "LeaveWorkplace",
         }
     }
 }
@@ -393,6 +402,9 @@ impl Capabilities {
             }
             Command::Pledge { .. } => self.allows_contract(ContractKind::Pledge),
             Command::RequestStoreDraw { .. } => self.common_store,
+            Command::JoinWorkplace { .. } | Command::LeaveWorkplace { .. } => {
+                self.labor == crate::constitution::LaborMode::Norm
+            }
         }
     }
 }
@@ -543,6 +555,12 @@ pub fn handle(
             to,
         } => crate::norms::pledge(world, envelope, *hours, *goods, *term_cycles, *to),
         Command::SetPolicy { policy } => set_policy(world, envelope, policy),
+        Command::JoinWorkplace { workplace } => {
+            crate::norms::join_workplace(world, envelope, *workplace)
+        }
+        Command::LeaveWorkplace { workplace } => {
+            crate::norms::leave_workplace(world, envelope, *workplace)
+        }
     }
 }
 

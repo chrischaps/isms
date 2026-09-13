@@ -61,6 +61,11 @@ pub struct Row {
     /// stock's in administered ones. Zero for a whole run of cycles is a
     /// stock-out whatever the system.
     pub food_available: u32,
+    /// Food units requested from the society's store this cycle and not served.
+    pub food_unfilled: u32,
+    /// Whether this cycle counts as a Food stock-out for its system: no resting
+    /// asks (market), or unserved requests (store and state stock).
+    pub stocked_out: bool,
     pub store_food: u32,
     pub state_food: u32,
     pub treasury_credits: f64,
@@ -124,6 +129,29 @@ fn state_stock(world: &World, good: Good) -> u32 {
         .unwrap_or(0)
 }
 
+/// Food units requested from the store in these events, less the units served
+/// by need (surplus shares are not requests).
+fn unfilled_food(events: &[Event]) -> u32 {
+    let mut requested = 0u32;
+    let mut served = 0u32;
+    for e in events {
+        match e {
+            Event::StoreDrawRequested {
+                good: Good::Food,
+                qty,
+                ..
+            } => requested += qty,
+            Event::Drew { goods, explain, .. }
+                if explain.rule != isms_core::explain::RuleId::StoreSurplusShare =>
+            {
+                served += goods.get(&Good::Food).copied().unwrap_or(0);
+            }
+            _ => {}
+        }
+    }
+    requested.saturating_sub(served)
+}
+
 /// Where a citizen would get Food in this society (see `Row::food_available`).
 #[must_use]
 pub fn food_available(world: &World, caps: &Capabilities) -> u32 {
@@ -145,7 +173,14 @@ fn make_row(
     world: &World,
     caps: &Capabilities,
     rejected: u32,
+    unfilled: u32,
 ) -> Row {
+    let available = food_available(world, caps);
+    let stocked_out = if caps.order_books {
+        available == 0
+    } else {
+        unfilled > 0
+    };
     Row {
         preset: spec.preset.clone(),
         seed: spec.seed,
@@ -170,7 +205,9 @@ fn make_row(
         food_last_price: isms_core::market::last_price(world, Instrument::Good(Good::Food))
             .map(isms_core::money::Money::as_credits_f64),
         rejected_commands: rejected,
-        food_available: food_available(world, caps),
+        food_available: available,
+        food_unfilled: unfilled,
+        stocked_out,
         store_food: store_stock(world, Good::Food),
         state_food: state_stock(world, Good::Food),
         treasury_credits: world.treasury.as_credits_f64(),
@@ -210,6 +247,7 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
             events += 1;
         }
         let mut rejected_cycle = 0u32;
+        let mut unfilled_cycle = 0u32;
         loop {
             let now = world.meta.tick;
             let (round, rejected) = run_round(&mut world, &rules, now);
@@ -230,6 +268,7 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
                     closed = Some((*cycle, aggregates.clone()));
                 }
             }
+            unfilled_cycle += unfilled_food(&tick_events);
             for e in &tick_events {
                 apply(&mut world, e);
             }
@@ -243,8 +282,10 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
                     &world,
                     &caps,
                     rejected_cycle,
+                    unfilled_cycle,
                 ));
                 rejected_cycle = 0;
+                unfilled_cycle = 0;
             }
             if world.meta.epoch_ended.is_some() {
                 break;
@@ -273,7 +314,7 @@ pub struct EpochSummary {
     pub mean_investment_share: f64,
     pub max_hardship: u32,
     pub max_unemployed: u32,
-    /// Longest run of consecutive cycles with `food_available == 0` at cycle end.
+    /// Longest run of consecutive cycles flagged `stocked_out`.
     pub longest_food_stockout: u32,
     pub rejected_commands: u32,
 }
@@ -290,7 +331,7 @@ pub fn summarize(rows: &[Row]) -> Vec<EpochSummary> {
         let mut longest = 0u32;
         let mut run = 0u32;
         for r in &rs {
-            if r.food_available == 0 {
+            if r.stocked_out {
                 run += 1;
                 longest = longest.max(run);
             } else {
