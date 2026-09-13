@@ -419,6 +419,8 @@ pub struct CitizenDelta {
     pub fatigue_debt: u8,
     pub consecutive_high_effort_cycles: u8,
     pub skill: BTreeMap<JobFamily, Skill>,
+    /// This cycle's running totals (reset at 8m).
+    pub cycle: crate::metrics::CitizenCycle,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -437,12 +439,31 @@ pub struct WorkerCycle {
     pub attributed: f64,
 }
 
-/// Per-cycle metrics snapshot (TDD §13). Filled in by S0.13.
+/// Per-cycle metrics snapshot (TDD §13), computed in the engine at step 8m.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct CycleAggregates {
     pub population: u32,
     pub active_humans: u32,
     pub householders: u32,
+    /// Units produced weighted by the reference basket, dwellings by unit.
+    pub real_output: f64,
+    /// Median over citizens of the mean need satisfaction over the cycle (0..=100).
+    pub median_wellbeing: f64,
+    /// Share of citizen-cycles in which Food and Shelter never fell below the threshold.
+    pub need_fulfillment_rate: f64,
+    /// Gini of the consumption score (Food + Wares + housed ticks), never of wealth.
+    pub consumption_gini: f64,
+    /// Materials consumed by Machine Shops over Materials produced.
+    pub investment_share: f64,
+    pub price_index: Option<f64>,
+    /// Mean wages paid this cycle to those paid anything, in credits.
+    pub mean_cycle_wage: f64,
+    pub unemployed: u32,
+    pub firm_count: u32,
+    pub credit_outstanding: Money,
+    pub hardship_count: u32,
+    pub store_stock: BTreeMap<Good, u32>,
+    pub low_population_cycles: u32,
 }
 
 impl Event {

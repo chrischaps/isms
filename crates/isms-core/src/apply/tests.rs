@@ -183,6 +183,7 @@ fn tick_resolved_consumes_from_pantry_and_advances_the_clock() {
                 fatigue_debt: 0,
                 consecutive_high_effort_cycles: 0,
                 skill: BTreeMap::new(),
+                cycle: crate::metrics::CitizenCycle::default(),
             }],
             workplace_deltas: vec![],
         },

@@ -29,6 +29,9 @@ pub fn apply(world: &mut World, event: &Event) {
             *world = World::new(*society_id, *seed, preset);
         }
         Event::EpochStarted { epoch } => {
+            if *epoch > 0 {
+                reset_material_state(world);
+            }
             world.meta.epoch = *epoch;
             world.meta.tick = 0;
             world.meta.epoch_ended = None;
@@ -517,6 +520,7 @@ pub fn apply(world: &mut World, event: &Event) {
                 *materials_consumed,
             );
             world.ledger_meta.dwellings_built += 1;
+            world.cycle.dwellings_built += 1;
             world.dwellings.insert(
                 *dwelling,
                 crate::world::Dwelling {
@@ -864,6 +868,7 @@ pub fn apply(world: &mut World, event: &Event) {
                 c.last_cycle_wages = c.cycle_wages;
                 c.cycle_wages = Money::ZERO;
             }
+            world.cycle = crate::metrics::WorldCycle::default();
         }
         Event::EpochEnded { reason, .. } => {
             world.meta.epoch_ended = Some(*reason);
@@ -1049,6 +1054,64 @@ fn set_contract_status(
     }
 }
 
+/// A new epoch (ADR-0003, Q41): the constitution, params and citizen roster
+/// survive; every material thing is rebuilt from scratch. Humans start dormant
+/// with a fresh endowment; householders are dropped and re-seeded.
+fn reset_material_state(world: &mut World) {
+    let p = world.params.clone();
+    world.orgs.clear();
+    world.workplaces.clear();
+    world.dwellings.clear();
+    world.land = crate::world::LandRegistry::from_params(&p);
+    world.books.clear();
+    if let Some(s) = &mut world.store {
+        *s = crate::world::CommonStore::default();
+    }
+    if let Some(s) = &mut world.state_stock {
+        *s = crate::world::StateStock::default();
+    }
+    world.treasury = Money::ZERO;
+    world.contracts.clear();
+    world.offers.clear();
+    world.escrow.clear();
+    world.share_escrow.clear();
+    world.offices = crate::world::Offices::default();
+    world.proposals.clear();
+    world.ledger_meta = LedgerMeta::default();
+    world.price_index = None;
+    world.cycle = crate::metrics::WorldCycle::default();
+    world.meta.low_population_cycles = 0;
+    world.citizens.retain(|_, c| c.kind == CitizenKind::Human);
+    let endowment = if world.constitution.has_money() {
+        p.money.endowment
+    } else {
+        Money::ZERO
+    };
+    for c in world.citizens.values_mut() {
+        c.dormant = true;
+        c.household = Household {
+            balance: endowment,
+            pantry: BTreeMap::new(),
+            dwelling: None,
+        };
+        c.labor = LaborState {
+            allocations: Vec::new(),
+            budget: p.labor.base_budget_hours,
+            fatigue_debt: 0,
+            consecutive_high_effort_cycles: 0,
+            skill: BTreeMap::new(),
+            output_mult: 1.0,
+        };
+        c.needs = Needs::at_start(&p);
+        c.flags = CitizenFlags::default();
+        c.wages_total = Money::ZERO;
+        c.last_cycle_wages = Money::ZERO;
+        c.cycle_wages = Money::ZERO;
+        c.cycle = crate::metrics::CitizenCycle::default();
+        world.ledger_meta.minted += endowment;
+    }
+}
+
 fn set_flag(world: &mut World, citizen: CitizenId, f: impl FnOnce(&mut CitizenFlags)) {
     if let Some(c) = world.citizens.get_mut(&citizen) {
         f(&mut c.flags);
@@ -1099,6 +1162,7 @@ fn join(
         wages_total: Money::ZERO,
         last_cycle_wages: Money::ZERO,
         cycle_wages: Money::ZERO,
+        cycle: crate::metrics::CitizenCycle::default(),
     };
     world.ledger_meta.minted += endowment;
     if let Some(d) = dwelling
@@ -1121,6 +1185,7 @@ fn apply_citizen_delta(world: &mut World, d: &CitizenDelta) {
     c.labor.fatigue_debt = d.fatigue_debt;
     c.labor.consecutive_high_effort_cycles = d.consecutive_high_effort_cycles;
     c.labor.output_mult = d.output_mult;
+    c.cycle = d.cycle.clone();
     c.labor.skill.clone_from(&d.skill);
     take_from_pantry(&mut c.household.pantry, Good::Food, d.food_eaten);
     take_from_pantry(&mut c.household.pantry, Good::Wares, d.wares_consumed);
@@ -1245,6 +1310,12 @@ fn apply_produced(
     if units > 0 {
         credit(world, Holder::Org(org), Asset::Good(output, units));
         LedgerMeta::add(&mut world.ledger_meta.produced, output, units);
+        *world.cycle.produced.entry(output).or_insert(0) += u64::from(units);
+    }
+    if output == Good::Machines
+        && let Some(m) = inputs_consumed.get(&Good::Materials)
+    {
+        world.cycle.materials_to_machines += u64::from(*m);
     }
 }
 
