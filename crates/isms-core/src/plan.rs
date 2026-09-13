@@ -137,6 +137,10 @@ pub fn phase_2_standing_plans(b: &mut TickBuilder, order: &[CitizenId]) {
         for &id in order {
             crate::store::execute_store_plan(b, id);
         }
+    } else if b.rules.capabilities.administered_prices {
+        for &id in order {
+            crate::state_store::execute_administered_plan(b, id);
+        }
     }
 }
 
@@ -410,6 +414,9 @@ pub fn touches(event: &Event, id: CitizenId) -> bool {
         | Event::StoreDrawRequested { citizen, .. }
         | Event::StoreReturned { citizen, .. }
         | Event::Pledged { citizen, .. }
+        | Event::StateStoreRequested { citizen, .. }
+        | Event::StateStoreSold { citizen, .. }
+        | Event::RationIssued { citizen, .. }
         | Event::HardshipBegan { citizen, .. }
         | Event::HardshipEnded { citizen, .. }
         | Event::DestitutionBegan { citizen, .. }

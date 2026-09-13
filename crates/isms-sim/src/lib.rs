@@ -140,12 +140,22 @@ fn unfilled_food(events: &[Event]) -> u32 {
                 good: Good::Food,
                 qty,
                 ..
+            }
+            | Event::StateStoreRequested {
+                good: Good::Food,
+                qty,
+                ..
             } => requested += qty,
             Event::Drew { goods, explain, .. }
                 if explain.rule != isms_core::explain::RuleId::StoreSurplusShare =>
             {
                 served += goods.get(&Good::Food).copied().unwrap_or(0);
             }
+            Event::StateStoreSold {
+                good: Good::Food,
+                qty,
+                ..
+            } => served += qty,
             _ => {}
         }
     }

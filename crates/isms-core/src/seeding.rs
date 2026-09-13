@@ -70,6 +70,7 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
     let mut next_cit = world.next.citizen;
     let mut builders: Vec<OrgId> = Vec::new();
     let mut orgs: Vec<OrgId> = Vec::new();
+    let mut seeded_workplaces: Vec<(WorkplaceId, WorkplaceKind, u32)> = Vec::new();
     // Society-owned orgs keep their goods in the society's stock (Q48).
     let society_owned = matches!(ownership_for(kind, 0), Ownership::Society);
     let society_stock = if society_owned && world.store.is_some() {
@@ -107,9 +108,15 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
                 slot,
                 materials_consumed: 0,
             });
+            seeded_workplaces.push((workplace, wk, 0u32));
             if money && p.money.legacy_treasury > Money::ZERO {
+                // State enterprises share one purse: the till (Q67).
+                let purse = match society_stock {
+                    Some(Holder::StateStock) => Holder::StateStock,
+                    _ => Holder::Org(org),
+                };
                 events.push(Event::Seeded {
-                    holder: Holder::Org(org),
+                    holder: purse,
                     asset: Asset::Money(p.money.legacy_treasury),
                 });
             }
@@ -176,11 +183,19 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
     let mut society_dwellings = (first_dwelling.0..next_dw.0)
         .map(DwellingId)
         .filter(|_| society_stock.is_some());
+    let assigned = world.constitution.labor == crate::constitution::LaborMode::Assigned;
     let mut new_hh: Vec<CitizenId> = Vec::new();
     for _ in 0..fill {
         let citizen = next_cit;
         next_cit = next_cit.next();
         events.push(householder_joined(world, citizen, society_dwellings.next()));
+        if assigned && let Some(workplace) = balance_seeded(&mut seeded_workplaces, p) {
+            events.push(Event::Assigned {
+                workplace,
+                citizen,
+                contract: None,
+            });
+        }
         new_hh.push(citizen);
     }
     // A householder manager per seeded org, round-robin.
@@ -204,6 +219,31 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
         }
     }
     events
+}
+
+/// The balancing rule over workplaces that exist only as events so far: the
+/// same choice `orgs::least_staffed` makes on a live world (Q62).
+#[allow(clippy::cast_precision_loss)]
+fn balance_seeded(
+    seeded: &mut [(WorkplaceId, WorkplaceKind, u32)],
+    p: &crate::params::Params,
+) -> Option<WorkplaceId> {
+    let max = p.labor.max_workers_per_workplace;
+    let pick = seeded
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, _, n))| *n < max)
+        .filter_map(|(i, (id, kind, n))| {
+            let w = p.labor.balance_weights.get(kind).copied().unwrap_or(0);
+            (w > 0).then(|| (f64::from(*n) / f64::from(w), *id, i))
+        })
+        .min_by(|a, b| {
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.1.cmp(&b.1))
+        })?;
+    seeded[pick.2].2 += 1;
+    Some(pick.1)
 }
 
 fn householder_joined(world: &World, citizen: CitizenId, dwelling: Option<DwellingId>) -> Event {
@@ -245,6 +285,15 @@ pub fn cycle_end_8l_householder_fill(b: &mut TickBuilder) {
             let dwelling = crate::housing::free_society_dwelling(&b.world);
             let e = householder_joined(&b.world, citizen, dwelling);
             b.emit(e);
+            if b.rules.capabilities.labor == crate::constitution::LaborMode::Assigned
+                && let Some(workplace) = crate::orgs::least_staffed(&b.world)
+            {
+                b.emit(Event::Assigned {
+                    workplace,
+                    citizen,
+                    contract: None,
+                });
+            }
         }
     } else if have > target {
         let excess = usize::try_from(have - target).unwrap_or(0);

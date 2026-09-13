@@ -430,6 +430,34 @@ pub enum Event {
         cycle: Cycle,
         entries: Vec<ContributionEntry>,
     },
+    /// A state-store purchase request filed for this tick (S0.16a).
+    StateStoreRequested {
+        citizen: CitizenId,
+        good: Good,
+        qty: u32,
+        tick: Tick,
+    },
+    /// The state store sold at the list price: money to the till, goods to the pantry.
+    StateStoreSold {
+        citizen: CitizenId,
+        good: Good,
+        qty: u32,
+        unit_price: Money,
+        total: Money,
+        explain: Explain,
+    },
+    /// Requests the state store could not serve this tick.
+    StateStoreShortage {
+        tick: Tick,
+        unfilled: BTreeMap<Good, u32>,
+    },
+    /// Provision: goods issued at zero price from the state stock (step 8b).
+    RationIssued {
+        citizen: CitizenId,
+        good: Good,
+        qty: u32,
+        explain: Explain,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -588,6 +616,10 @@ impl Event {
             Event::Pledged { .. } => "Pledged",
             Event::PledgeClosed { .. } => "PledgeClosed",
             Event::NormsLedgerClosed { .. } => "NormsLedgerClosed",
+            Event::StateStoreRequested { .. } => "StateStoreRequested",
+            Event::StateStoreSold { .. } => "StateStoreSold",
+            Event::StateStoreShortage { .. } => "StateStoreShortage",
+            Event::RationIssued { .. } => "RationIssued",
         }
     }
 
@@ -663,5 +695,9 @@ impl Event {
         "Pledged",
         "PledgeClosed",
         "NormsLedgerClosed",
+        "StateStoreRequested",
+        "StateStoreSold",
+        "StateStoreShortage",
+        "RationIssued",
     ];
 }
