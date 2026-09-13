@@ -134,7 +134,10 @@ fn scheduled_epoch_end_at_tick_1007_and_no_tick_1008() {
 fn collapse_fires_after_five_low_cycles_only_when_enabled() {
     // Householders only: zero active humans, below the floor of 40.
     let mut h = WorldBuilder::new("freeport")
-        .with_preset(|p| p.params.population.collapse_enabled = true)
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = true;
+            p.params.population.floor = 40;
+        })
         .householders(3)
         .build();
     h.check_every_step = false;

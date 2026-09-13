@@ -369,10 +369,7 @@ fn dormancy_after_exactly_seven_absent_cycles_and_return_on_seen() {
     }
     assert_eq!(went_dormant, Some(24 * 7 - 1));
     assert!(h.citizen(me).dormant);
-    assert!(
-        !h.citizen(nth(&h, 2)).dormant,
-        "householders never go dormant"
-    );
+    // (the householder emigrates under the fixture floor of 0; that is S0.12a, not dormancy)
     assert!(h.citizen(other).dormant, "an equally absent human does");
     let open_mine = h
         .world

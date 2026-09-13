@@ -169,9 +169,9 @@ pub fn tick(world: &World, rules: &Rules, input: TickInput) -> Result<Vec<Event>
 /// Start epoch `epoch` for this society as events (ADR-0003). Epoch 0's seeding
 /// and later epochs' material reset are filled in by S0.12 and S0.13.
 #[must_use]
-pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
+pub fn start_epoch(world: &World, rules: &Rules, epoch: Epoch) -> Vec<Event> {
     debug_assert!(epoch == 0 || world.meta.epoch_ended.is_some());
-    vec![Event::EpochStarted { epoch }]
+    crate::seeding::start_epoch(world, rules, epoch)
 }
 
 /// The phase-2 order a tick would use, for tests of seed sensitivity.
@@ -272,7 +272,9 @@ fn cycle_end_8j_votes_and_vacancies(_b: &mut TickBuilder) {}
 fn cycle_end_8k_dormancy(b: &mut TickBuilder) {
     crate::plan::cycle_end_8k_dormancy(b);
 }
-fn cycle_end_8l_householder_fill(_b: &mut TickBuilder) {}
+fn cycle_end_8l_householder_fill(b: &mut TickBuilder) {
+    crate::seeding::cycle_end_8l_householder_fill(b);
+}
 
 /// 8m. Per-cycle aggregates and the collapse counter (S0.13 fills the metrics).
 fn cycle_end_8m_aggregates(b: &mut TickBuilder) {

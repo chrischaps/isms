@@ -15,7 +15,7 @@ use crate::world::{
 use std::collections::BTreeMap;
 
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
-pub const UNIMPLEMENTED: &[&str] = &["HouseholderEmigrated", "Drew", "PolicyChanged"];
+pub const UNIMPLEMENTED: &[&str] = &["Drew", "PolicyChanged"];
 
 /// Fold one event into the world.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)] // a flat dispatcher
@@ -825,6 +825,23 @@ pub fn apply(world: &mut World, event: &Event) {
             if let Some(o) = world.orgs.get_mut(org) {
                 o.members.remove(citizen);
             }
+        }
+        Event::HouseholderEmigrated {
+            citizen,
+            burned_money,
+            burned_goods,
+            ..
+        } => {
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.household.balance -= *burned_money;
+                for (g, q) in burned_goods {
+                    take_from_pantry(&mut c.household.pantry, *g, *q);
+                    LedgerMeta::add(&mut world.ledger_meta.burned, *g, *q);
+                }
+                c.dormant = true;
+                c.labor.allocations.clear();
+            }
+            world.ledger_meta.burned_money += *burned_money;
         }
         Event::CitizenSeen { citizen, tick, .. } => {
             if let Some(c) = world.citizens.get_mut(citizen) {

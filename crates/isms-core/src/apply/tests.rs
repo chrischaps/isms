@@ -261,6 +261,7 @@ fn unimplemented_registry_matches_the_enum() {
         "MembershipRequested",
         "MemberAdmitted",
         "MemberLeft",
+        "HouseholderEmigrated",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
