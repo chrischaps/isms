@@ -256,6 +256,11 @@ pub enum Command {
         citizen: CitizenId,
         approve: bool,
     },
+    /// A cooperative decides how it shares its surplus (S0.17b).
+    SetShareRule {
+        org: OrgId,
+        rule: crate::world::ShareRule,
+    },
 }
 
 impl Command {
@@ -305,6 +310,7 @@ impl Command {
             Command::SetPlan { .. } => "SetPlan",
             Command::RequestTransfer { .. } => "RequestTransfer",
             Command::DecideTransfer { .. } => "DecideTransfer",
+            Command::SetShareRule { .. } => "SetShareRule",
         }
     }
 }
@@ -444,6 +450,7 @@ impl Capabilities {
             Command::RequestTransfer { .. } | Command::DecideTransfer { .. } => {
                 self.labor == crate::constitution::LaborMode::Assigned
             }
+            Command::SetShareRule { .. } => self.allows_org(OrgKind::Cooperative),
         }
     }
 }
@@ -559,7 +566,8 @@ pub fn handle(
             crate::credit::request_membership(world, envelope, *org)
         }
         Command::AdmitMember { org, citizen } => {
-            crate::credit::admit_member(world, envelope, *org, *citizen)
+            crate::coop::admit(world, envelope, *org, *citizen)
+                .unwrap_or_else(|| crate::credit::admit_member(world, envelope, *org, *citizen))
         }
         Command::LeaveOrg { org } => crate::credit::leave_org(world, envelope, *org),
         Command::FoundOrg {
@@ -623,6 +631,9 @@ pub fn handle(
         }
         Command::DecideTransfer { citizen, approve } => {
             crate::planning::decide_transfer(world, envelope, *citizen, *approve)
+        }
+        Command::SetShareRule { org, rule } => {
+            crate::coop::set_share_rule(world, envelope, *org, *rule)
         }
     }
 }

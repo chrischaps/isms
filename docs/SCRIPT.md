@@ -22,6 +22,17 @@ Householders are the AI citizens that fill a society up to its population floor.
 
 The same householder and the same legacy firms as in Freeport. The householder pays its income tax at every cycle end and takes the need floor when the treasury tops it up, like anyone else; it never changes its plan because of either, and a legacy firm never offers below the minimum wage (its offers are at the legacy wage, above it).
 
+## In the Commonwealth
+
+The same householder, in a society where every org is a cooperative and there are no wages:
+
+1. **Keep a plan.** As in Freeport.
+2. **Work.** With no position, ask to join the cooperative with a place still open whose last surplus per member was highest (the least staffed by the balancing weights, counting requests already waiting, breaks ties), one live request at a time. Once admitted, work the full eight hours at normal effort at the workplace the coop placed you. After two cycles as a member, if the coop's last share per member was under a cycle's living cost and another coop with a place open shared more, leave (forfeiting this cycle's share) and ask there. A steward never leaves its coop.
+3. **Live somewhere.** As in Freeport: dwellings are let by the Builders' coop.
+4. **Sell surplus.** As in Freeport.
+
+A legacy cooperative's householder manager runs the legacy firm's script with three differences: it admits members (pending requests, oldest first, while a workplace has room and the coop is not glutted) instead of posting job offers; when glutted (more than two cycles of full production unsold, or for Builders that many dwellings standing empty) it buys no inputs at all, so the loss a firm's treasury would carry falls on the members' share; its reserve before bidding for inputs is the obligations falling due (loan installments, the capital levy) plus a cycle of what its members would earn at the legacy wage; and it buys a Machine when the treasury, less what its bids this hour already commit, exceeds one and a half cycles of what its members would earn at the legacy wage plus the price. Every cycle end the coop shares its surplus (this cycle's gain in the treasury, less capital received and obligations due) among its members by its rule: hours-weighted by default. There are no shares to sell.
+
 ## In the Commune
 
 The same householder, in a society with no money, no prices and a Common Store:

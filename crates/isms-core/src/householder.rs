@@ -146,9 +146,67 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
             })
         })
         .collect();
+    let share = world.constitution.compensation == crate::constitution::Compensation::Share;
     if assigned.is_empty() && norm {
         if let Some(workplace) = crate::orgs::least_staffed(world) {
             cmds.push(Command::JoinWorkplace { workplace });
+        }
+    } else if assigned.is_empty() && share {
+        // Ask to join the best coop that would take a member, one live request
+        // at a time (a request at a coop that has since filled up does not count).
+        let pending = world.offers.values().any(|o| match o.body {
+            OfferBody::Membership { citizen, org } if citizen == id => world
+                .orgs
+                .get(&org)
+                .is_some_and(|o| crate::coop::would_admit(world, o)),
+            _ => false,
+        });
+        if !pending {
+            // The coop whose last share per member was highest; with nothing
+            // shared yet anywhere, the least staffed by the balancing weights.
+            // Requests already waiting on a coop count as members for staffing,
+            // so forty citizens choosing in turn spread out instead of piling up.
+            let staffing = |o: &crate::world::Org| {
+                let weight: u32 = o
+                    .workplaces
+                    .iter()
+                    .filter_map(|w| world.workplaces.get(w))
+                    .map(|w| {
+                        world
+                            .params
+                            .labor
+                            .balance_weights
+                            .get(&w.kind)
+                            .copied()
+                            .unwrap_or(1)
+                    })
+                    .sum();
+                let waiting = world
+                    .offers
+                    .values()
+                    .filter(|f| matches!(f.body, OfferBody::Membership { org: x, .. } if x == o.id))
+                    .count();
+                f64::from(u32::try_from(o.members.len() + waiting).unwrap_or(u32::MAX))
+                    / f64::from(weight.max(1))
+            };
+            let best = world
+                .orgs
+                .values()
+                .filter(|o| crate::coop::open_places(world, o) > 0 && !o.members.contains(&id))
+                .max_by(|a, b| {
+                    crate::coop::surplus_per_member(a)
+                        .partial_cmp(&crate::coop::surplus_per_member(b))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then(
+                            staffing(b)
+                                .partial_cmp(&staffing(a))
+                                .unwrap_or(std::cmp::Ordering::Equal),
+                        )
+                        .then(b.id.cmp(&a.id))
+                });
+            if let Some(o) = best {
+                cmds.push(Command::RequestMembership { org: o.id });
+            }
         }
     } else if assigned.is_empty() {
         let best = world
@@ -191,6 +249,31 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
         }
     }
 
+    // 2b. Mobility (share systems): a member may move to a coop that shares more.
+    if share && !assigned.is_empty() {
+        // A member whose coop shared out less than a living last cycle moves
+        // to one with a place open that shared more (labor-membership is free,
+        // GDD 6.5); the steward never leaves (a coop without a manager is dead,
+        // and at seeding every steward is alone). Leaving forfeits the share.
+        if let Some(mine) = world
+            .orgs
+            .values()
+            .find(|o| o.kind == crate::kinds::OrgKind::Cooperative && o.members.contains(&id))
+            && mine.manager != Some(id)
+            && crate::coop::tenure_cycles(world, mine, id) >= 2
+        {
+            let my_share = crate::coop::surplus_per_member(mine);
+            let living = living_cost(world, c).as_credits_f64();
+            let better = world.orgs.values().any(|o| {
+                o.id != mine.id
+                    && crate::coop::open_places(world, o) > 0
+                    && crate::coop::surplus_per_member(o) > my_share
+            });
+            if my_share < living && better {
+                cmds.push(Command::LeaveOrg { org: mine.id });
+            }
+        }
+    }
     // 3. Housing: the cheapest open lease within 25% of income (or of the legacy wage).
     if c.household.dwelling.is_none() {
         let income = if c.wages_total > Money::ZERO {
@@ -349,6 +432,10 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
     let p = &world.params;
     let me = Party::Org(org_id);
     let mut cmds = Vec::new();
+    let coop = org.kind == crate::kinds::OrgKind::Cooperative;
+    // Money this round's bids have already committed (a coop keeps no payroll
+    // reserve, so the Machine rule below must not count it twice).
+    let mut committed = Money::ZERO;
     let wage = p.money.legacy_wage;
     let open_wages: Vec<Money> = world
         .offers
@@ -377,7 +464,11 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         let recipe = &p.recipes[&wp.kind];
         let workers = u32::try_from(wp.workers.len()).unwrap_or(0);
         let per_worker = Money(median_wage.0 * i64::from(p.labor.base_budget_hours));
-        let affordable = u32::try_from(org.treasury.0 / per_worker.0.max(1)).unwrap_or(0);
+        let affordable = if coop {
+            u32::MAX
+        } else {
+            u32::try_from(org.treasury.0 / per_worker.0.max(1)).unwrap_or(0)
+        };
         let places = p
             .labor
             .max_workers_per_workplace
@@ -388,13 +479,51 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         let full_cycle_output = recipe.base_rate
             * f64::from(p.labor.max_workers_per_workplace)
             * f64::from(p.labor.base_budget_hours);
-        let stock = recipe
-            .produces
-            .as_good()
-            .map_or(0, |g| org.inventory.get(&g).copied().unwrap_or(0));
+        let stock = recipe.produces.as_good().map_or_else(
+            || {
+                // A Builders' coop is glutted by its dwellings standing empty; a
+                // firm's Builders keep building on the owner's account, as before.
+                if coop {
+                    u32::try_from(
+                        world
+                            .dwellings
+                            .values()
+                            .filter(|d| {
+                                d.owner == crate::world::Owner::Org(org_id) && d.occupant.is_none()
+                            })
+                            .count(),
+                    )
+                    .unwrap_or(u32::MAX)
+                } else {
+                    0
+                }
+            },
+            |g| org.inventory.get(&g).copied().unwrap_or(0),
+        );
         let glutted = f64::from(stock)
             > full_cycle_output * f64::from(p.householder.legacy_hire_inventory_cycles_cap);
-        if places > 0 && !has_offer && !glutted {
+        if coop && places > 0 && !glutted {
+            // Admissions instead of hiring (Q86): pending requests, oldest first.
+            let mut requests: Vec<(crate::ids::OfferId, CitizenId)> = world
+                .offers
+                .values()
+                .filter_map(|o| match o.body {
+                    OfferBody::Membership { org: x, citizen } if x == org_id => {
+                        Some((o.id, citizen))
+                    }
+                    _ => None,
+                })
+                .collect();
+            requests.sort();
+            for (_, citizen) in requests.into_iter().take(places as usize) {
+                if !crate::labor::has_position(world, citizen) {
+                    cmds.push(Command::AdmitMember {
+                        org: org_id,
+                        citizen,
+                    });
+                }
+            }
+        } else if !coop && places > 0 && !has_offer && !glutted {
             cmds.push(Command::OfferEmployment {
                 org: org_id,
                 workplace: *wp_id,
@@ -409,11 +538,24 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         let planned = workers.max(2).min(p.labor.max_workers_per_workplace);
         let hours = f64::from(planned) * f64::from(p.labor.base_budget_hours);
         let demand_units = recipe.base_rate * hours;
-        // Keep one cycle of payroll in hand; only the rest may sit in input bids.
-        let reserve =
+        // Keep one cycle of payroll in hand; only the rest may sit in input
+        // bids. A coop keeps its obligations falling due plus what its members
+        // would earn at the legacy wage (Q91): with no reserve at all a Mill
+        // spends every credit on Grain and its members share out nothing.
+        let wage_equivalent =
             Money(median_wage.0 * i64::from(workers) * i64::from(p.labor.base_budget_hours));
+        let reserve = if coop {
+            crate::coop::obligations_due(world, org_id) + wage_equivalent
+        } else {
+            wage_equivalent
+        };
         let input_budget = (org.treasury - reserve).max_zero();
         for (g, per) in &recipe.consumes {
+            // A glutted coop stops buying inputs: its members carry the loss
+            // that a firm's treasury would (Q91).
+            if coop && glutted {
+                break;
+            }
             let need = (demand_units * f64::from(*per)).ceil() as u32;
             let have = org.inventory.get(g).copied().unwrap_or(0) + open_bid_qty(world, me, *g);
             if need > have {
@@ -428,6 +570,7 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
                 };
                 let qty = (need - have).min(affordable);
                 if qty > 0 && limit > Money::ZERO {
+                    committed += Money(limit.0 * i64::from(qty));
                     cmds.push(Command::PlaceOrder {
                         instrument: Instrument::Good(*g),
                         side: Side::Bid,
@@ -468,7 +611,10 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
                 });
             }
         }
-        // Machines: buy one when the treasury exceeds N cycles of payroll.
+        // Machines: buy one when the treasury exceeds N cycles of payroll. A coop
+        // has no payroll; it reserves what its members would earn at the legacy
+        // wage instead (Q91): keyed to the last share-out, a coop that had none
+        // would put every credit into Machines and never share anything.
         let payroll =
             Money(median_wage.0 * i64::from(workers) * i64::from(p.labor.base_budget_hours));
         let threshold =
@@ -478,8 +624,13 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
             (reference_price(world, Good::Machines).0 as f64 * (1.0 + p.householder.legacy_markup))
                 .round() as i64,
         );
+        let free = if coop {
+            (org.treasury - committed).max_zero()
+        } else {
+            org.treasury
+        };
         if workers > 0
-            && org.treasury > threshold + machine_price
+            && free > threshold + machine_price
             && machine_price > Money::ZERO
             && open_bid_qty(world, me, Good::Machines) == 0
         {

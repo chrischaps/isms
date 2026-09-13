@@ -38,6 +38,15 @@ pub struct Params {
     /// Dwellings seeded at epoch start (owned by the seeded Builders, or the society).
     pub initial_dwellings: u32,
     pub seeding: SeedingParams,
+    pub coop: CoopParams,
+}
+
+/// Cooperative defaults (GDD §6.5; S0.17b).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoopParams {
+    /// How a new coop splits its surplus until it decides otherwise.
+    pub default_share_rule: crate::world::ShareRule,
 }
 
 /// What the seeded (legacy) orgs start with besides their treasury (ADR-0004).

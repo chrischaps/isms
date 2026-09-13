@@ -354,6 +354,23 @@ pub struct Org {
     pub payment_missed: bool,
     /// Per-share dividend declared this cycle, paid at 8e and cleared at cycle close.
     pub declared_dividend: Option<Money>,
+    // --- cooperatives (S0.17b) ----------------------------------------------
+    /// How the surplus is split; `None` outside cooperatives.
+    pub share_rule: Option<ShareRule>,
+    /// The treasury at the last cycle close plus capital received since:
+    /// what this cycle's surplus is measured against (Q85).
+    pub surplus_base: Money,
+    pub member_since: BTreeMap<CitizenId, Tick>,
+    pub last_surplus: Money,
+    pub last_share_out_members: u32,
+}
+
+/// How a cooperative shares its surplus (GDD §6.5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShareRule {
+    Equal,
+    HoursWeighted,
 }
 
 /// Who holds shares (ADR-0005). Serialized as a string (`citizen:7`, `org_self`)

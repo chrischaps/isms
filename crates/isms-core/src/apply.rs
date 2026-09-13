@@ -38,6 +38,11 @@ pub fn apply(world: &mut World, event: &Event) {
         }
         Event::Seeded { holder, asset } => {
             credit(world, *holder, *asset);
+            if let (Holder::Org(o), Asset::Money(m)) = (holder, asset)
+                && let Some(org) = world.orgs.get_mut(o)
+            {
+                org.surplus_base += *m;
+            }
             match asset {
                 Asset::Money(m) => world.ledger_meta.minted += *m,
                 Asset::Good(g, q) => LedgerMeta::add(&mut world.ledger_meta.seeded, *g, *q),
@@ -724,6 +729,11 @@ pub fn apply(world: &mut World, event: &Event) {
                 world.offers.remove(&id);
             }
             credit(world, Holder::from(*borrower), Asset::Money(*principal));
+            if let Party::Org(o) = borrower
+                && let Some(org) = world.orgs.get_mut(o)
+            {
+                org.surplus_base += *principal;
+            }
             if let Some(crate::world::Collateral::Shares(org, qty)) = collateral
                 && let Some(h) = crate::shares::holder_of(*borrower, *org)
             {
@@ -773,6 +783,12 @@ pub fn apply(world: &mut World, event: &Event) {
                 let (lender, borrower) = k.parties;
                 debit(world, Holder::from(borrower), Asset::Money(*amount));
                 credit(world, Holder::from(lender), Asset::Money(*amount));
+                // An obligation paid out of the base (it was reserved at 8a) lowers it.
+                if let Party::Org(o) = borrower
+                    && let Some(org) = world.orgs.get_mut(&o)
+                {
+                    org.surplus_base = (org.surplus_base - *amount).max_zero();
+                }
             }
         }
         Event::CreditMissed { contract, .. } => {
@@ -848,8 +864,20 @@ pub fn apply(world: &mut World, event: &Event) {
             bump_offer(world, *offer);
         }
         Event::MemberAdmitted { org, citizen } => {
+            let tick = world.meta.tick;
+            let coop = world
+                .orgs
+                .get(org)
+                .is_some_and(|o| o.kind == crate::kinds::OrgKind::Cooperative);
             if let Some(o) = world.orgs.get_mut(org) {
                 o.members.insert(*citizen);
+                o.member_since.insert(*citizen, tick);
+            }
+            // One coop at a time: a new member's other coop requests lapse.
+            if coop {
+                world.offers.retain(|_, f| {
+                    !matches!(f.body, crate::world::OfferBody::Membership { citizen: c, org: x } if c == *citizen && x != *org)
+                });
             }
             let requests: Vec<crate::ids::OfferId> = world
                 .offers
@@ -866,6 +894,39 @@ pub fn apply(world: &mut World, event: &Event) {
         Event::MemberLeft { org, citizen } => {
             if let Some(o) = world.orgs.get_mut(org) {
                 o.members.remove(citizen);
+                o.member_since.remove(citizen);
+            }
+        }
+        Event::SurplusDeclared {
+            org,
+            surplus,
+            members,
+            ..
+        } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.last_surplus = *surplus;
+                o.last_share_out_members = *members;
+                // What the coop keeps after this share-out is next cycle's base (Q88).
+                o.surplus_base = o.treasury - *surplus;
+            }
+        }
+        Event::ShareOutPaid {
+            org,
+            citizen,
+            amount,
+            ..
+        } => {
+            debit(world, Holder::Org(*org), Asset::Money(*amount));
+            credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.wages_total += *amount;
+                c.cycle_wages += *amount;
+                c.taxable_income += *amount;
+            }
+        }
+        Event::ShareRuleSet { org, rule } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.share_rule = Some(*rule);
             }
         }
         Event::HouseholderEmigrated {
@@ -1440,6 +1501,12 @@ fn apply_org_founded(
             founded_tick: world.meta.tick,
             payment_missed: false,
             declared_dividend: None,
+            share_rule: (kind == crate::kinds::OrgKind::Cooperative)
+                .then_some(world.params.coop.default_share_rule),
+            surplus_base: Money::ZERO,
+            member_since: founder.into_iter().map(|f| (f, world.meta.tick)).collect(),
+            last_surplus: Money::ZERO,
+            last_share_out_members: 0,
         },
     );
     if world.next.org.0 <= org.0 {

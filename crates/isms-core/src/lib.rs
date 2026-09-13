@@ -5,10 +5,12 @@
 //! See `docs/tdd.md` sections 0 and 5.
 
 pub mod apply;
+pub mod bank;
 pub mod capabilities;
 pub mod command;
 pub mod config;
 pub mod constitution;
+pub mod coop;
 pub mod credit;
 pub mod employment;
 pub mod event;

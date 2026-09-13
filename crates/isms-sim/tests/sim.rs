@@ -72,6 +72,8 @@ fn csv_columns_match_the_tdd() {
         "contribution_gini",
         "tax_collected_credits",
         "floor_paid_credits",
+        "coop_surplus_per_member",
+        "mean_tenure_cycles",
     ] {
         assert!(header.split(',').any(|h| h == col), "missing column {col}");
     }

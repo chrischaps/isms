@@ -339,10 +339,7 @@ pub fn leave_org(
     if !o.members.contains(&citizen.id) {
         return Err(Reject::new(RejectCode::NotParty, "not a member"));
     }
-    let mut events = vec![Event::MemberLeft {
-        org,
-        citizen: citizen.id,
-    }];
+    let mut events = crate::coop::leave_events(world, o, citizen.id);
     if o.manager == Some(citizen.id) {
         events.push(Event::ManagerAppointed { org, citizen: None });
     }
