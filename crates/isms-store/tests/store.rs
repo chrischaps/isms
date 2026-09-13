@@ -28,6 +28,9 @@ fn society_row() -> SocietyRow {
         status: "active".into(),
         seed: 7,
         epoch: 0,
+        tick_seconds: 0,
+        tick_origin: chrono::DateTime::UNIX_EPOCH,
+        cycle_boundary_hour: 4,
     }
 }
 

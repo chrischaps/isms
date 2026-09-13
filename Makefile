@@ -7,6 +7,8 @@ SHELL := bash
 endif
 
 PRESET ?= freeport
+# The dev database from `make db`; a .env file or the environment overrides it (CI sets its own).
+export DATABASE_URL ?= postgres://isms:isms@localhost:5433/isms
 EPOCHS ?= 5
 SEED   ?= 1
 

@@ -1,4 +1,2 @@
-* text=auto eol=lf
-*.pdf binary
-*.postcard binary
-*.png binary
+# Append-only logs from two parallel tracks: keep both sides instead of conflicting.
+docs/SESSIONS.md merge=union

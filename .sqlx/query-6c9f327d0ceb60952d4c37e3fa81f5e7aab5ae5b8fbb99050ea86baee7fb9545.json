@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, preset, class, status, seed, epoch FROM societies ORDER BY id",
+  "query": "SELECT id, name, preset, class, status, seed, epoch,\n                    tick_seconds, tick_origin, cycle_boundary_hour\n             FROM societies ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -37,6 +37,21 @@
         "ordinal": 6,
         "name": "epoch",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "tick_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "tick_origin",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "cycle_boundary_hour",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -49,8 +64,11 @@
       false,
       false,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "45fdfb6950c6ee1eec8003ffd7132275d4dece29c85a391edf826334bb157d4d"
+  "hash": "6c9f327d0ceb60952d4c37e3fa81f5e7aab5ae5b8fbb99050ea86baee7fb9545"
 }

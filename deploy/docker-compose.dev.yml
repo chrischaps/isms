@@ -1,5 +1,7 @@
 # Local development database (TDD 17 "Environments"). Started by `make db`.
 # Production compose arrives with S1.14 as deploy/docker-compose.yml.
+# One project name for every worktree, so `make db` from any checkout reuses the container.
+name: isms
 services:
   db:
     image: postgres:17

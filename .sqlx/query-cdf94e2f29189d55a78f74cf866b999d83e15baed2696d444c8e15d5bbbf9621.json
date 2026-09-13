@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(MAX(id), 0) + 1 AS next FROM societies",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "next",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "cdf94e2f29189d55a78f74cf866b999d83e15baed2696d444c8e15d5bbbf9621"
+}

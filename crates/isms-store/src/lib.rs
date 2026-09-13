@@ -96,6 +96,12 @@ pub struct SocietyRow {
     pub status: String,
     pub seed: i64,
     pub epoch: i32,
+    /// Wall-clock seconds per tick; 0 means as fast as possible (tests).
+    pub tick_seconds: i32,
+    /// Tick n is due at `tick_origin + n * tick_seconds`.
+    pub tick_origin: DateTime<Utc>,
+    /// Hour (UTC) at which cycles end (TDD 9.2); informational until S1.14.
+    pub cycle_boundary_hour: i32,
 }
 
 /// A stored snapshot, still compressed.
@@ -127,6 +133,8 @@ impl Snapshot {
 pub trait EventStore {
     async fn create_society(&self, row: &SocietyRow) -> Result<()>;
     async fn list_societies(&self) -> Result<Vec<SocietyRow>>;
+    /// One more than the highest society id (1 for an empty table).
+    async fn next_society_id(&self) -> Result<i64>;
     /// Append `batch` as `first_seq..first_seq + batch.len()` in one transaction.
     async fn append_batch(&self, society: i64, first_seq: i64, batch: &[NewEvent]) -> Result<()>;
     /// Events with `seq > after`, in order, at most `limit`.
@@ -196,15 +204,19 @@ fn row_to_event(
 impl EventStore for PgEventStore {
     async fn create_society(&self, row: &SocietyRow) -> Result<()> {
         sqlx::query!(
-            "INSERT INTO societies (id, name, preset, class, status, seed, epoch)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            "INSERT INTO societies (id, name, preset, class, status, seed, epoch,
+                                    tick_seconds, tick_origin, cycle_boundary_hour)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
             row.id,
             row.name,
             row.preset,
             row.class,
             row.status,
             row.seed,
-            row.epoch
+            row.epoch,
+            row.tick_seconds,
+            row.tick_origin,
+            row.cycle_boundary_hour
         )
         .execute(&self.pool)
         .await?;
@@ -214,11 +226,20 @@ impl EventStore for PgEventStore {
     async fn list_societies(&self) -> Result<Vec<SocietyRow>> {
         let rows = sqlx::query_as!(
             SocietyRow,
-            "SELECT id, name, preset, class, status, seed, epoch FROM societies ORDER BY id"
+            "SELECT id, name, preset, class, status, seed, epoch,
+                    tick_seconds, tick_origin, cycle_boundary_hour
+             FROM societies ORDER BY id"
         )
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
+    }
+
+    async fn next_society_id(&self) -> Result<i64> {
+        let row = sqlx::query!("SELECT COALESCE(MAX(id), 0) + 1 AS next FROM societies")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.next.unwrap_or(1))
     }
 
     async fn append_batch(&self, society: i64, first_seq: i64, batch: &[NewEvent]) -> Result<()> {

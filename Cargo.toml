@@ -39,6 +39,8 @@ zstd = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 tracing = "0.1"
+metrics = "0.24"
+tokio-util = "0.7"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # tests
 proptest = "1"
