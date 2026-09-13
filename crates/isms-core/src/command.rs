@@ -473,6 +473,29 @@ pub fn handle(
         Command::EndLease { contract } => crate::housing::end_lease(world, envelope, *contract),
         Command::MoveIn { dwelling } => crate::housing::move_in(world, envelope, *dwelling),
         Command::MoveOut { dwelling } => crate::housing::move_out(world, envelope, *dwelling),
+        Command::OfferCredit {
+            to,
+            principal,
+            rate_per_cycle_bp,
+            term_cycles,
+            collateral,
+        } => crate::credit::offer_credit(
+            world,
+            envelope,
+            *to,
+            *principal,
+            *rate_per_cycle_bp,
+            *term_cycles,
+            *collateral,
+        ),
+        Command::AcceptCredit { offer } => crate::credit::accept_credit(world, envelope, *offer),
+        Command::RequestMembership { org } => {
+            crate::credit::request_membership(world, envelope, *org)
+        }
+        Command::AdmitMember { org, citizen } => {
+            crate::credit::admit_member(world, envelope, *org, *citizen)
+        }
+        Command::LeaveOrg { org } => crate::credit::leave_org(world, envelope, *org),
         Command::FoundOrg {
             kind,
             name,

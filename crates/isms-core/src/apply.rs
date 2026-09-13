@@ -15,18 +15,7 @@ use crate::world::{
 use std::collections::BTreeMap;
 
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
-pub const UNIMPLEMENTED: &[&str] = &[
-    "HouseholderEmigrated",
-    "MemberAdmitted",
-    "MemberLeft",
-    "CreditOffered",
-    "CreditAccepted",
-    "CreditInstallment",
-    "CreditRepaid",
-    "CreditDefaulted",
-    "Drew",
-    "PolicyChanged",
-];
+pub const UNIMPLEMENTED: &[&str] = &["HouseholderEmigrated", "Drew", "PolicyChanged"];
 
 /// Fold one event into the world.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)] // a flat dispatcher
@@ -648,6 +637,193 @@ pub fn apply(world: &mut World, event: &Event) {
         Event::LeaseEnded { contract, .. } => {
             if let Some(k) = world.contracts.get_mut(contract) {
                 k.status = crate::world::ContractStatus::Ended;
+            }
+        }
+        Event::CreditOffered { offer, by, body } => {
+            if let crate::world::OfferBody::Credit { principal, .. } = body {
+                debit(world, Holder::from(*by), Asset::Money(*principal));
+                world.escrow.insert(
+                    crate::world::EscrowKey::Offer(*offer),
+                    Asset::Money(*principal),
+                );
+            }
+            world.offers.insert(
+                *offer,
+                crate::world::Offer {
+                    id: *offer,
+                    by: *by,
+                    created_tick: world.meta.tick,
+                    body: body.clone(),
+                },
+            );
+            bump_offer(world, *offer);
+        }
+        Event::CreditAccepted {
+            contract,
+            lender,
+            borrower,
+            principal,
+            rate_per_cycle_bp,
+            installment,
+            installments,
+            collateral,
+        } => {
+            // The principal leaves the offer's escrow for the borrower.
+            let offer_id = world
+                .offers
+                .iter()
+                .find(|(_, o)| {
+                    o.by == *lender
+                        && matches!(o.body, crate::world::OfferBody::Credit { principal: p, .. } if p == *principal)
+                })
+                .map(|(id, _)| *id);
+            if let Some(id) = offer_id {
+                world.escrow.remove(&crate::world::EscrowKey::Offer(id));
+                world.offers.remove(&id);
+            }
+            credit(world, Holder::from(*borrower), Asset::Money(*principal));
+            if let Some(crate::world::Collateral::Shares(org, qty)) = collateral
+                && let Some(h) = crate::shares::holder_of(*borrower, *org)
+            {
+                move_shares(world, *org, Some(h), None, *qty);
+                world
+                    .share_escrow
+                    .insert(crate::world::EscrowKey::Contract(*contract), (*org, *qty));
+            }
+            world.contracts.insert(
+                *contract,
+                crate::world::Contract {
+                    id: *contract,
+                    parties: (*lender, *borrower),
+                    created_tick: world.meta.tick,
+                    term_cycles: Some(*installments),
+                    status: crate::world::ContractStatus::Active,
+                    body: crate::world::ContractBody::Credit {
+                        principal: *principal,
+                        rate_per_cycle_bp: *rate_per_cycle_bp,
+                        installment: *installment,
+                        installments_left: *installments,
+                        collateral: *collateral,
+                        missed: false,
+                    },
+                },
+            );
+            if world.next.contract.0 <= contract.0 {
+                world.next.contract = contract.next();
+            }
+        }
+        Event::CreditInstallment {
+            contract,
+            amount,
+            remaining,
+            ..
+        } => {
+            if let Some(k) = world.contracts.get_mut(contract) {
+                if let crate::world::ContractBody::Credit {
+                    installments_left,
+                    missed,
+                    ..
+                } = &mut k.body
+                {
+                    *installments_left = *remaining;
+                    *missed = false;
+                }
+                let (lender, borrower) = k.parties;
+                debit(world, Holder::from(borrower), Asset::Money(*amount));
+                credit(world, Holder::from(lender), Asset::Money(*amount));
+            }
+        }
+        Event::CreditMissed { contract, .. } => {
+            if let Some(k) = world.contracts.get_mut(contract)
+                && let crate::world::ContractBody::Credit { missed, .. } = &mut k.body
+            {
+                *missed = true;
+            }
+        }
+        Event::CreditRepaid { contract } => {
+            if let Some(k) = world.contracts.get_mut(contract) {
+                k.status = crate::world::ContractStatus::Ended;
+                let borrower = k.parties.1;
+                if let Some((org, qty)) = world
+                    .share_escrow
+                    .remove(&crate::world::EscrowKey::Contract(*contract))
+                    && let Some(h) = crate::shares::holder_of(borrower, org)
+                {
+                    move_shares(world, org, None, Some(h), qty);
+                }
+            }
+        }
+        Event::CreditDefaulted {
+            contract,
+            collateral_seized,
+        } => {
+            let Some((lender, borrower)) = world.contracts.get(contract).map(|k| k.parties) else {
+                return;
+            };
+            if let Some(k) = world.contracts.get_mut(contract) {
+                k.status = crate::world::ContractStatus::Ended;
+            }
+            match collateral_seized {
+                Some(crate::world::Collateral::Dwelling(d)) => {
+                    if let Some(dw) = world.dwellings.get_mut(d) {
+                        dw.owner = crate::housing::owner_of(lender);
+                    }
+                }
+                Some(crate::world::Collateral::Shares(org, _)) => {
+                    if let Some((_, qty)) = world
+                        .share_escrow
+                        .remove(&crate::world::EscrowKey::Contract(*contract))
+                        && let Some(h) = crate::shares::holder_of(lender, *org)
+                    {
+                        move_shares(world, *org, None, Some(h), qty);
+                    }
+                }
+                None => {}
+            }
+            if let Party::Citizen(c) = borrower
+                && let Some(cz) = world.citizens.get_mut(&c)
+            {
+                cz.flags.defaulted = true;
+            }
+        }
+        Event::MembershipRequested {
+            offer,
+            org,
+            citizen,
+        } => {
+            world.offers.insert(
+                *offer,
+                crate::world::Offer {
+                    id: *offer,
+                    by: Party::Citizen(*citizen),
+                    created_tick: world.meta.tick,
+                    body: crate::world::OfferBody::Membership {
+                        org: *org,
+                        citizen: *citizen,
+                    },
+                },
+            );
+            bump_offer(world, *offer);
+        }
+        Event::MemberAdmitted { org, citizen } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.members.insert(*citizen);
+            }
+            let requests: Vec<crate::ids::OfferId> = world
+                .offers
+                .iter()
+                .filter(|(_, f)| {
+                    matches!(f.body, crate::world::OfferBody::Membership { org: x, citizen: c } if x == *org && c == *citizen)
+                })
+                .map(|(id, _)| *id)
+                .collect();
+            for id in requests {
+                world.offers.remove(&id);
+            }
+        }
+        Event::MemberLeft { org, citizen } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.members.remove(citizen);
             }
         }
         Event::CitizenSeen { citizen, tick, .. } => {

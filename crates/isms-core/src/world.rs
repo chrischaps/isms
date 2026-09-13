@@ -560,6 +560,8 @@ pub enum ContractBody {
         installment: Money,
         installments_left: u32,
         collateral: Option<Collateral>,
+        /// The last due installment was missed; phase 7 resolves the default.
+        missed: bool,
     },
     Lease {
         asset: LeaseAsset,

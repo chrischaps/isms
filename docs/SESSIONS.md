@@ -97,3 +97,11 @@ Provisional answers added to QUESTIONS.md: Q24 (Wares quantity and refresh seman
 New tunables: none.
 Next session should know: every joined citizen carries the default plan (keep Food at 24), so any fixture with money and a resting Food ask will see plan bids; tests that need a quiet book set `keep_food_at_least = 0` via `PlanChanged`. Long-running fixtures without `Seen` go dormant at cycle 7; raise `dormancy_absent_cycles` in `with_preset` when that is not the point.
 make check: green · new tests: 8 · sim-check: n/a
+
+## S0.11b — Credit, defaults, associations — 2026-09-13 — PR #16
+Built: `credit` module: `schedule` (simple interest, equal integer-cent installments, remainder on the last), `offer_credit` (lender escrows the principal; `CreditOffered` now carries `by`), `accept_credit` (addressee, self-deal, destitute long-term, collateral ownership; share collateral escrowed under the contract), `cycle_end_8c_credit_installments` (`CreditInstallment` with Explain, `CreditRepaid`, or `CreditMissed`), `phase_7_defaults` (missed installments default on the first tick of the next cycle: collateral to the lender, contract ended, borrower flagged), `pledged` (a pledged dwelling cannot be sold or let), and associations: `request_membership` (`MembershipRequested`, new event), `admit_member` (manager), `leave_org` (a leaving manager vacates the chair). `ContractBody::Credit.missed` added; `CreditAccepted` carries the rate.
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q35, Q36.
+New tunables: none.
+Next session should know: S0.11 done gate complete (the 100-credit, 5-cycle, 2% loan repays exactly 22 per cycle). S0.12a (seeding, fill, emigration) is drafted.
+make check: green · new tests: 5 · sim-check: n/a

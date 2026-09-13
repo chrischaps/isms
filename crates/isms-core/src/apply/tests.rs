@@ -252,6 +252,15 @@ fn unimplemented_registry_matches_the_enum() {
         "RentPaid",
         "RentMissed",
         "LeaseEnded",
+        "CreditOffered",
+        "CreditAccepted",
+        "CreditInstallment",
+        "CreditMissed",
+        "CreditRepaid",
+        "CreditDefaulted",
+        "MembershipRequested",
+        "MemberAdmitted",
+        "MemberLeft",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
