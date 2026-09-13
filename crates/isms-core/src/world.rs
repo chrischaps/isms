@@ -72,6 +72,8 @@ pub struct World {
     pub next: NextIds,
     /// Basket price index as of the last tick (market systems).
     pub price_index: Option<f64>,
+    /// This cycle's production totals (metrics).
+    pub cycle: crate::metrics::WorldCycle,
 }
 
 /// What an escrow entry is held against.
@@ -139,6 +141,7 @@ impl World {
             ledger_meta: LedgerMeta::default(),
             next: NextIds::default(),
             price_index: None,
+            cycle: crate::metrics::WorldCycle::default(),
         }
     }
 
@@ -194,6 +197,8 @@ pub struct Citizen {
     pub wages_total: Money,
     pub last_cycle_wages: Money,
     pub cycle_wages: Money,
+    /// This cycle's consumption and wellbeing totals (metrics).
+    pub cycle: crate::metrics::CitizenCycle,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

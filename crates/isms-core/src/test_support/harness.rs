@@ -120,6 +120,7 @@ impl Harness {
             fatigue_debt: c.labor.fatigue_debt,
             consecutive_high_effort_cycles: c.labor.consecutive_high_effort_cycles,
             skill: c.labor.skill.clone(),
+            cycle: c.cycle.clone(),
         };
         let tick = self.world.meta.tick.wrapping_sub(1);
         self.apply(Event::TickResolved {

@@ -223,6 +223,7 @@ pub fn resolve(h: &Harness, step: &Step) -> Option<Event> {
                         fatigue_debt: c.labor.fatigue_debt,
                         consecutive_high_effort_cycles: c.labor.consecutive_high_effort_cycles,
                         skill: BTreeMap::new(),
+                        cycle: c.cycle.clone(),
                     }
                 })
                 .collect();

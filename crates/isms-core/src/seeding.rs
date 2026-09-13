@@ -129,16 +129,24 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
         }
     }
     // Householders up to the floor.
-    let active_humans = world
-        .citizens
-        .values()
-        .filter(|c| c.kind == CitizenKind::Human && !c.dormant)
-        .count();
-    let householders = world
-        .citizens
-        .values()
-        .filter(|c| c.kind == CitizenKind::Householder && !c.dormant)
-        .count();
+    // A later epoch resets the roster first (Q41): humans start dormant and the
+    // old householders are gone, so the fill is the whole floor.
+    let (active_humans, householders) = if epoch == 0 {
+        (
+            world
+                .citizens
+                .values()
+                .filter(|c| c.kind == CitizenKind::Human && !c.dormant)
+                .count(),
+            world
+                .citizens
+                .values()
+                .filter(|c| c.kind == CitizenKind::Householder && !c.dormant)
+                .count(),
+        )
+    } else {
+        (0, 0)
+    };
     let fill = usize::try_from(p.population.floor)
         .unwrap_or(0)
         .saturating_sub(active_humans)
@@ -151,13 +159,17 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
         new_hh.push(citizen);
     }
     // A householder manager per seeded org, round-robin.
-    let pool: Vec<CitizenId> = world
-        .citizens
-        .values()
-        .filter(|c| c.kind == CitizenKind::Householder && !c.dormant)
-        .map(|c| c.id)
-        .chain(new_hh)
-        .collect();
+    let existing: Vec<CitizenId> = if epoch == 0 {
+        world
+            .citizens
+            .values()
+            .filter(|c| c.kind == CitizenKind::Householder && !c.dormant)
+            .map(|c| c.id)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let pool: Vec<CitizenId> = existing.into_iter().chain(new_hh).collect();
     if !pool.is_empty() {
         for (i, org) in orgs.iter().enumerate() {
             events.push(Event::ManagerAppointed {

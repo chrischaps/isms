@@ -5,7 +5,7 @@
 //! events for the caller to persist and apply.
 
 use crate::apply::apply;
-use crate::event::{CitizenDelta, CycleAggregates, Event, WorkplaceDelta};
+use crate::event::{CitizenDelta, Event, WorkplaceDelta};
 use crate::ids::{Cycle, Epoch, Tick};
 use crate::kinds::CitizenKind;
 use crate::rules::Rules;
@@ -276,32 +276,9 @@ fn cycle_end_8l_householder_fill(b: &mut TickBuilder) {
     crate::seeding::cycle_end_8l_householder_fill(b);
 }
 
-/// 8m. Per-cycle aggregates and the collapse counter (S0.13 fills the metrics).
+/// 8m. Per-cycle aggregates and the collapse counter.
 fn cycle_end_8m_aggregates(b: &mut TickBuilder) {
-    let active_humans = b.active_humans();
-    let householders = u32::try_from(
-        b.world
-            .citizens
-            .values()
-            .filter(|c| c.kind == CitizenKind::Householder)
-            .count(),
-    )
-    .unwrap_or(u32::MAX);
-    let population = u32::try_from(b.world.citizens.len()).unwrap_or(u32::MAX);
-    let low_population_cycles = if active_humans < b.world.params.population.floor {
-        b.world.meta.low_population_cycles + 1
-    } else {
-        0
-    };
-    b.emit(Event::CycleClosed {
-        cycle: b.cycle,
-        aggregates: CycleAggregates {
-            population,
-            active_humans,
-            householders,
-        },
-        low_population_cycles,
-    });
+    crate::metrics::cycle_end_8m_aggregates(b);
 }
 
 /// 9. Epoch checks: collapse (only when enabled) and the scheduled end.
@@ -349,6 +326,7 @@ fn phase_10_emit(b: TickBuilder) -> Vec<Event> {
                 fatigue_debt: c.labor.fatigue_debt,
                 consecutive_high_effort_cycles: c.labor.consecutive_high_effort_cycles,
                 skill: c.labor.skill.clone(),
+                cycle: c.cycle.clone(),
             }
         })
         .collect();

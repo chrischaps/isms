@@ -164,6 +164,7 @@ pub fn phase_5_needs(b: &mut TickBuilder) {
         }
         let (mult, _) = output_multiplier(&c.needs, housed, destitute, &params);
         c.labor.output_mult = mult;
+        crate::metrics::record_tick(&params, c, ate, wares);
 
         // Ledger: consumption leaves the economy.
         crate::ledger::LedgerMeta::add(&mut b.world.ledger_meta.consumed, Good::Food, ate);
