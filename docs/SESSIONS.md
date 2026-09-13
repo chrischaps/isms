@@ -121,3 +121,11 @@ Provisional answers added to QUESTIONS.md: Q46 (structural unemployment of 15-22
 New tunables: none.
 Next session should know: **Phase 0a exit gate met**: `make sim-check PRESET=freeport` is green on seeds 1-5 (need 99.4-100%, index 1.02-1.14, stock-out 2, investment share 0.27-0.29, 0 rejections; about 18 s wall clock). Q20 (sticky hardship) is still open and will bite the first human who runs out of money; decide it before Phase 1. Phase 0b (S0.15+, the other four presets' rule slices) can start from `main`.
 make check: green · new tests: 0 · sim-check: green on seeds 1-5
+
+## S1.0 — Q20 decision and Phase 1 dev infrastructure — 2026-09-13 — PR #23
+Built: `needs.food_meter_per_unit` 4 -> 6 (Q20 decided by Chris: one Food per tick recovers +2 at normal effort, so a human at 0 climbs out of hardship within a cycle); the three goldens regenerated; the S0.5 table test pins the GDD value of 4 in its fixture so it still checks the mechanic it was written for. `deploy/docker-compose.dev.yml` (postgres:17 on host port 5433, `ISMS_DB_PORT` override), `.env.example`, `make db` / `make db-stop` / `make dev` (server and Vite pieces arrive with S1.2 and S1.7), CI `check` job gains a postgres:17 service with `DATABASE_URL` and `SQLX_OFFLINE=true`, and `scripts/pr-cycle.sh` now rebases on `origin/main` and re-runs `make check` before pushing (the two-track merge rule).
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: none new; Q20 moved to decided.
+New tunables: none.
+Next session should know: this is the first card of the Phase 1 track, run from the worktree `../Isms-p1` in parallel with Phase 0b in `../Isms-0b`. Engine-touching PRs from either track carry `[engine]` in the title. Port 5432 on this box belongs to another project's container, hence 5433. sim-check numbers are byte-identical to S0.14 (householders never sat below 20, so the +2 never fires for them).
+make check: green · new tests: 0 (1 fixture pinned) · sim-check: green on seeds 1-5

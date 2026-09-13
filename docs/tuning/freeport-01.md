@@ -8,7 +8,7 @@
 | `seeding.legacy_inventory` | none | Mill: 320 Food, 120 Grain; Foundry: 60 Ore | new tunable (engine session S0.14b, ADR-0004, Q45) |
 | `householder.legacy_machine_buy_payroll_mult` | 1.0 | 1.5 | config (Q43) |
 
-`needs.food_meter_per_unit` stays at the GDD value of 4. Report 00 proposed 6; it is not needed once day one has stock (below).
+`needs.food_meter_per_unit` stays at the GDD value of 4. Report 00 proposed 6; it is not needed once day one has stock (below). (S1.0 later set it to 6 anyway, for humans: Q20. The householder tables below are unchanged by that.)
 
 ## Result: stable
 

@@ -10,7 +10,7 @@ PRESET ?= freeport
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check fmt fmt-check clippy test web-check dev sim sim-check api-types
+.PHONY: check fmt fmt-check clippy test web-check db db-stop dev sim sim-check api-types
 
 check: fmt-check clippy test web-check
 
@@ -30,8 +30,16 @@ web-check:
 	pnpm --dir web install --frozen-lockfile
 	pnpm --dir web check
 
-dev:
-	@echo "make dev arrives with S1.2 (Postgres + server + Vite)"; exit 1
+# Local Postgres for the store, the server, and sqlx::test (deploy/docker-compose.dev.yml).
+db:
+	docker compose -f deploy/docker-compose.dev.yml up -d --wait
+
+db-stop:
+	docker compose -f deploy/docker-compose.dev.yml down
+
+# Postgres + server (tick_seconds=10) + Vite. Server and Vite arrive with S1.2 and S1.7.
+dev: db
+	@echo "server: cargo run -p isms-server -- serve (S1.2); web: pnpm --dir web dev (S1.7)"
 
 sim:
 	cargo run -p isms-sim --release -- run --preset $(PRESET) --epochs $(EPOCHS) --seed $(SEED) --out docs/tuning/runs
