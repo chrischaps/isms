@@ -3,7 +3,9 @@
 # browser session, run the browser tests through the Vite dev server's proxy.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-export DATABASE_URL="${DATABASE_URL:-postgres://isms:isms@localhost:5433/isms}"
+# A fresh database per run: earlier runs leave societies that would replay for minutes at startup.
+BASE_URL="${DATABASE_URL:-postgres://isms:isms@localhost:5433/isms}"
+export DATABASE_URL="${BASE_URL%/*}/isms_e2e_$(date +%s)_$RANDOM"
 PORT="${E2E_PORT:-18080}"
 export ISMS_API="http://127.0.0.1:$PORT"
 export RUST_LOG="${RUST_LOG:-warn}"
@@ -11,12 +13,15 @@ SERVER=target/debug/isms-server
 
 cargo build -q -p isms-server
 "$SERVER" migrate
-"$SERVER" seed --preset freeport --name "web-$(date +%s)-$RANDOM" --tick-seconds 3600 >/dev/null
+"$SERVER" seed --preset freeport --name "web-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 "$SERVER" serve --bind "127.0.0.1:$PORT" --base-url "$ISMS_API" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-for _ in $(seq 1 60); do curl -fsS "$ISMS_API/healthz" >/dev/null 2>&1 && break; sleep 1; done
+up=0
+for _ in $(seq 1 60); do curl -fsS "$ISMS_API/healthz" >/dev/null 2>&1 && up=1 && break; sleep 1; done
+[ "$up" = 1 ] || { echo "server did not come up" >&2; exit 1; }
 
 ISMS_SESSION="$("$SERVER" session --email web@example.test)"
-export ISMS_SESSION
+ISMS_SESSION_NEW="$("$SERVER" session --email new-$(date +%s)@example.test)"
+export ISMS_SESSION ISMS_SESSION_NEW
 (cd web && pnpm exec playwright test "$@")

@@ -96,6 +96,8 @@ enum ServerError {
     Arg(String),
     #[error("listen: {0}")]
     Io(#[from] std::io::Error),
+    #[error("database: {0}")]
+    Db(#[from] sqlx::Error),
 }
 
 fn parse_override(s: &str) -> Result<(String, toml::Value), ServerError> {
@@ -131,7 +133,17 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
             );
         }
         Cmd::Migrate => {
-            let store = connect(cli.database_url.as_deref()).await?;
+            // Create the database when it is missing (dev and e2e databases are made this way).
+            let url = cli
+                .database_url
+                .as_deref()
+                .ok_or_else(|| ServerError::Arg("DATABASE_URL is not set".into()))?;
+            use sqlx::migrate::MigrateDatabase;
+            if !sqlx::Postgres::database_exists(url).await? {
+                sqlx::Postgres::create_database(url).await?;
+                tracing::info!("database created");
+            }
+            let store = connect(Some(url)).await?;
             store.migrate().await?;
             tracing::info!("migrations applied");
         }

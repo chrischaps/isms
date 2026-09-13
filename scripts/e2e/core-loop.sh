@@ -5,7 +5,9 @@
 # Needs DATABASE_URL (a dev or CI Postgres) and jq.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-export DATABASE_URL="${DATABASE_URL:-postgres://isms:isms@localhost:5433/isms}"
+# A fresh database per run: earlier runs leave societies that would replay for minutes at startup.
+BASE_URL="${DATABASE_URL:-postgres://isms:isms@localhost:5433/isms}"
+export DATABASE_URL="${BASE_URL%/*}/isms_e2e_$(date +%s)_$RANDOM"
 PORT="${E2E_PORT:-18080}"
 export ISMS_URL="http://127.0.0.1:$PORT"
 export ISMS_CONFIG="$(mktemp)"
@@ -27,7 +29,7 @@ poll() {
 }
 
 cargo build -q -p isms-server -p isms-cli
-"$SERVER" migrate
+"$SERVER" migrate   # creates the database when missing
 
 say "seed a Freeport with 40 householders, one tick per second"
 SID="$("$SERVER" seed --preset freeport --name "e2e-$(date +%s)-$RANDOM" --tick-seconds 1 \
