@@ -1,0 +1,101 @@
+/* Design tokens (TDD 11, GDD 15). The shell is deliberately plain and
+   print-like: paper, ink, one accent. The preset's vocabulary and the
+   presence or absence of widgets do the work, not decoration. */
+
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f7f4ee;
+  --color-paper-2: #efeae0;
+  --color-ink: #1d1b18;
+  --color-ink-2: #4a463f;
+  --color-muted: #7a746a;
+  --color-line: #d9d3c7;
+  --color-accent: #8b3a2f;
+  --color-accent-2: #b8563f;
+  --color-good: #3b6d3a;
+  --color-warn: #a86b12;
+  --color-bad: #9b2c2c;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-body: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+}
+
+:root {
+  color-scheme: light;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+button, input, select {
+  font: inherit;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.rule {
+  border-top: 1px solid var(--color-line);
+}
+
+/* A footnote-style popover: the Explain reads like a ledger note. */
+.explain {
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: var(--text-sm);
+  max-width: 28rem;
+}
+.explain dt {
+  color: var(--color-muted);
+}
+.explain dd {
+  margin: 0 0 var(--spacing-1) 0;
+}

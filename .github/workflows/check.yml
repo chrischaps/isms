@@ -43,3 +43,7 @@ jobs:
         run: make openapi-lint
       - name: Core loop end to end (S1.6)
         run: make e2e
+      - name: Playwright browsers
+        run: pnpm --dir web exec playwright install --with-deps chromium
+      - name: Web end to end (S1.7)
+        run: make e2e-web

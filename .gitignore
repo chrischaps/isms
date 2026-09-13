@@ -5,3 +5,5 @@
 *.log
 .DS_Store
 /docs/tuning/runs
+/web/test-results
+/web/playwright-report
