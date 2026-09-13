@@ -230,6 +230,7 @@ pub fn cycle_end_8m_aggregates(b: &mut TickBuilder) {
         0
     };
     let aggregates = aggregates(&b.world, low);
+    crate::labor::reset_cycle_accumulators(&mut b.world);
     let ids: Vec<CitizenId> = b.world.citizens.keys().copied().collect();
     for id in ids {
         if let Some(c) = b.world.citizens.get_mut(&id) {

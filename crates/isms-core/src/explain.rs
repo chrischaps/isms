@@ -60,6 +60,8 @@ pub enum RuleId {
     Endowment,
     Emigration,
     Depreciation,
+    // Phase 0b (appended)
+    StoreSurplusShare,
 }
 
 impl RuleId {
@@ -142,6 +144,10 @@ impl RuleId {
                 "A departing householder's assets leave the economy.",
             ),
             RuleId::Depreciation => ("GDD §4.4", "Machines wear out at a fixed rate per cycle."),
+            RuleId::StoreSurplusShare => (
+                "GDD §6.2",
+                "Stock beyond everyone's needs is shared out equally at cycle end.",
+            ),
         }
     }
 }

@@ -70,7 +70,7 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
     let mut next_cit = world.next.citizen;
     let mut builders: Vec<OrgId> = Vec::new();
     let mut orgs: Vec<OrgId> = Vec::new();
-    // Society-owned orgs keep their goods in the society's stock (Q57).
+    // Society-owned orgs keep their goods in the society's stock (Q48).
     let society_owned = matches!(ownership_for(kind, 0), Ownership::Society);
     let society_stock = if society_owned && world.store.is_some() {
         Some(Holder::Store)
@@ -373,7 +373,7 @@ fn emigrate(b: &mut TickBuilder, id: CitizenId) {
             citizen: successor,
         });
     }
-    // What is left returns to the society's stock where one exists (Q52), else
+    // What is left returns to the society's stock where one exists (Q47), else
     // it is burned (T19).
     let c = &b.world.citizens[&id];
     let balance = c.household.balance;

@@ -3,9 +3,11 @@
 //! store; a citizen's standing plan files a draw request each tick for the
 //! units that would bring their meters to full, and phase 6 resolves the
 //! tick's requests against the stock: everyone when it suffices, else by the
-//! society's rationing rule. Need-first serves the largest request first; ties
-//! are broken by the tick's RNG (TDD §5.9). `equal_shortfall` and `lottery`
-//! arrive with S0.15b and fall back to need-first until then.
+//! society's rationing rule (T8): need-first serves the largest request
+//! first, equal-shortfall cuts every request in proportion, lottery serves
+//! whole requests in drawn order; ties and draws use the tick's RNG (TDD
+//! §5.9, Q53). At cycle end whatever stock exceeds everyone's needs is shared
+//! out equally (GDD §6.2, Q54).
 
 use crate::command::{Command, Envelope, Reject, RejectCode, acting_citizen};
 use crate::event::Event;
@@ -44,7 +46,7 @@ pub fn pending(world: &World, citizen: CitizenId, good: Good) -> u32 {
 
 /// Draw entitlement (GDD §6.2): the units that would bring the meter to full,
 /// less what the pantry holds and what is already requested this tick, capped
-/// by the pantry room (Q61).
+/// by the pantry room (Q49).
 #[must_use]
 pub fn entitlement(world: &World, citizen: &Citizen, good: Good) -> u32 {
     let Some(per) = tenths_per_unit(&world.params, good) else {
@@ -152,6 +154,63 @@ pub fn need_first(rng: &mut impl rand::Rng, requests: &[StoreRequest], stock: u3
         .collect()
 }
 
+/// Equal shortfall: everyone gets the same fraction of what they asked for
+/// (floored); the leftover units go one each to requesters in RNG order.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub fn equal_shortfall(
+    rng: &mut impl rand::Rng,
+    requests: &[StoreRequest],
+    stock: u32,
+) -> Vec<Served> {
+    let total: u64 = requests.iter().map(|r| u64::from(r.qty)).sum();
+    if total == 0 {
+        return Vec::new();
+    }
+    let mut served: Vec<Served> = requests
+        .iter()
+        .map(|r| Served {
+            citizen: r.citizen,
+            requested: r.qty,
+            served: ((u64::from(stock) * u64::from(r.qty)) / total) as u32,
+        })
+        .collect();
+    let mut leftover = stock - served.iter().map(|s| s.served).sum::<u32>();
+    let mut order: Vec<usize> = (0..served.len()).collect();
+    order.shuffle(rng);
+    for i in order {
+        if leftover == 0 {
+            break;
+        }
+        if served[i].served < served[i].requested {
+            served[i].served += 1;
+            leftover -= 1;
+        }
+    }
+    served
+}
+
+/// Lottery: requests are served whole in drawn order until the stock runs out;
+/// the request that hits the bottom gets the remainder.
+#[must_use]
+pub fn lottery(rng: &mut impl rand::Rng, requests: &[StoreRequest], stock: u32) -> Vec<Served> {
+    let mut order: Vec<&StoreRequest> = requests.iter().collect();
+    order.shuffle(rng);
+    let mut remaining = stock;
+    order
+        .into_iter()
+        .map(|r| {
+            let served = r.qty.min(remaining);
+            remaining -= served;
+            Served {
+                citizen: r.citizen,
+                requested: r.qty,
+                served,
+            }
+        })
+        .collect()
+}
+
 /// Phase 6 for a Common Store society: resolve this tick's requests, good by
 /// good. When the stock covers every request they are served in arrival
 /// order; otherwise the society's rationing rule decides.
@@ -189,11 +248,17 @@ pub fn phase_6_store(b: &mut TickBuilder) {
             )
         } else {
             match rule {
-                // S0.15b implements the other two rules; until then every
-                // shortage is rationed need-first (T8 default).
-                Rationing::NeedFirst | Rationing::EqualShortfall | Rationing::Lottery => (
+                Rationing::NeedFirst => (
                     need_first(&mut b.rng, &requests, stock),
                     RuleId::StoreDrawNeedFirst,
+                ),
+                Rationing::EqualShortfall => (
+                    equal_shortfall(&mut b.rng, &requests, stock),
+                    RuleId::StoreDrawEqualShortfall,
+                ),
+                Rationing::Lottery => (
+                    lottery(&mut b.rng, &requests, stock),
+                    RuleId::StoreDrawLottery,
                 ),
             }
         };
@@ -205,6 +270,65 @@ pub fn phase_6_store(b: &mut TickBuilder) {
             b.emit(Event::Drew {
                 citizen: s.citizen,
                 goods: BTreeMap::from([(good, s.served)]),
+                explain,
+            });
+        }
+    }
+}
+
+/// Step 8b for a Common Store society: stock beyond everyone's needs is shared
+/// out equally (GDD §6.2). Each active citizen gets `floor(stock / citizens)`
+/// of Food and Wares, capped by their pantry room; the remainder stays (Q54).
+pub fn cycle_end_8b_surplus_shares(b: &mut TickBuilder) {
+    if b.world.store.is_none() {
+        return;
+    }
+    let active: Vec<CitizenId> = b
+        .world
+        .citizens
+        .values()
+        .filter(|c| !c.dormant)
+        .map(|c| c.id)
+        .collect();
+    let citizens = u32::try_from(active.len()).unwrap_or(u32::MAX);
+    if citizens == 0 {
+        return;
+    }
+    for good in [Good::Food, Good::Wares] {
+        let stock = b
+            .world
+            .store
+            .as_ref()
+            .and_then(|s| s.stock.get(&good).copied())
+            .unwrap_or(0);
+        let share = stock / citizens;
+        if share == 0 {
+            continue;
+        }
+        let cap = b.world.params.pantry.get(&good).copied();
+        for &id in &active {
+            let have = b.world.citizens[&id]
+                .household
+                .pantry
+                .get(&good)
+                .copied()
+                .unwrap_or(0);
+            let room = cap.map_or(u32::MAX, |c| c.saturating_sub(have));
+            let qty = share.min(room);
+            if qty == 0 {
+                continue;
+            }
+            let explain = Explain::new(
+                RuleId::StoreSurplusShare,
+                "min(floor(stock / citizens), pantry room)",
+                qty,
+            )
+            .input("stock", stock)
+            .input("citizens", citizens)
+            .input("share", share);
+            b.emit(Event::Drew {
+                citizen: id,
+                goods: BTreeMap::from([(good, qty)]),
                 explain,
             });
         }

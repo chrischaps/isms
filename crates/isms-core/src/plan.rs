@@ -409,6 +409,7 @@ pub fn touches(event: &Event, id: CitizenId) -> bool {
         | Event::Drew { citizen, .. }
         | Event::StoreDrawRequested { citizen, .. }
         | Event::StoreReturned { citizen, .. }
+        | Event::Pledged { citizen, .. }
         | Event::HardshipBegan { citizen, .. }
         | Event::HardshipEnded { citizen, .. }
         | Event::DestitutionBegan { citizen, .. }

@@ -254,6 +254,9 @@ fn cycle_end_8a_payroll(b: &mut TickBuilder) {
 /// the other floors arrive with S0.16/S0.17.
 fn cycle_end_8b_tax_and_provision(b: &mut TickBuilder) {
     crate::housing::cycle_end_8b_assign_dwellings(b);
+    if b.rules.capabilities.common_store {
+        crate::store::cycle_end_8b_surplus_shares(b);
+    }
 }
 fn cycle_end_8c_credit_installments(b: &mut TickBuilder) {
     crate::credit::cycle_end_8c_credit_installments(b);
@@ -273,7 +276,9 @@ fn cycle_end_8g_skill_decay(b: &mut TickBuilder) {
 fn cycle_end_8h_hardship_and_fatigue(b: &mut TickBuilder) {
     crate::needs::cycle_end_8h_hardship_and_fatigue(b);
 }
-fn cycle_end_8i_norms_ledger(_b: &mut TickBuilder) {}
+fn cycle_end_8i_norms_ledger(b: &mut TickBuilder) {
+    crate::norms::cycle_end_8i_norms_ledger(b);
+}
 fn cycle_end_8j_votes_and_vacancies(_b: &mut TickBuilder) {}
 fn cycle_end_8k_dormancy(b: &mut TickBuilder) {
     crate::plan::cycle_end_8k_dormancy(b);

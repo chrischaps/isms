@@ -199,6 +199,20 @@ pub struct Citizen {
     pub cycle_wages: Money,
     /// This cycle's consumption and wellbeing totals (metrics).
     pub cycle: crate::metrics::CitizenCycle,
+    /// The Ledger of Contribution (norm systems, S0.15b).
+    pub contribution: ContributionRecord,
+}
+
+/// A citizen's public contribution record (GDD §6.2): hours exact, output as
+/// attributed under the society's monitoring, and the norm cycles met.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ContributionRecord {
+    pub cycles: u32,
+    pub tick_hours_total: u64,
+    pub attributed_total: f64,
+    pub norm_met_cycles: u32,
+    pub last_cycle_tick_hours: u32,
+    pub last_cycle_attributed: f64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

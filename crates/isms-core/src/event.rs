@@ -393,7 +393,7 @@ pub enum Event {
         low_population_cycles: u32,
     },
 
-    // --- Phase 0b (appended: postcard tags variants by index, Q64) ----------
+    // --- Phase 0b (appended: postcard tags variants by index, Q50) ----------
     /// A Common Store draw request filed for this tick (S0.15).
     StoreDrawRequested {
         citizen: CitizenId,
@@ -402,13 +402,43 @@ pub enum Event {
         tick: Tick,
     },
     /// A departing citizen's pantry and balance return to the society's stock
-    /// instead of being burned (Q52).
+    /// instead of being burned (Q47).
     StoreReturned {
         citizen: CitizenId,
         holder: Holder,
         goods: BTreeMap<Good, u32>,
         money: Money,
     },
+    /// A public promise of hours per cycle and/or goods (GDD §7.2; S0.15b).
+    Pledged {
+        contract: ContractId,
+        citizen: CitizenId,
+        /// `None` pledges to the assembly.
+        to: Option<OrgId>,
+        hours: Option<u8>,
+        goods: Option<(Good, u32)>,
+        term_cycles: u32,
+    },
+    /// A pledge's term ran out; `met` is whether the hours half was kept
+    /// (`None` for a goods-only pledge).
+    PledgeClosed {
+        contract: ContractId,
+        met: Option<bool>,
+    },
+    /// The Ledger of Contribution for one cycle (norm systems, step 8i).
+    NormsLedgerClosed {
+        cycle: Cycle,
+        entries: Vec<ContributionEntry>,
+    },
+}
+
+/// One citizen's line in the cycle's Ledger of Contribution.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ContributionEntry {
+    pub citizen: CitizenId,
+    pub tick_hours: u32,
+    pub attributed: f64,
+    pub met_norm: bool,
 }
 
 /// Per-worker attribution inside `Produced` (TDD §5.4). `true_output` is only
@@ -555,6 +585,9 @@ impl Event {
             Event::CycleClosed { .. } => "CycleClosed",
             Event::StoreDrawRequested { .. } => "StoreDrawRequested",
             Event::StoreReturned { .. } => "StoreReturned",
+            Event::Pledged { .. } => "Pledged",
+            Event::PledgeClosed { .. } => "PledgeClosed",
+            Event::NormsLedgerClosed { .. } => "NormsLedgerClosed",
         }
     }
 
@@ -627,5 +660,8 @@ impl Event {
         "CycleClosed",
         "StoreDrawRequested",
         "StoreReturned",
+        "Pledged",
+        "PledgeClosed",
+        "NormsLedgerClosed",
     ];
 }
