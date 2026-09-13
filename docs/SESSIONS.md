@@ -112,4 +112,12 @@ Deviations from TDD: none (ADR-0004 anticipated `legacy_inventory`).
 Provisional answers added to QUESTIONS.md: Q45.
 New tunables: `seeding.legacy_inventory`.
 Next session should know: with this seed the householder Freeport passes every GDD 17 target at the GDD's own needs values (`food_meter_per_unit` stays 4); the Q20 trap is real but no longer triggered without humans. Seeding Materials into the Machine Shop pushed the investment-share metric to 0.66 (seeded Materials are consumed but never produced), so it is not seeded. S0.14 is the report and the green `make sim-check`.
-make check: green · new tests: 0 (1 extended) · sim-check: green on seeds 1-5
+make check: green · new tests: 0 (1 extended) · sim-check: red (investment share 0.65 in one epoch on seeds 2-5; this line was first written as green before the sweep finished, corrected in S0.14)
+
+## S0.14 — Freeport tuning pass (config only) — 2026-09-13 — PR #22
+Built: `docs/tuning/freeport-01.md` (the Phase 0a exit report); `householder.legacy_machine_buy_payroll_mult` 1.0 -> 1.5 (Q43), which removes the one-epoch-per-seed 0.65 investment share by staggering legacy machine buys; goldens regenerated for the new constant. `needs.food_meter_per_unit` stays at the GDD value of 4 (report 00 proposed 6; not needed once day one has stock).
+Deviations from TDD: none.
+Provisional answers added to QUESTIONS.md: Q46 (structural unemployment of 15-22 with 40 householders); Q20 and Q43 updated.
+New tunables: none.
+Next session should know: **Phase 0a exit gate met**: `make sim-check PRESET=freeport` is green on seeds 1-5 (need 99.4-100%, index 1.02-1.14, stock-out 2, investment share 0.27-0.29, 0 rejections; about 18 s wall clock). Q20 (sticky hardship) is still open and will bite the first human who runs out of money; decide it before Phase 1. Phase 0b (S0.15+, the other four presets' rule slices) can start from `main`.
+make check: green · new tests: 0 · sim-check: green on seeds 1-5
