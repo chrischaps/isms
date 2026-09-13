@@ -458,6 +458,27 @@ pub enum Event {
         qty: u32,
         explain: Explain,
     },
+    /// The Committee published output targets (S0.16b).
+    PlanPublished {
+        cycle: Cycle,
+        targets: BTreeMap<WorkplaceId, f64>,
+        by: Actor,
+    },
+    /// One workplace's target changed (the ratchet, or a later edit).
+    TargetSet {
+        workplace: WorkplaceId,
+        target: f64,
+        by: Actor,
+    },
+    TransferRequested {
+        citizen: CitizenId,
+        to_workplace: WorkplaceId,
+    },
+    TransferDecided {
+        citizen: CitizenId,
+        to_workplace: WorkplaceId,
+        approved: bool,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -506,6 +527,9 @@ pub struct WorkplaceDelta {
     pub cycle_output: f64,
     /// This cycle's accumulators per assigned worker.
     pub workers: BTreeMap<CitizenId, WorkerCycle>,
+    /// Set at cycle end (8m) before the accumulators reset (S0.16b).
+    pub last_cycle_output: f64,
+    pub last_fulfillment: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -539,6 +563,18 @@ pub struct CycleAggregates {
     pub hardship_count: u32,
     pub store_stock: BTreeMap<Good, u32>,
     pub low_population_cycles: u32,
+    // --- Phase 0b (S0.16b) --------------------------------------------------
+    /// Mean output / target over workplaces with a target (administered systems).
+    pub plan_fulfillment: Option<f64>,
+    /// Units requested from the state store this cycle and not served.
+    pub store_unfilled: u64,
+    /// Units issued at zero price by provision this cycle.
+    pub rations_issued: u64,
+    pub state_stock: BTreeMap<Good, u32>,
+    /// The state's till (administered systems).
+    pub till: Money,
+    /// Gini of last cycle's hours on the Ledger of Contribution (norm systems).
+    pub contribution_gini: f64,
 }
 
 impl Event {
@@ -620,6 +656,10 @@ impl Event {
             Event::StateStoreSold { .. } => "StateStoreSold",
             Event::StateStoreShortage { .. } => "StateStoreShortage",
             Event::RationIssued { .. } => "RationIssued",
+            Event::PlanPublished { .. } => "PlanPublished",
+            Event::TargetSet { .. } => "TargetSet",
+            Event::TransferRequested { .. } => "TransferRequested",
+            Event::TransferDecided { .. } => "TransferDecided",
         }
     }
 
@@ -699,5 +739,9 @@ impl Event {
         "StateStoreSold",
         "StateStoreShortage",
         "RationIssued",
+        "PlanPublished",
+        "TargetSet",
+        "TransferRequested",
+        "TransferDecided",
     ];
 }

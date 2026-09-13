@@ -1031,6 +1031,29 @@ pub fn apply(world: &mut World, event: &Event) {
             credit(world, Holder::Citizen(*citizen), Asset::Good(*good, *qty));
             world.cycle.rations_issued += u64::from(*qty);
         }
+        Event::PlanPublished { targets, .. } => {
+            for (wp, t) in targets {
+                if let Some(w) = world.workplaces.get_mut(wp) {
+                    w.target = Some(*t);
+                }
+            }
+        }
+        Event::TargetSet {
+            workplace, target, ..
+        } => {
+            if let Some(w) = world.workplaces.get_mut(workplace) {
+                w.target = Some(*target);
+            }
+        }
+        Event::TransferRequested {
+            citizen,
+            to_workplace,
+        } => {
+            world.transfer_requests.insert(*citizen, *to_workplace);
+        }
+        Event::TransferDecided { citizen, .. } => {
+            world.transfer_requests.remove(citizen);
+        }
         Event::NormsLedgerClosed { entries, .. } => {
             for e in entries {
                 if let Some(c) = world.citizens.get_mut(&e.citizen) {
@@ -1223,6 +1246,7 @@ fn reset_material_state(world: &mut World) {
     world.share_escrow.clear();
     world.offices = crate::world::Offices::default();
     world.proposals.clear();
+    world.transfer_requests.clear();
     world.ledger_meta = LedgerMeta::default();
     world.price_index = None;
     world.cycle = crate::metrics::WorldCycle::default();
@@ -1350,6 +1374,8 @@ fn apply_workplace_delta(world: &mut World, d: &WorkplaceDelta) {
         w.machine_wear = d.machine_wear;
         w.output_remainder = d.output_remainder;
         w.cycle_output = d.cycle_output;
+        w.last_cycle_output = d.last_cycle_output;
+        w.last_fulfillment = d.last_fulfillment;
         for (cid, wc) in &d.workers {
             if let Some(a) = w.workers.get_mut(cid) {
                 a.cycle_tick_hours = wc.tick_hours;
@@ -1429,6 +1455,8 @@ fn apply_workplace_added(
             workers: BTreeMap::new(),
             cycle_output: 0.0,
             target: None,
+            last_cycle_output: 0.0,
+            last_fulfillment: None,
         },
     );
     if let Some(o) = world.orgs.get_mut(&org) {

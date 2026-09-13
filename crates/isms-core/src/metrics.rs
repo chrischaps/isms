@@ -176,6 +176,25 @@ pub fn aggregates(world: &World, low_population_cycles: u32) -> CycleAggregates 
         .as_ref()
         .map(|s| s.stock.clone())
         .unwrap_or_default();
+    let fulfillments: Vec<f64> = world
+        .workplaces
+        .values()
+        .filter_map(|w| w.target.filter(|t| *t > 0.0).map(|t| w.cycle_output / t))
+        .collect();
+    let plan_fulfillment = if fulfillments.is_empty() {
+        None
+    } else {
+        Some(fulfillments.iter().sum::<f64>() / fulfillments.len() as f64)
+    };
+    let contribution_gini = if world.constitution.labor == crate::constitution::LaborMode::Norm {
+        let hours: Vec<f64> = active
+            .iter()
+            .map(|c| f64::from(c.contribution.last_cycle_tick_hours))
+            .collect();
+        gini(&hours)
+    } else {
+        0.0
+    };
 
     CycleAggregates {
         population,
@@ -201,6 +220,16 @@ pub fn aggregates(world: &World, low_population_cycles: u32) -> CycleAggregates 
         hardship_count,
         store_stock,
         low_population_cycles,
+        plan_fulfillment,
+        store_unfilled: world.cycle.store_unfilled,
+        rations_issued: world.cycle.rations_issued,
+        state_stock: world
+            .state_stock
+            .as_ref()
+            .map(|s| s.stock.clone())
+            .unwrap_or_default(),
+        till: world.state_stock.as_ref().map_or(Money::ZERO, |s| s.till),
+        contribution_gini,
     }
 }
 
@@ -233,6 +262,12 @@ pub fn cycle_end_8m_aggregates(b: &mut TickBuilder) {
     } else {
         0
     };
+    // Close the workplaces' cycle: remember this cycle's output and fulfilment
+    // for the scoreboard and the planner, then take the aggregates and reset.
+    for w in b.world.workplaces.values_mut() {
+        w.last_cycle_output = w.cycle_output;
+        w.last_fulfillment = w.target.filter(|t| *t > 0.0).map(|t| w.cycle_output / t);
+    }
     let aggregates = aggregates(&b.world, low);
     crate::labor::reset_cycle_accumulators(&mut b.world);
     let ids: Vec<CitizenId> = b.world.citizens.keys().copied().collect();

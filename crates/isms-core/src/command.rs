@@ -19,6 +19,7 @@ use crate::world::{
     World,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// What arrives at `handle`: who, for whom, from where, when.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -238,6 +239,23 @@ pub enum Command {
         good: Good,
         qty: u32,
     },
+    /// The Committee publishes the Plan (S0.16b): targets per workplace and,
+    /// optionally, the policy parts it also sets.
+    SetPlan {
+        targets: BTreeMap<WorkplaceId, f64>,
+        materials_split: Option<crate::policy::MaterialsSplit>,
+        price_list: Option<BTreeMap<Good, Money>>,
+        wage_grades: Option<Vec<Money>>,
+        ration_caps: Option<BTreeMap<Good, u32>>,
+    },
+    /// Ask the Committee for a different workplace (assigned-labor systems).
+    RequestTransfer {
+        to_workplace: WorkplaceId,
+    },
+    DecideTransfer {
+        citizen: CitizenId,
+        approve: bool,
+    },
 }
 
 impl Command {
@@ -284,6 +302,9 @@ impl Command {
             Command::JoinWorkplace { .. } => "JoinWorkplace",
             Command::LeaveWorkplace { .. } => "LeaveWorkplace",
             Command::RequestStateStore { .. } => "RequestStateStore",
+            Command::SetPlan { .. } => "SetPlan",
+            Command::RequestTransfer { .. } => "RequestTransfer",
+            Command::DecideTransfer { .. } => "DecideTransfer",
         }
     }
 }
@@ -333,6 +354,8 @@ pub enum RejectCode {
     OverEntitlement,
     /// The state store does not carry this good.
     NotOnPriceList,
+    /// No transfer request is pending for the citizen.
+    NoRequestPending,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -413,7 +436,12 @@ impl Capabilities {
             Command::JoinWorkplace { .. } | Command::LeaveWorkplace { .. } => {
                 self.labor == crate::constitution::LaborMode::Norm
             }
-            Command::RequestStateStore { .. } => self.administered_prices,
+            Command::RequestStateStore { .. } | Command::SetPlan { .. } => {
+                self.administered_prices
+            }
+            Command::RequestTransfer { .. } | Command::DecideTransfer { .. } => {
+                self.labor == crate::constitution::LaborMode::Assigned
+            }
         }
     }
 }
@@ -572,6 +600,27 @@ pub fn handle(
         }
         Command::RequestStateStore { good, qty } => {
             crate::state_store::request_state_store(world, envelope, *good, *qty)
+        }
+        Command::SetPlan {
+            targets,
+            materials_split,
+            price_list,
+            wage_grades,
+            ration_caps,
+        } => crate::planning::set_plan(
+            world,
+            envelope,
+            targets,
+            *materials_split,
+            price_list.as_ref(),
+            wage_grades.as_deref(),
+            ration_caps.as_ref(),
+        ),
+        Command::RequestTransfer { to_workplace } => {
+            crate::planning::request_transfer(world, envelope, *to_workplace)
+        }
+        Command::DecideTransfer { citizen, approve } => {
+            crate::planning::decide_transfer(world, envelope, *citizen, *approve)
         }
     }
 }
