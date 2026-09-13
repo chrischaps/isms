@@ -45,7 +45,18 @@ impl Templates {
 pub struct Names {
     pub citizens: BTreeMap<u64, String>,
     pub orgs: BTreeMap<u64, String>,
+    /// Citizens who are people; householder doings are scenery, not news.
+    pub humans: std::collections::BTreeSet<u64>,
 }
+
+/// Templates whose `citizen` must be a human to make a headline.
+const ABOUT_A_PERSON: &[&str] = &[
+    "ManagerAppointed",
+    "HardshipBegan",
+    "HardshipEnded",
+    "DestitutionBegan",
+    "DestitutionEnded",
+];
 
 /// Pure headline generator.
 #[derive(Clone, Debug)]
@@ -95,9 +106,19 @@ impl Projector {
     fn learn(&mut self, event: &Event) {
         match event {
             Event::CitizenJoined {
-                citizen, handle, ..
+                citizen,
+                handle,
+                kind,
+                ..
+            } => {
+                self.names
+                    .citizens
+                    .insert(u64::from(citizen.0), handle.clone());
+                if *kind == isms_core::kinds::CitizenKind::Human {
+                    self.names.humans.insert(u64::from(citizen.0));
+                }
             }
-            | Event::HouseholderJoined {
+            Event::HouseholderJoined {
                 citizen, handle, ..
             } => {
                 self.names
@@ -162,7 +183,13 @@ impl Projector {
             .and_then(|v| v.get(kind).cloned())
             .unwrap_or(Value::Null);
         let mut texts: Vec<String> = Vec::new();
-        if let Some(template) = self.templates.templates.get(kind)
+        let about_a_householder = ABOUT_A_PERSON.contains(&kind)
+            && !payload
+                .get("citizen")
+                .and_then(Value::as_u64)
+                .is_some_and(|c| self.names.humans.contains(&c));
+        if !about_a_householder
+            && let Some(template) = self.templates.templates.get(kind)
             && let Some(text) = self.fill(template, &payload)
         {
             texts.push(text);

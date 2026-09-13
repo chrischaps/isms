@@ -59,6 +59,12 @@ enum Cmd {
     },
     /// Print the `OpenAPI` document (no database needed).
     Openapi,
+    /// Mint a browser session token for an email (creating the account) and print it.
+    /// For dev and end-to-end tests: `isms login --session <token>`.
+    Session {
+        #[arg(long)]
+        email: String,
+    },
     /// Clear and regenerate a society's Chronicle from its event log.
     RebuildProjections {
         #[arg(long)]
@@ -109,6 +115,8 @@ async fn connect(url: Option<&str>) -> Result<PgEventStore, ServerError> {
     Ok(PgEventStore::connect(url).await?)
 }
 
+/// One arm per subcommand: a flat dispatcher reads better than a hierarchy here.
+#[allow(clippy::too_many_lines)]
 async fn run(cli: Cli) -> Result<(), ServerError> {
     let presets_dir = cli
         .presets
@@ -180,6 +188,19 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
                 store.create_invite_code(&code, None).await?;
                 println!("{code}");
             }
+        }
+        Cmd::Session { email } => {
+            let store = connect(cli.database_url.as_deref()).await?;
+            let account = store.ensure_account(email.trim()).await?;
+            let token = isms_server::auth::random_token();
+            store
+                .create_session(
+                    &isms_server::auth::hash_token(&token),
+                    account.id,
+                    isms_server::auth::expiry(isms_server::auth::SESSION_TTL),
+                )
+                .await?;
+            println!("{token}");
         }
         Cmd::RebuildProjections { society } => {
             rebuild_projections(cli.database_url.as_deref(), &presets_dir, society).await?;

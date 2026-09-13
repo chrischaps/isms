@@ -12,7 +12,7 @@ export DATABASE_URL ?= postgres://isms:isms@localhost:5433/isms
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check fmt fmt-check clippy test web-check db db-stop dev sim sim-check sim-all sqlx-prepare openapi-lint api-types
+.PHONY: check fmt fmt-check clippy test web-check db db-stop dev e2e sim sim-check sim-all sqlx-prepare openapi-lint api-types
 
 check: fmt-check clippy test web-check
 
@@ -46,7 +46,11 @@ db-stop:
 
 # Postgres + server (tick_seconds=10) + Vite. Server and Vite arrive with S1.2 and S1.7.
 dev: db
-	@echo "server: cargo run -p isms-server -- serve (S1.2); web: pnpm --dir web dev (S1.7)"
+	cargo run -p isms-server -- serve
+
+# The GDD 9.1 core loop against a throwaway society at tick_seconds=1 (S1.6).
+e2e:
+	bash scripts/e2e/core-loop.sh
 
 sim:
 	cargo run -p isms-sim --release -- run --preset $(PRESET) --epochs $(EPOCHS) --seed $(SEED) --out docs/tuning/runs

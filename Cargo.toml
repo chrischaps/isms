@@ -52,6 +52,11 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 sha2 = "0.10"
 base64 = "0.22"
 axum-test = { version = "18", features = ["ws"] }
+# cli
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+tokio-tungstenite = "0.30"
+futures-util = "0.3"
+dirs = "7"
 time = "0.3"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # tests

@@ -116,6 +116,23 @@ impl PgEventStore {
         Ok(Some(account))
     }
 
+    /// Create the account if it does not exist (admin and e2e use; no invite).
+    pub async fn ensure_account(&self, email: &str) -> Result<AccountRow> {
+        if let Some(a) = self.account_by_email(email).await? {
+            return Ok(a);
+        }
+        let row = sqlx::query_as!(
+            AccountRow,
+            "INSERT INTO accounts (email) VALUES ($1)
+             ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+             RETURNING id, email, created_at, consent_version, moderation_state",
+            email
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row)
+    }
+
     // -- magic links and sessions ---------------------------------------------
 
     pub async fn create_magic_link(
