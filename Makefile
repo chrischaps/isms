@@ -10,7 +10,7 @@ PRESET ?= freeport
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check fmt fmt-check clippy test web-check db db-stop dev sim sim-check sim-all api-types
+.PHONY: check fmt fmt-check clippy test web-check db db-stop dev sim sim-check sim-all sqlx-prepare api-types
 
 check: fmt-check clippy test web-check
 
@@ -23,8 +23,13 @@ fmt-check:
 clippy:
 	cargo clippy --workspace --all-targets -- -D warnings
 
+# .env (git-ignored) supplies DATABASE_URL for the store and server tests (sqlx::test).
 test:
-	cargo test --workspace
+	set -a; [ -f .env ] && . ./.env; set +a; cargo test --workspace
+
+# Refresh the committed sqlx offline metadata (.sqlx/) after changing any query!/query_as!.
+sqlx-prepare:
+	set -a; [ -f .env ] && . ./.env; set +a; cargo sqlx prepare --workspace -- --all-targets
 
 web-check:
 	pnpm --dir web install --frozen-lockfile

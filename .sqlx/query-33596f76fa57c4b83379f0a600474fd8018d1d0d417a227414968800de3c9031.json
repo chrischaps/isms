@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO snapshots (society_id, epoch, tick, last_seq, world_hash, world)\n             VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (society_id, last_seq) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Int4",
+        "Int8",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "33596f76fa57c4b83379f0a600474fd8018d1d0d417a227414968800de3c9031"
+}

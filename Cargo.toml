@@ -19,7 +19,8 @@ publish = false
 [workspace.dependencies]
 # engine
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# float_roundtrip: parsed f64s must equal the engine's bytes, or replay from JSONB diverges (S1.1).
+serde_json = { version = "1", features = ["float_roundtrip"] }
 postcard = { version = "1.1", features = ["use-std"] }
 blake3 = "1"
 rand = "0.9"
@@ -29,8 +30,16 @@ libm = "0.2"
 thiserror = "2"
 toml = "0.9"
 # sim
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 csv = "1"
+# store / server
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "json", "chrono", "migrate", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
+zstd = "0.13"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # tests
 proptest = "1"
 
