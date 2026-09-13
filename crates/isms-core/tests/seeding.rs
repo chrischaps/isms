@@ -69,6 +69,24 @@ fn a_seeded_freeport_matches_the_preset() {
         Money::credits(384 * 18 + 1000 * 40)
     );
     assert_eq!(h.world.ledger_meta.dwellings_built, 40);
+    // legacy inventory (Q45): every Mill starts with Food and Grain, every Foundry with Ore
+    let mills: Vec<_> = h
+        .world
+        .orgs
+        .values()
+        .filter(|o| o.name.starts_with("Legacy Mill"))
+        .collect();
+    assert_eq!(mills.len(), 3);
+    assert!(
+        mills
+            .iter()
+            .all(|o| o.inventory[&isms_core::kinds::Good::Food] == 320
+                && o.inventory[&isms_core::kinds::Good::Grain] == 120)
+    );
+    assert_eq!(
+        h.world.ledger_meta.seeded[&isms_core::kinds::Good::Food],
+        960
+    );
     h.check();
 }
 

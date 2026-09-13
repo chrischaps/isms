@@ -105,3 +105,11 @@ Provisional answers added to QUESTIONS.md: Q35, Q36.
 New tunables: none.
 Next session should know: S0.11 done gate complete (the 100-credit, 5-cycle, 2% loan repays exactly 22 per cycle). S0.12a (seeding, fill, emigration) is drafted.
 make check: green · new tests: 5 · sim-check: n/a
+
+## S0.14b — Legacy inventory seeding (engine session pre-authorised by the plan) — 2026-09-13 — PR #21
+Built: `params.seeding.legacy_inventory` (per workplace kind, goods seeded into each legacy org at `start_epoch`, counted in `seeded`; ADR-0004, Q45): Mills start with 320 Food and 120 Grain, Foundries with 60 Ore. Seeding test extended; goldens regenerated.
+Deviations from TDD: none (ADR-0004 anticipated `legacy_inventory`).
+Provisional answers added to QUESTIONS.md: Q45.
+New tunables: `seeding.legacy_inventory`.
+Next session should know: with this seed the householder Freeport passes every GDD 17 target at the GDD's own needs values (`food_meter_per_unit` stays 4); the Q20 trap is real but no longer triggered without humans. Seeding Materials into the Machine Shop pushed the investment-share metric to 0.66 (seeded Materials are consumed but never produced), so it is not seeded. S0.14 is the report and the green `make sim-check`.
+make check: green · new tests: 0 (1 extended) · sim-check: green on seeds 1-5
