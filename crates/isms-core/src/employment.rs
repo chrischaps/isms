@@ -26,6 +26,12 @@ pub fn offer_employment(
     places: u32,
 ) -> Result<Vec<Event>, Reject> {
     let o = managed_org(world, envelope, org)?;
+    if o.kind == crate::kinds::OrgKind::Cooperative {
+        return Err(Reject::new(
+            RejectCode::NotAuthorized,
+            "a cooperative admits members; it does not employ (Q86)",
+        ));
+    }
     let wp = world.workplaces.get(&workplace).ok_or_else(|| {
         Reject::new(
             RejectCode::UnknownWorkplace,

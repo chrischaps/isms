@@ -233,10 +233,25 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
     let pool: Vec<CitizenId> = existing.into_iter().chain(new_hh).collect();
     if !pool.is_empty() {
         for (i, org) in orgs.iter().enumerate() {
+            let manager = pool[i % pool.len()];
             events.push(Event::ManagerAppointed {
                 org: *org,
-                citizen: Some(pool[i % pool.len()]),
+                citizen: Some(manager),
             });
+            // A cooperative's manager is its first member, at its workplace (Q87).
+            if kind == OrgKind::Cooperative {
+                events.push(Event::MemberAdmitted {
+                    org: *org,
+                    citizen: manager,
+                });
+                if let Some((workplace, _, _)) = seeded_workplaces.get(i) {
+                    events.push(Event::Assigned {
+                        workplace: *workplace,
+                        citizen: manager,
+                        contract: None,
+                    });
+                }
+            }
         }
     }
     events
@@ -415,6 +430,17 @@ fn emigrate(b: &mut TickBuilder, id: CitizenId) {
             workplace,
             citizen: id,
         });
+    }
+    // Memberships end (a coop share is forfeited, Q86).
+    let memberships: Vec<OrgId> = b
+        .world
+        .orgs
+        .values()
+        .filter(|o| o.members.contains(&id))
+        .map(|o| o.id)
+        .collect();
+    for org in memberships {
+        b.emit(Event::MemberLeft { org, citizen: id });
     }
     // A society dwelling goes back to the stock.
     if let Some(dwelling) = crate::housing::society_dwelling_of(&b.world, id) {

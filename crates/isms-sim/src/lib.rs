@@ -84,6 +84,8 @@ pub struct Row {
     pub contribution_gini: f64,
     pub tax_collected_credits: f64,
     pub floor_paid_credits: f64,
+    pub coop_surplus_per_member: f64,
+    pub mean_tenure_cycles: f64,
 }
 
 /// What to run.
@@ -241,6 +243,8 @@ fn make_row(
         contribution_gini: a.contribution_gini,
         tax_collected_credits: a.tax_collected.as_credits_f64(),
         floor_paid_credits: a.floor_paid.as_credits_f64(),
+        coop_surplus_per_member: a.coop_surplus_per_member,
+        mean_tenure_cycles: a.mean_tenure_cycles,
     }
 }
 

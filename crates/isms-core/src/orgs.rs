@@ -297,15 +297,20 @@ pub fn appoint_manager(
     org: OrgId,
     citizen: Option<crate::ids::CitizenId>,
 ) -> Result<Vec<Event>, Reject> {
-    let actor = acting_citizen(world, envelope)?;
     let o = world
         .orgs
         .get(&org)
         .ok_or_else(|| Reject::new(RejectCode::UnknownOrg, format!("no org {org}")))?;
+    // The System stands in for a members' election in a cooperative (Q90).
     let allowed = match &o.ownership {
-        Ownership::Shares { .. } => controlling_owner(o) == Some(actor.id),
-        Ownership::Members => o.manager == Some(actor.id),
         Ownership::Society => envelope.actor == Actor::System,
+        Ownership::Members if envelope.actor == Actor::System => {
+            o.kind == crate::kinds::OrgKind::Cooperative
+        }
+        Ownership::Shares { .. } => {
+            controlling_owner(o) == Some(acting_citizen(world, envelope)?.id)
+        }
+        Ownership::Members => o.manager == Some(acting_citizen(world, envelope)?.id),
     };
     if !allowed {
         return Err(Reject::new(

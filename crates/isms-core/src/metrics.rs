@@ -236,6 +236,36 @@ pub fn aggregates(world: &World, low_population_cycles: u32) -> CycleAggregates 
         treasury: world.treasury,
         tax_collected: world.cycle.tax_collected,
         floor_paid: world.cycle.floor_paid,
+        coop_surplus_per_member: mean(
+            &world
+                .orgs
+                .values()
+                .filter(|o| o.kind == crate::kinds::OrgKind::Cooperative)
+                .map(crate::coop::surplus_per_member)
+                .collect::<Vec<_>>(),
+        ),
+        mean_tenure_cycles: mean(
+            &world
+                .orgs
+                .values()
+                .filter(|o| o.kind == crate::kinds::OrgKind::Cooperative)
+                .flat_map(|o| {
+                    o.members
+                        .iter()
+                        .map(|m| f64::from(crate::coop::tenure_cycles(world, o, *m)))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>(),
+        ),
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn mean(v: &[f64]) -> f64 {
+    if v.is_empty() {
+        0.0
+    } else {
+        v.iter().sum::<f64>() / v.len() as f64
     }
 }
 

@@ -493,6 +493,25 @@ pub enum Event {
         from: Holder,
         explain: Explain,
     },
+    /// A cooperative's cycle surplus, about to be shared (S0.17b).
+    SurplusDeclared {
+        org: OrgId,
+        cycle: Cycle,
+        surplus: Money,
+        rule: crate::world::ShareRule,
+        members: u32,
+    },
+    /// One member's share of the surplus.
+    ShareOutPaid {
+        org: OrgId,
+        citizen: CitizenId,
+        amount: Money,
+        explain: Explain,
+    },
+    ShareRuleSet {
+        org: OrgId,
+        rule: crate::world::ShareRule,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -594,6 +613,11 @@ pub struct CycleAggregates {
     pub treasury: Money,
     pub tax_collected: Money,
     pub floor_paid: Money,
+    // --- S0.17b --------------------------------------------------------------
+    /// Mean over cooperatives of last cycle's surplus per member, in credits.
+    pub coop_surplus_per_member: f64,
+    /// Mean membership tenure in cycles over coop members.
+    pub mean_tenure_cycles: f64,
 }
 
 impl Event {
@@ -681,6 +705,9 @@ impl Event {
             Event::TransferDecided { .. } => "TransferDecided",
             Event::TaxAssessed { .. } => "TaxAssessed",
             Event::NeedFloorPaid { .. } => "NeedFloorPaid",
+            Event::SurplusDeclared { .. } => "SurplusDeclared",
+            Event::ShareOutPaid { .. } => "ShareOutPaid",
+            Event::ShareRuleSet { .. } => "ShareRuleSet",
         }
     }
 
@@ -766,5 +793,8 @@ impl Event {
         "TransferDecided",
         "TaxAssessed",
         "NeedFloorPaid",
+        "SurplusDeclared",
+        "ShareOutPaid",
+        "ShareRuleSet",
     ];
 }

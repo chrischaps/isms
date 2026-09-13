@@ -151,3 +151,6 @@ legacy_inventory = { mill = { food = 320, grain = 120 }, foundry = { ore = 60 } 
 high = 0.0
 medium = 0.25
 low = 0.6
+
+[params.coop]
+default_share_rule = "hours_weighted"    # [new tunable] S0.17b: equal | hours_weighted, until the coop sets its own (SetShareRule)
