@@ -64,8 +64,11 @@ DO $$
 BEGIN
     BEGIN
         CREATE ROLE isms_app NOLOGIN;
-    EXCEPTION WHEN duplicate_object THEN
-        NULL;
+    EXCEPTION
+        -- duplicate_object when the role exists; unique_violation when two
+        -- databases race to create it in the same instant (sqlx::test).
+        WHEN duplicate_object OR unique_violation THEN
+            NULL;
     END;
 END
 $$;
