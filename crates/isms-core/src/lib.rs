@@ -13,6 +13,7 @@ pub mod credit;
 pub mod employment;
 pub mod event;
 pub mod explain;
+pub mod householder;
 pub mod housing;
 pub mod ids;
 pub mod kinds;

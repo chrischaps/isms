@@ -255,7 +255,7 @@ pub fn cancel_order(
 
 /// Phase 6 (market part): expire orders, then record the tick's VWAPs and the
 /// basket price index. Trades since the last tick are accumulated by `apply`.
-pub fn phase_6_markets(b: &mut TickBuilder) -> (BTreeMap<Instrument, Money>, Option<f64>) {
+pub fn phase_6_markets(b: &mut TickBuilder) -> (Vec<(Instrument, Money)>, Option<f64>) {
     let tick = b.tick;
     let expired: Vec<(OrderId, Asset)> = b
         .world
@@ -268,7 +268,7 @@ pub fn phase_6_markets(b: &mut TickBuilder) -> (BTreeMap<Instrument, Money>, Opt
     for (order, released) in expired {
         b.emit(Event::OrderExpired { order, released });
     }
-    let vwap: BTreeMap<Instrument, Money> = b
+    let vwap: Vec<(Instrument, Money)> = b
         .world
         .books
         .iter()

@@ -268,7 +268,10 @@ fn vwap_and_price_index_are_recorded_at_the_tick() {
     else {
         unreachable!()
     };
-    assert_eq!(vwap[&FOOD], Money::cents(150));
+    assert_eq!(
+        vwap.iter().find(|(i, _)| *i == FOOD).map(|(_, m)| *m),
+        Some(Money::cents(150))
+    );
     // Food at 1.60 vs 1.30, other goods at start: index = (1.0*160 + 1.0*400 + 2.0*900) / (130 + 400 + 1800)
     let expected = (160.0 + 400.0 + 1800.0) / (130.0 + 400.0 + 1800.0);
     assert!((idx.unwrap() - expected).abs() < 1e-9, "{idx:?}");
