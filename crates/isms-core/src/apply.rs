@@ -459,6 +459,10 @@ pub fn apply(world: &mut World, event: &Event) {
         } => {
             debit(world, Holder::Org(*org), Asset::Money(*amount));
             credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.wages_total += *amount;
+                c.cycle_wages += *amount;
+            }
         }
         Event::PaymentMissed { org, contract, .. } => {
             if let Some(o) = world.orgs.get_mut(org) {
@@ -856,6 +860,10 @@ pub fn apply(world: &mut World, event: &Event) {
             for o in world.orgs.values_mut() {
                 o.declared_dividend = None;
             }
+            for c in world.citizens.values_mut() {
+                c.last_cycle_wages = c.cycle_wages;
+                c.cycle_wages = Money::ZERO;
+            }
         }
         Event::EpochEnded { reason, .. } => {
             world.meta.epoch_ended = Some(*reason);
@@ -1088,6 +1096,9 @@ fn join(
         },
         flags: CitizenFlags::default(),
         api_share: BTreeMap::new(),
+        wages_total: Money::ZERO,
+        last_cycle_wages: Money::ZERO,
+        cycle_wages: Money::ZERO,
     };
     world.ledger_meta.minted += endowment;
     if let Some(d) = dwelling

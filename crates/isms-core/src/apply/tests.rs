@@ -172,7 +172,7 @@ fn tick_resolved_consumes_from_pantry_and_advances_the_clock() {
             tick: 0,
             cycle: 0,
             price_index: None,
-            vwap: BTreeMap::new(),
+            vwap: Vec::new(),
             citizen_deltas: vec![CitizenDelta {
                 citizen: CitizenId(0),
                 needs: needs.clone(),

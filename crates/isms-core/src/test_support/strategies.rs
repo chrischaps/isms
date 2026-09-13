@@ -230,7 +230,7 @@ pub fn resolve(h: &Harness, step: &Step) -> Option<Event> {
                 tick,
                 cycle,
                 price_index: None,
-                vwap: BTreeMap::new(),
+                vwap: Vec::new(),
                 citizen_deltas: deltas,
                 workplace_deltas: Vec::new(),
             })

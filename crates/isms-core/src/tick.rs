@@ -67,7 +67,7 @@ pub struct TickBuilder<'r> {
     /// Phase 3's result, consumed by phase 4.
     pub labor: BTreeMap<crate::ids::WorkplaceId, Vec<crate::labor::WorkerTick>>,
     /// Phase 6's market statistics for `TickResolved`.
-    pub vwap: BTreeMap<crate::world::Instrument, crate::money::Money>,
+    pub vwap: Vec<(crate::world::Instrument, crate::money::Money)>,
     pub price_index: Option<f64>,
 }
 
@@ -94,7 +94,7 @@ impl<'r> TickBuilder<'r> {
             workplace_deltas: BTreeMap::new(),
             consumed: BTreeMap::new(),
             labor: BTreeMap::new(),
-            vwap: BTreeMap::new(),
+            vwap: Vec::new(),
             price_index: None,
         }
     }

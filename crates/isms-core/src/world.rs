@@ -190,6 +190,10 @@ pub struct Citizen {
     pub flags: CitizenFlags,
     /// Commands by client kind, for the API-share telemetry.
     pub api_share: BTreeMap<crate::kinds::ClientKind, u32>,
+    /// Wages and dividends received in total and in the last closed cycle (Q39).
+    pub wages_total: Money,
+    pub last_cycle_wages: Money,
+    pub cycle_wages: Money,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -11,7 +11,6 @@ use crate::ledger::conservation_check;
 use crate::rules::Rules;
 use crate::tick::{TickError, TickInput, tick};
 use crate::world::World;
-use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct Harness {
@@ -127,7 +126,7 @@ impl Harness {
             tick,
             cycle: self.world.cycle_of(self.world.meta.tick),
             price_index: None,
-            vwap: BTreeMap::new(),
+            vwap: Vec::new(),
             citizen_deltas: vec![delta],
             workplace_deltas: Vec::new(),
         });
