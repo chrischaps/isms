@@ -1,8 +1,15 @@
 //! `isms-sim`: the headless simulator (TDD §18.2 S0.13, GDD §17). Links
 //! `isms-core` directly, never touches the network or a database, and runs
 //! householders only. Its metrics are the engine's own `CycleAggregates`.
+//!
+//! The GDD §17 targets live here as `StabilityTargets` rather than in
+//! `presets/*.toml`: they are the tuning gate the simulator applies to a
+//! preset, not a rule the society runs by. Which targets apply is derived
+//! from the preset's `Capabilities` (S0.14d): a price band only where order
+//! books exist, and "stock-out" measured on whatever holds the society's Food.
 
 use isms_core::apply::apply;
+use isms_core::capabilities::Capabilities;
 use isms_core::config::{ConfigError, Preset, load_preset_with_overrides};
 use isms_core::event::Event;
 use isms_core::householder::run_round;
@@ -14,7 +21,17 @@ use isms_core::world::{Instrument, Side, World};
 use serde::Serialize;
 use std::path::Path;
 
-/// One row of the metrics table: a `CycleClosed` plus a few market readings.
+/// The five presets, in the order `make sim-all` prints them.
+pub const PRESETS: [&str; 5] = [
+    "freeport",
+    "commune",
+    "directorate",
+    "republic",
+    "commonwealth",
+];
+
+/// One row of the metrics table: a `CycleClosed` plus a few readings of
+/// wherever the society keeps its Food and money.
 #[derive(Clone, Debug, Serialize)]
 pub struct Row {
     pub preset: String,
@@ -39,6 +56,15 @@ pub struct Row {
     pub wares_ask_depth: u32,
     pub food_last_price: Option<f64>,
     pub rejected_commands: u32,
+    /// Food a citizen could obtain at cycle end: resting asks in market
+    /// societies, the Common Store's stock in moneyless ones, the state
+    /// stock's in administered ones. Zero for a whole run of cycles is a
+    /// stock-out whatever the system.
+    pub food_available: u32,
+    pub store_food: u32,
+    pub state_food: u32,
+    pub treasury_credits: f64,
+    pub till_credits: f64,
 }
 
 /// What to run.
@@ -51,6 +77,18 @@ pub struct RunSpec {
     pub overrides: Vec<(String, toml::Value)>,
 }
 
+impl RunSpec {
+    #[must_use]
+    pub fn new(preset: &str, epochs: u32, seed: u64) -> Self {
+        RunSpec {
+            preset: preset.to_owned(),
+            epochs,
+            seed,
+            overrides: Vec::new(),
+        }
+    }
+}
+
 /// The outcome of one run.
 #[derive(Debug)]
 pub struct RunResult {
@@ -58,6 +96,9 @@ pub struct RunResult {
     pub events: u64,
     pub rejected: u32,
     pub world: World,
+    /// The society's derived capabilities, so callers can pick targets
+    /// without reloading the preset.
+    pub capabilities: Capabilities,
 }
 
 fn ask_depth(world: &World, good: Good) -> u32 {
@@ -65,6 +106,79 @@ fn ask_depth(world: &World, good: Good) -> u32 {
         .iter()
         .map(|(_, q)| *q)
         .sum()
+}
+
+fn store_stock(world: &World, good: Good) -> u32 {
+    world
+        .store
+        .as_ref()
+        .and_then(|s| s.stock.get(&good).copied())
+        .unwrap_or(0)
+}
+
+fn state_stock(world: &World, good: Good) -> u32 {
+    world
+        .state_stock
+        .as_ref()
+        .and_then(|s| s.stock.get(&good).copied())
+        .unwrap_or(0)
+}
+
+/// Where a citizen would get Food in this society (see `Row::food_available`).
+#[must_use]
+pub fn food_available(world: &World, caps: &Capabilities) -> u32 {
+    if caps.common_store {
+        store_stock(world, Good::Food)
+    } else if caps.administered_prices {
+        state_stock(world, Good::Food)
+    } else {
+        ask_depth(world, Good::Food)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn make_row(
+    spec: &RunSpec,
+    epoch: u32,
+    cycle: u32,
+    a: &isms_core::event::CycleAggregates,
+    world: &World,
+    caps: &Capabilities,
+    rejected: u32,
+) -> Row {
+    Row {
+        preset: spec.preset.clone(),
+        seed: spec.seed,
+        epoch,
+        cycle,
+        population: a.population,
+        active_humans: a.active_humans,
+        householders: a.householders,
+        real_output: a.real_output,
+        median_wellbeing: a.median_wellbeing,
+        need_fulfillment_rate: a.need_fulfillment_rate,
+        consumption_gini: a.consumption_gini,
+        investment_share: a.investment_share,
+        price_index: a.price_index,
+        mean_cycle_wage: a.mean_cycle_wage,
+        unemployed: a.unemployed,
+        firm_count: a.firm_count,
+        credit_outstanding_credits: a.credit_outstanding.as_credits_f64(),
+        hardship_count: a.hardship_count,
+        food_ask_depth: ask_depth(world, Good::Food),
+        wares_ask_depth: ask_depth(world, Good::Wares),
+        food_last_price: isms_core::market::last_price(world, Instrument::Good(Good::Food))
+            .map(isms_core::money::Money::as_credits_f64),
+        rejected_commands: rejected,
+        food_available: food_available(world, caps),
+        store_food: store_stock(world, Good::Food),
+        state_food: state_stock(world, Good::Food),
+        treasury_credits: world.treasury.as_credits_f64(),
+        till_credits: world
+            .state_stock
+            .as_ref()
+            .map_or(0.0, |s| s.till.as_credits_f64()),
+    }
 }
 
 /// Run a householder-only society for `epochs` epochs. Collapse is off (the
@@ -86,6 +200,7 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
         },
     );
     let rules = Rules::from_world(&world);
+    let caps = rules.capabilities.clone();
     let mut rows = Vec::new();
     let mut events: u64 = 1;
     let mut rejected_total = 0u32;
@@ -120,34 +235,15 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
             }
             events += tick_events.len() as u64;
             if let Some((cycle, a)) = closed {
-                rows.push(Row {
-                    preset: spec.preset.clone(),
-                    seed: spec.seed,
+                rows.push(make_row(
+                    spec,
                     epoch,
                     cycle,
-                    population: a.population,
-                    active_humans: a.active_humans,
-                    householders: a.householders,
-                    real_output: a.real_output,
-                    median_wellbeing: a.median_wellbeing,
-                    need_fulfillment_rate: a.need_fulfillment_rate,
-                    consumption_gini: a.consumption_gini,
-                    investment_share: a.investment_share,
-                    price_index: a.price_index,
-                    mean_cycle_wage: a.mean_cycle_wage,
-                    unemployed: a.unemployed,
-                    firm_count: a.firm_count,
-                    credit_outstanding_credits: a.credit_outstanding.as_credits_f64(),
-                    hardship_count: a.hardship_count,
-                    food_ask_depth: ask_depth(&world, Good::Food),
-                    wares_ask_depth: ask_depth(&world, Good::Wares),
-                    food_last_price: isms_core::market::last_price(
-                        &world,
-                        Instrument::Good(Good::Food),
-                    )
-                    .map(isms_core::money::Money::as_credits_f64),
-                    rejected_commands: rejected_cycle,
-                });
+                    &a,
+                    &world,
+                    &caps,
+                    rejected_cycle,
+                ));
                 rejected_cycle = 0;
             }
             if world.meta.epoch_ended.is_some() {
@@ -160,6 +256,7 @@ pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError>
         events,
         rejected: rejected_total,
         world,
+        capabilities: caps,
     })
 }
 
@@ -169,13 +266,14 @@ pub struct EpochSummary {
     pub epoch: u32,
     pub cycles: usize,
     pub mean_need_fulfillment: f64,
-    pub min_price_index: f64,
-    pub max_price_index: f64,
+    /// `None` when no cycle of the epoch had a price index (no order books).
+    pub min_price_index: Option<f64>,
+    pub max_price_index: Option<f64>,
     pub mean_gini: f64,
     pub mean_investment_share: f64,
     pub max_hardship: u32,
     pub max_unemployed: u32,
-    /// Longest run of consecutive cycles with no Food asks resting at cycle end.
+    /// Longest run of consecutive cycles with `food_available == 0` at cycle end.
     pub longest_food_stockout: u32,
     pub rejected_commands: u32,
 }
@@ -192,7 +290,7 @@ pub fn summarize(rows: &[Row]) -> Vec<EpochSummary> {
         let mut longest = 0u32;
         let mut run = 0u32;
         for r in &rs {
-            if r.food_ask_depth == 0 {
+            if r.food_available == 0 {
                 run += 1;
                 longest = longest.max(run);
             } else {
@@ -203,8 +301,8 @@ pub fn summarize(rows: &[Row]) -> Vec<EpochSummary> {
             epoch,
             cycles: rs.len(),
             mean_need_fulfillment: rs.iter().map(|r| r.need_fulfillment_rate).sum::<f64>() / n,
-            min_price_index: idx.iter().copied().fold(f64::INFINITY, f64::min),
-            max_price_index: idx.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            min_price_index: idx.iter().copied().reduce(f64::min),
+            max_price_index: idx.iter().copied().reduce(f64::max),
             mean_gini: rs.iter().map(|r| r.consumption_gini).sum::<f64>() / n,
             mean_investment_share: rs.iter().map(|r| r.investment_share).sum::<f64>() / n,
             max_hardship: rs.iter().map(|r| r.hardship_count).max().unwrap_or(0),
@@ -216,36 +314,73 @@ pub fn summarize(rows: &[Row]) -> Vec<EpochSummary> {
     out
 }
 
-/// GDD §17 tuning targets, checked per epoch. Returns the failures as text.
+/// GDD §17 tuning targets for one preset. Every preset shares the
+/// need-fulfillment, stock-out, Materials-sink and zero-rejection targets;
+/// the price band applies only where prices exist ("prices, where they
+/// exist, within ±30 % of a reference basket", GDD §17 item 2).
+#[derive(Clone, Debug, PartialEq)]
+pub struct StabilityTargets {
+    pub need_min: f64,
+    pub price_index_band: Option<(f64, f64)>,
+    pub max_food_stockout_cycles: u32,
+    /// Share of Materials consumed by Machine Shops over Materials produced.
+    /// The band is the simulator's own reading of "roughly balanced"
+    /// (GDD §17 asks only for a documented band; `docs/tuning/README.md`).
+    pub investment_band: (f64, f64),
+    pub max_rejected: u32,
+}
+
+impl StabilityTargets {
+    #[must_use]
+    pub fn for_capabilities(caps: &Capabilities) -> Self {
+        StabilityTargets {
+            need_min: 0.95,
+            price_index_band: caps.order_books.then_some((0.7, 1.3)),
+            max_food_stockout_cycles: 3,
+            investment_band: (0.05, 0.6),
+            max_rejected: 0,
+        }
+    }
+}
+
+/// The targets, checked per epoch. Returns the failures as text.
 #[must_use]
-pub fn stability_failures(summary: &[EpochSummary]) -> Vec<String> {
+pub fn stability_failures(targets: &StabilityTargets, summary: &[EpochSummary]) -> Vec<String> {
     let mut f = Vec::new();
     for s in summary {
-        if s.mean_need_fulfillment < 0.95 {
+        if s.mean_need_fulfillment < targets.need_min {
             f.push(format!(
-                "epoch {}: need fulfillment {:.3} < 0.95",
-                s.epoch, s.mean_need_fulfillment
+                "epoch {}: need fulfillment {:.3} < {:.2}",
+                s.epoch, s.mean_need_fulfillment, targets.need_min
             ));
         }
-        if s.min_price_index < 0.7 || s.max_price_index > 1.3 {
+        if let Some((lo, hi)) = targets.price_index_band {
+            match (s.min_price_index, s.max_price_index) {
+                (Some(min), Some(max)) if min < lo || max > hi => f.push(format!(
+                    "epoch {}: price index {min:.2}..{max:.2} outside {lo}..{hi}",
+                    s.epoch
+                )),
+                (None, _) | (_, None) => f.push(format!(
+                    "epoch {}: no price index although the society has order books",
+                    s.epoch
+                )),
+                _ => {}
+            }
+        }
+        if s.longest_food_stockout > targets.max_food_stockout_cycles {
             f.push(format!(
-                "epoch {}: price index {:.2}..{:.2} outside 0.7..1.3",
-                s.epoch, s.min_price_index, s.max_price_index
+                "epoch {}: Food stock-out for {} consecutive cycles (limit {})",
+                s.epoch, s.longest_food_stockout, targets.max_food_stockout_cycles
             ));
         }
-        if s.longest_food_stockout > 3 {
+        let (lo, hi) = targets.investment_band;
+        if s.mean_investment_share < lo || s.mean_investment_share > hi {
             f.push(format!(
-                "epoch {}: Food stock-out for {} consecutive cycles",
-                s.epoch, s.longest_food_stockout
-            ));
-        }
-        if s.mean_investment_share < 0.05 || s.mean_investment_share > 0.6 {
-            f.push(format!(
-                "epoch {}: investment share {:.3} outside the 0.05..0.6 band",
+                "epoch {}: investment share {:.3} outside the {lo}..{hi} band",
                 s.epoch, s.mean_investment_share
             ));
         }
-        if s.rejected_commands > 0 {
+        if s.rejected_commands > targets.max_rejected {
             f.push(format!(
                 "epoch {}: {} rejected householder commands",
                 s.epoch, s.rejected_commands
@@ -264,6 +399,10 @@ pub fn write_csv(path: &Path, rows: &[Row]) -> std::io::Result<()> {
     w.flush()
 }
 
+fn index_cell(v: Option<f64>) -> String {
+    v.map_or_else(|| "-".to_owned(), |x| format!("{x:.2}"))
+}
+
 /// Render the summary as a fixed-width table.
 #[must_use]
 #[allow(clippy::format_push_string)]
@@ -273,12 +412,12 @@ pub fn table(summary: &[EpochSummary]) -> String {
     );
     for e in summary {
         s.push_str(&format!(
-            "{:>5}  {:>6}  {:>5.1}  {:>9.2}  {:>9.2}  {:>5.3}  {:>6.3}  {:>8}  {:>5}  {:>8}  {:>8}\n",
+            "{:>5}  {:>6}  {:>5.1}  {:>9}  {:>9}  {:>5.3}  {:>6.3}  {:>8}  {:>5}  {:>8}  {:>8}\n",
             e.epoch,
             e.cycles,
             e.mean_need_fulfillment * 100.0,
-            e.min_price_index,
-            e.max_price_index,
+            index_cell(e.min_price_index),
+            index_cell(e.max_price_index),
             e.mean_gini,
             e.mean_investment_share,
             e.max_hardship,
@@ -289,3 +428,65 @@ pub fn table(summary: &[EpochSummary]) -> String {
     }
     s
 }
+
+/// Run one preset over a seed range: print the per-seed table, write the CSVs
+/// when `out` is given, and return every target miss as `seed n: ...` lines.
+/// Shared by the `run` and `all` subcommands.
+pub fn sweep(
+    presets_dir: &Path,
+    preset: &str,
+    epochs: u32,
+    seeds: impl IntoIterator<Item = u64>,
+    overrides: &[(String, toml::Value)],
+    out: Option<&Path>,
+) -> Result<Vec<String>, SweepError> {
+    let mut failures = Vec::new();
+    for seed in seeds {
+        let spec = RunSpec {
+            preset: preset.to_owned(),
+            epochs,
+            seed,
+            overrides: overrides.to_vec(),
+        };
+        let started = std::time::Instant::now();
+        let result = run(presets_dir, &spec).map_err(SweepError::Config)?;
+        let summary = summarize(&result.rows);
+        println!(
+            "{preset} seed {seed}: {epochs} epochs, {} events, {} rejected commands, {:.1}s",
+            result.events,
+            result.rejected,
+            started.elapsed().as_secs_f64()
+        );
+        print!("{}", table(&summary));
+        if let Some(dir) = out {
+            std::fs::create_dir_all(dir).map_err(SweepError::Io)?;
+            let path = dir.join(format!("{preset}-{seed}.csv"));
+            write_csv(&path, &result.rows).map_err(SweepError::Io)?;
+            println!("wrote {}", path.display());
+        }
+        let targets = StabilityTargets::for_capabilities(&result.capabilities);
+        for f in stability_failures(&targets, &summary) {
+            println!("  ! {f}");
+            failures.push(format!("seed {seed}: {f}"));
+        }
+    }
+    Ok(failures)
+}
+
+/// Why a sweep could not run (as opposed to running and missing targets).
+#[derive(Debug)]
+pub enum SweepError {
+    Config(ConfigError),
+    Io(std::io::Error),
+}
+
+impl std::fmt::Display for SweepError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SweepError::Config(e) => write!(f, "{e}"),
+            SweepError::Io(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for SweepError {}

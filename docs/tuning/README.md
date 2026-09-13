@@ -9,7 +9,13 @@ make sim PRESET=freeport EPOCHS=5 SEED=1          # one run, CSV in docs/tuning/
 cargo run -p isms-sim --release -- run --preset freeport --epochs 5 --seeds 1..5 --out docs/tuning/runs
 cargo run -p isms-sim --release -- run --preset freeport --param params.money.legacy_wage_credits=7.0 --check
 make sim-check PRESET=freeport                     # the GDD 17 targets over seeds 1..5 (ignored test)
+make sim-all                                       # all five presets over seeds 1..5, one table each, --check
 ```
+
+Every preset has its own `stability_<preset>` test (`make sim-check PRESET=commune` and so on); the
+targets are derived from the preset's capabilities by `StabilityTargets::for_capabilities`, so a
+moneyless society is never judged on a price index and "stock-out" is read from whatever holds the
+society's Food (resting asks, the Common Store, or the state stock: the `food_available` column).
 
 `--param` takes `params.<section>.<key>=<toml value>` and applies before validation, so any tunable in `_base.toml` or the preset can be swept without editing files. `--check` exits 1 when any epoch misses a target.
 
@@ -21,4 +27,4 @@ The CSV has one row per cycle with every `CycleAggregates` field plus the Food a
 
 ## Writing a report
 
-A report names the seeds and parameter values, pastes the per-epoch tables, states which targets pass, and answers GDD Appendix B item 6 in prose: does the change move this preset's headline metrics because of the system's logic or because of our constants?
+Start from `TEMPLATE.md`. A report names the seeds and parameter values, pastes the per-epoch tables, states which targets pass, and answers GDD Appendix B item 6 in prose: does the change move this preset's headline metrics because of the system's logic or because of our constants?
