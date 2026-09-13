@@ -270,6 +270,10 @@ fn unimplemented_registry_matches_the_enum() {
         "Pledged",
         "PledgeClosed",
         "NormsLedgerClosed",
+        "StateStoreRequested",
+        "StateStoreSold",
+        "StateStoreShortage",
+        "RationIssued",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -288,9 +292,11 @@ fn unimplemented_registry_matches_the_enum() {
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
     // Phase 0b variants are appended after `CycleClosed` (Q64).
-    let last = Event::NormsLedgerClosed {
-        cycle: 0,
-        entries: Vec::new(),
+    let last = Event::RationIssued {
+        citizen: CitizenId(0),
+        good: Good::Food,
+        qty: 0,
+        explain: crate::explain::Explain::new(crate::explain::RuleId::ProvisionRation, "", 0u32),
     };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {

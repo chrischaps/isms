@@ -31,6 +31,10 @@ pub struct WorldCycle {
     pub dwellings_built: u64,
     /// Materials consumed by Machine Shops this cycle (the investment decision).
     pub materials_to_machines: u64,
+    /// Units requested from the state store this cycle and not served (S0.16a).
+    pub store_unfilled: u64,
+    /// Units issued at zero price by provision this cycle (S0.16a).
+    pub rations_issued: u64,
 }
 
 /// Gini coefficient of a non-negative sample; 0 for an empty or all-equal sample.

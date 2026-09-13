@@ -62,6 +62,8 @@ pub enum RuleId {
     Depreciation,
     // Phase 0b (appended)
     StoreSurplusShare,
+    StateStorePrice,
+    ProvisionRation,
 }
 
 impl RuleId {
@@ -147,6 +149,14 @@ impl RuleId {
             RuleId::StoreSurplusShare => (
                 "GDD §6.2",
                 "Stock beyond everyone's needs is shared out equally at cycle end.",
+            ),
+            RuleId::StateStorePrice => (
+                "GDD §6.3",
+                "The state store sells at the published price, in the order requests arrive, within your balance and any ration card.",
+            ),
+            RuleId::ProvisionRation => (
+                "GDD §6.3",
+                "The society guarantees a minimum Food ration at zero price at every cycle end.",
             ),
         }
     }

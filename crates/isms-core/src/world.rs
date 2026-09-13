@@ -546,9 +546,24 @@ pub struct StoreRequest {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StateStock {
     pub stock: BTreeMap<Good, u32>,
-    /// Money the state store has taken in (a holder for conservation).
+    /// The state's one purse (Q67): store takings, the seeded budget, and the
+    /// source of state wages. A holder for conservation.
     pub till: Money,
-    pub ration_caps: BTreeMap<Good, u32>,
+    /// This tick's purchase requests in arrival order; served in phase 6 and
+    /// cleared by `TickResolved` (S0.16a).
+    pub requests: Vec<StateRequest>,
+    /// Units sold per citizen per good this cycle, for ration cards; cleared
+    /// by `CycleClosed`.
+    pub issued_this_cycle: BTreeMap<CitizenId, BTreeMap<Good, u32>>,
+}
+
+/// One citizen's request to buy from the state store this tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StateRequest {
+    pub citizen: CitizenId,
+    pub good: Good,
+    pub qty: u32,
+    pub tick: Tick,
 }
 
 // ---------------------------------------------------------------------------

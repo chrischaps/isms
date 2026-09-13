@@ -880,6 +880,9 @@ pub fn apply(world: &mut World, event: &Event) {
                 c.last_cycle_wages = c.cycle_wages;
                 c.cycle_wages = Money::ZERO;
             }
+            if let Some(s) = &mut world.state_stock {
+                s.issued_this_cycle.clear();
+            }
             world.cycle = crate::metrics::WorldCycle::default();
         }
         Event::EpochEnded { reason, .. } => {
@@ -895,6 +898,9 @@ pub fn apply(world: &mut World, event: &Event) {
             world.meta.tick = tick.wrapping_add(1);
             world.price_index = *price_index;
             if let Some(s) = &mut world.store {
+                s.requests.clear();
+            }
+            if let Some(s) = &mut world.state_stock {
                 s.requests.clear();
             }
             for b in world.books.values_mut() {
@@ -980,6 +986,50 @@ pub fn apply(world: &mut World, event: &Event) {
             if let Some(k) = world.contracts.get_mut(contract) {
                 k.status = crate::world::ContractStatus::Ended;
             }
+        }
+        Event::StateStoreRequested {
+            citizen,
+            good,
+            qty,
+            tick,
+        } => {
+            if let Some(s) = &mut world.state_stock {
+                s.requests.push(crate::world::StateRequest {
+                    citizen: *citizen,
+                    good: *good,
+                    qty: *qty,
+                    tick: *tick,
+                });
+            }
+        }
+        Event::StateStoreSold {
+            citizen,
+            good,
+            qty,
+            total,
+            ..
+        } => {
+            debit(world, Holder::Citizen(*citizen), Asset::Money(*total));
+            credit(world, Holder::StateStock, Asset::Money(*total));
+            debit(world, Holder::StateStock, Asset::Good(*good, *qty));
+            credit(world, Holder::Citizen(*citizen), Asset::Good(*good, *qty));
+            if let Some(s) = &mut world.state_stock {
+                *s.issued_this_cycle
+                    .entry(*citizen)
+                    .or_default()
+                    .entry(*good)
+                    .or_insert(0) += *qty;
+            }
+        }
+        Event::StateStoreShortage { unfilled, .. } => {
+            world.cycle.store_unfilled += unfilled.values().map(|q| u64::from(*q)).sum::<u64>();
+        }
+        Event::RationIssued {
+            citizen, good, qty, ..
+        } => {
+            debit(world, Holder::StateStock, Asset::Good(*good, *qty));
+            credit(world, Holder::Citizen(*citizen), Asset::Good(*good, *qty));
+            world.cycle.rations_issued += u64::from(*qty);
         }
         Event::NormsLedgerClosed { entries, .. } => {
             for e in entries {

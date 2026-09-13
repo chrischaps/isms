@@ -78,6 +78,9 @@ pub struct Policy {
     pub price_list: Option<BTreeMap<Good, Money>>,
     #[serde(default, rename = "wage_grades_credits", with = "opt_credits_vec")]
     pub wage_grades: Option<Vec<Money>>,
+    /// Ration cards: an equal cap per citizen per cycle on a good (GDD §6.3, Q66).
+    #[serde(default)]
+    pub ration_caps: Option<BTreeMap<Good, u32>>,
     // Directorate and Commonwealth
     #[serde(default)]
     pub minimum_food_ration: Option<u32>,
@@ -134,6 +137,7 @@ impl Policy {
         let administered = c.pricing == Pricing::Administered;
         only(self.price_list.is_some(), administered, "price_list")?;
         only(self.wage_grades.is_some(), administered, "wage_grades")?;
+        only(self.ration_caps.is_some(), administered, "ration_caps")?;
         only(
             self.plan_bonus_fraction.is_some(),
             administered,

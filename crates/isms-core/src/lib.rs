@@ -32,6 +32,7 @@ pub mod policy;
 pub mod rules;
 pub mod seeding;
 pub mod shares;
+pub mod state_store;
 pub mod store;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;

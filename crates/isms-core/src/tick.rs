@@ -221,6 +221,8 @@ fn phase_6_markets(b: &mut TickBuilder) {
         b.price_index = index;
     } else if b.rules.capabilities.common_store {
         crate::store::phase_6_store(b);
+    } else if b.rules.capabilities.administered_prices {
+        crate::state_store::phase_6_state_store(b);
     }
 }
 
@@ -257,6 +259,7 @@ fn cycle_end_8b_tax_and_provision(b: &mut TickBuilder) {
     if b.rules.capabilities.common_store {
         crate::store::cycle_end_8b_surplus_shares(b);
     }
+    crate::state_store::cycle_end_8b_provision_ration(b);
 }
 fn cycle_end_8c_credit_installments(b: &mut TickBuilder) {
     crate::credit::cycle_end_8c_credit_installments(b);

@@ -233,6 +233,11 @@ pub enum Command {
     LeaveWorkplace {
         workplace: WorkplaceId,
     },
+    /// Buy from the state store at the list price this tick (S0.16a).
+    RequestStateStore {
+        good: Good,
+        qty: u32,
+    },
 }
 
 impl Command {
@@ -278,6 +283,7 @@ impl Command {
             Command::RequestStoreDraw { .. } => "RequestStoreDraw",
             Command::JoinWorkplace { .. } => "JoinWorkplace",
             Command::LeaveWorkplace { .. } => "LeaveWorkplace",
+            Command::RequestStateStore { .. } => "RequestStateStore",
         }
     }
 }
@@ -325,6 +331,8 @@ pub enum RejectCode {
     NoStore,
     /// A store draw above the citizen's need entitlement.
     OverEntitlement,
+    /// The state store does not carry this good.
+    NotOnPriceList,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -405,6 +413,7 @@ impl Capabilities {
             Command::JoinWorkplace { .. } | Command::LeaveWorkplace { .. } => {
                 self.labor == crate::constitution::LaborMode::Norm
             }
+            Command::RequestStateStore { .. } => self.administered_prices,
         }
     }
 }
@@ -561,6 +570,9 @@ pub fn handle(
         Command::LeaveWorkplace { workplace } => {
             crate::norms::leave_workplace(world, envelope, *workplace)
         }
+        Command::RequestStateStore { good, qty } => {
+            crate::state_store::request_state_store(world, envelope, *good, *qty)
+        }
     }
 }
 
@@ -622,7 +634,16 @@ fn join(
     };
     // Collective systems assign a dwelling from the society's stock at join (GDD 6.2).
     let dwelling = crate::housing::free_society_dwelling(world);
-    Ok(vec![match kind {
+    // Assigned-labor systems place the joiner by the balancing rule (GDD 6.3, Q62).
+    let assignment = (world.constitution.labor == crate::constitution::LaborMode::Assigned)
+        .then(|| crate::orgs::least_staffed(world))
+        .flatten()
+        .map(|workplace| Event::Assigned {
+            workplace,
+            citizen,
+            contract: None,
+        });
+    let mut events = vec![match kind {
         CitizenKind::Human => Event::CitizenJoined {
             citizen,
             handle: handle.to_owned(),
@@ -638,7 +659,9 @@ fn join(
             dwelling,
             explain,
         },
-    }])
+    }];
+    events.extend(assignment);
+    Ok(events)
 }
 
 fn seen(world: &World, envelope: &Envelope<Command>) -> Result<Vec<Event>, Reject> {
