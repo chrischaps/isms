@@ -59,6 +59,11 @@ enum Cmd {
     },
     /// Print the `OpenAPI` document (no database needed).
     Openapi,
+    /// Clear and regenerate a society's Chronicle from its event log.
+    RebuildProjections {
+        #[arg(long)]
+        society: i64,
+    },
     /// Load every active society, run actors, schedulers, and the API until Ctrl-C.
     Serve {
         /// Replay the whole log against the latest snapshot before starting (TDD 9.1).
@@ -176,6 +181,9 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
                 println!("{code}");
             }
         }
+        Cmd::RebuildProjections { society } => {
+            rebuild_projections(cli.database_url.as_deref(), &presets_dir, society).await?;
+        }
         Cmd::Serve {
             verify_replay,
             bind,
@@ -194,6 +202,25 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
     Ok(())
 }
 
+async fn rebuild_projections(
+    database_url: Option<&str>,
+    presets_dir: &std::path::Path,
+    society: i64,
+) -> Result<(), ServerError> {
+    let store = connect(database_url).await?;
+    let row = store
+        .list_societies()
+        .await?
+        .into_iter()
+        .find(|r| r.id == society)
+        .ok_or_else(|| ServerError::Arg(format!("no society {society}")))?;
+    let templates = isms_server::chronicle::Templates::load(presets_dir, &row.preset)
+        .map_err(ServerError::Arg)?;
+    let n = isms_server::chronicle::rebuild(&store, society, templates).await?;
+    tracing::info!(society, headlines = n, "chronicle rebuilt");
+    Ok(())
+}
+
 async fn serve(
     database_url: Option<&str>,
     presets_dir: PathBuf,
@@ -203,7 +230,14 @@ async fn serve(
 ) -> Result<(), ServerError> {
     let store = connect(database_url).await?;
     let mail: Arc<dyn isms_server::mail::MailSender> = Arc::from(isms_server::mail::from_env()?);
-    let runtime = Runtime::start(&store, StartOptions { verify_replay }).await?;
+    let runtime = Runtime::start(
+        &store,
+        StartOptions {
+            verify_replay,
+            presets_dir: Some(presets_dir.clone()),
+        },
+    )
+    .await?;
     let state = AppState::new(
         store.clone(),
         AppState::entries_from(&runtime),

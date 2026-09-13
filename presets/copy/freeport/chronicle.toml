@@ -1,0 +1,29 @@
+# The Chronicle's voice in Freeport (TDD 9.4, GDD 12). One headline per matching
+# event; `{{field}}` reads the event payload, `{{citizen:field}}` and
+# `{{org:field}}` turn ids into names, `{{credits:field}}` prints cents as
+# credits. A template whose field is missing or null is skipped.
+
+[thresholds]
+# A basket index move over one cycle at least this large gets a headline.
+price_move_pct = 10.0
+
+[templates]
+OrgFounded = "{{citizen:founder}} founds {{name}}, a new {{kind}}."
+ManagerAppointed = "{{citizen:citizen}} takes the chair at {{org:org}}."
+HardshipBegan = "{{citizen:citizen}} can no longer keep food on the table."
+HardshipEnded = "{{citizen:citizen}} is eating again."
+DestitutionBegan = "{{citizen:citizen}} is destitute. The longer contracts are closed to them now."
+DestitutionEnded = "{{citizen:citizen}} is back on their feet."
+CreditDefaulted = "A loan is called in; the collateral changes hands."
+HouseholderEmigrated = "{{citizen:citizen}} has left Freeport."
+HouseholderJoined = "{{handle}} arrives with {{credits:endowment}} credits and nothing else."
+CitizenJoined = "{{handle}} arrives with {{credits:endowment}} credits and nothing else."
+EpochStarted = "Epoch {{epoch}} opens. Everything is for sale again."
+EpochEnded = "The epoch ends after cycle {{cycle}}. The ledgers close."
+
+# Cycle-end headlines, evaluated against CycleClosed.aggregates.
+[cycle]
+price_up = "Prices rose {{pct}}% over the cycle. The basket costs {{index}} of what it did on day one."
+price_down = "Prices fell {{pct}}% over the cycle. The basket costs {{index}} of what it did on day one."
+hardship = "{{count}} went hungry this cycle."
+unemployed = "{{count}} have no work."

@@ -16,11 +16,11 @@ use isms_api_types::Problem;
 use isms_api_types::society::{
     AcceptRequest, AddWorkplaceRequest, AppointRequest, BookView, BooksView, CitizensView,
     Committed, ContractsView, CreditOfferRequest, DigestView, DividendRequest,
-    EmploymentOfferRequest, EventRef, ExplainView, FoundOrgRequest, HomeView, HouseholdersView,
-    IssueSharesRequest, LeaseOfferRequest, MachinesRequest, MemberRequest, NoticeBoardView,
-    OrgView, OrgsView, PayslipsView, PlaceOrderRequest, PlanView, PricePoint, PricesView,
-    SaleOfferRequest, ScoreboardView, SetLaborRequest, SetPlanRequest, StatsView, TransferRequest,
-    WantedRequest, cents, instrument_name, parse_instrument,
+    EmploymentOfferRequest, EventRef, ExplainView, FoundOrgRequest, Headline, HomeView,
+    HouseholdersView, IssueSharesRequest, LeaseOfferRequest, MachinesRequest, MemberRequest,
+    NoticeBoardView, OrgView, OrgsView, PayslipsView, PlaceOrderRequest, PlanView, PricePoint,
+    PricesView, SaleOfferRequest, ScoreboardView, SetLaborRequest, SetPlanRequest, StatsView,
+    TransferRequest, WantedRequest, cents, instrument_name, parse_instrument,
 };
 use isms_core::command::Command;
 use isms_core::event::{Actor, Event};
@@ -162,6 +162,15 @@ async fn home(
         .map_or(0, |c| c.last_seen_tick);
     touch_presence(&state, &auth, &entry).await?;
     let stored = state.store.read_since_tick(id, since, READ_CAP).await?;
+    let headlines = crate::comms::latest_headlines(&state, id, 5)
+        .await?
+        .into_iter()
+        .map(|h| Headline {
+            seq: h.seq,
+            tick: h.tick,
+            text: h.text,
+        })
+        .collect();
     let world = entry.handle.world.read().await;
     let viewer = Viewer::new(&world, Some(me));
     let raw: Vec<Event> = stored.iter().map(|e| e.event.clone()).collect();
@@ -192,7 +201,7 @@ async fn home(
             since_tick: since,
             events: digest,
         },
-        headlines: Vec::new(),
+        headlines,
         society: views::pulse(&world),
     }))
 }

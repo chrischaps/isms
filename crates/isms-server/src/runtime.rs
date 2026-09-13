@@ -2,6 +2,7 @@
 //! with their schedulers until shutdown (TDD 9.1, 9.2; `isms-server serve`).
 
 use crate::actor::{self, ActorError, SocietyHandle};
+use crate::chronicle::{Templates, spawn_projector};
 use crate::scheduler::{self, Schedule};
 use chrono::Utc;
 use isms_core::config::ConfigError;
@@ -30,6 +31,8 @@ pub enum RuntimeError {
     Actor(#[from] ActorError),
     #[error("society {0} is unknown")]
     UnknownSociety(i64),
+    #[error("copy: {0}")]
+    Copy(String),
 }
 
 /// What `isms-server seed` needs.
@@ -93,11 +96,13 @@ pub async fn seed_society(
 }
 
 /// Startup options.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct StartOptions {
     /// Replay the whole log and compare with the latest snapshot before
     /// starting (TDD 9.1). Snapshot bytes are always verified against their hash.
     pub verify_replay: bool,
+    /// Where the presets and their copy live; the Chronicle projector runs only when set.
+    pub presets_dir: Option<std::path::PathBuf>,
 }
 
 /// A running society: its actor and scheduler tasks.
@@ -107,6 +112,7 @@ pub struct Running {
     pub handle: SocietyHandle,
     pub schedule: Schedule,
     actor_task: JoinHandle<()>,
+    projector_task: Option<JoinHandle<()>>,
     scheduler_task: JoinHandle<Result<(), ActorError>>,
 }
 
@@ -117,6 +123,12 @@ pub async fn start_society(
     options: StartOptions,
     cancel: &CancellationToken,
 ) -> Result<Running, RuntimeError> {
+    let templates = options
+        .presets_dir
+        .as_deref()
+        .map(|dir| Templates::load(dir, &row.preset))
+        .transpose()
+        .map_err(RuntimeError::Copy)?;
     if options.verify_replay {
         if let Some(seq) = verify_latest_snapshot(store, row.id).await? {
             tracing::info!(society = row.id, seq, "snapshot verified against replay");
@@ -142,11 +154,14 @@ pub async fn start_society(
         schedule,
         cancel.child_token(),
     ));
+    let projector_task =
+        templates.map(|t| spawn_projector(store.clone(), handle.clone(), t, cancel.child_token()));
     Ok(Running {
         row: row.clone(),
         handle,
         schedule,
         actor_task,
+        projector_task,
         scheduler_task,
     })
 }
@@ -156,6 +171,9 @@ impl Running {
     pub async fn shutdown(self, cancel: &CancellationToken) -> Result<(), RuntimeError> {
         cancel.cancel();
         let _ = self.scheduler_task.await;
+        if let Some(p) = self.projector_task {
+            let _ = p.await;
+        }
         let result = self.handle.shutdown().await;
         let _ = self.actor_task.await;
         result?;
@@ -182,7 +200,7 @@ impl Runtime {
                 tracing::info!(society = row.id, status = %row.status, "skipped");
                 continue;
             }
-            let running = start_society(store, &row, options, &cancel).await?;
+            let running = start_society(store, &row, options.clone(), &cancel).await?;
             societies.insert(row.id, running);
         }
         Ok(Runtime { societies, cancel })
