@@ -29,6 +29,21 @@ The same householder, in a society with no money, no prices and a Common Store:
 
 A collective's householder manager has one job: each hour, install one Machine from the Common Store at each of the collective's workplaces (never at the Machine Shop itself) while the store has any, so the society's Machines spread across its workplaces.
 
+## In the Directorate
+
+The same householder, in a society where the state owns every workplace, assigns labor and sells at a published price list:
+
+1. **Keep a plan.** The plan says "accept my assignment". Keep at least 24 Food in the pantry and buy Wares when Comfort falls below 60 and the balance is above twice a cycle's living cost, both as purchase requests to the state store at the published price (there is nothing to bargain over). Never let the balance fall below 10% of all wages earned so far.
+2. **Work.** Work the full eight hours at normal effort at the workplace the Planning Committee assigned (on arrival, by the balancing rule). Never ask for a transfer.
+3. **Live somewhere.** A state dwelling is assigned on arrival; nothing to rent.
+4. **Sell nothing.** There is no market. The state pays each position at its wage grade every cycle end, with the plan bonus when the workplace met its target, and issues the minimum Food ration at zero price.
+
+A state enterprise's householder manager installs one Machine from the state stock at each of its workplaces each hour while the stock has any, as in the Commune.
+
+## The System's planner (simulation only)
+
+Until the Planning Committee exists (Phase 4), the simulator plays the Committee with one rule: on the first hour of every cycle it publishes each producing workplace's target as last cycle's output times `sim_planner_target_growth` (1.05), and it approves every transfer request. It never moves prices, wage grades, the Materials split or ration cards.
+
 ## When humans arrive
 
 Each cycle end, householders are kept at `floor − active humans`. The most recently arrived householders leave first: their orders and offers are cancelled, their jobs and tenancies end, any firm they managed passes to another householder, and their money and goods leave the economy (in a society with a Common Store or a state stock, their pantry and balance go back to it instead).

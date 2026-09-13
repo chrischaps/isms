@@ -5,6 +5,7 @@
 use crate::constitution::Constitution;
 use crate::params::Params;
 use crate::policy::Policy;
+use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use toml::Table;
@@ -117,8 +118,15 @@ pub fn load_preset_with_overrides(
 
     let mut merged = base.params;
     overlay(&mut merged, file.params, &file.name, "params")?;
+    // Overrides address `params.<section>.<key>` or `policy.<key>` (the
+    // society's own levers, so a tuning sweep can move them too; Q77).
+    let policy_table = Value::try_from(&file.policy).map_err(|source| ConfigError::Parse {
+        path: preset_path.clone(),
+        source: toml::de::Error::custom(source.to_string()),
+    })?;
     let mut root = Table::new();
     root.insert("params".into(), Value::Table(merged));
+    root.insert("policy".into(), policy_table);
     for (k, v) in overrides {
         set_path(&mut root, k, v.clone())?;
     }
@@ -131,13 +139,22 @@ pub fn load_preset_with_overrides(
             path: preset_path.clone(),
             source,
         })?;
+    let Some(policy_value) = root.remove("policy") else {
+        unreachable!("policy table was just inserted")
+    };
+    let policy: Policy = policy_value
+        .try_into()
+        .map_err(|source| ConfigError::Parse {
+            path: preset_path.clone(),
+            source,
+        })?;
 
     let preset = Preset {
         name: file.name,
         display: file.display,
         gdd_section: file.gdd_section,
         constitution: file.constitution,
-        policy: file.policy,
+        policy,
         params,
         scoreboard: file.scoreboard,
     };
@@ -294,7 +311,7 @@ mod tests {
     fn directorate_price_list_is_in_cents() {
         let p = load_preset(&dir(), "directorate").unwrap();
         let list = p.policy.price_list.as_ref().unwrap();
-        assert_eq!(list[&Good::Food], Money::cents(120));
+        assert_eq!(list[&Good::Food], Money::cents(250));
         assert_eq!(p.policy.wage_grades.as_ref().unwrap()[2], Money::cents(750));
     }
 

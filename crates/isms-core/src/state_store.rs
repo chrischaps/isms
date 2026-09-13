@@ -249,9 +249,9 @@ pub fn phase_6_state_store(b: &mut TickBuilder) {
     }
 }
 
-/// Step 8b (provision systems with a state stock): top every active citizen's
-/// pantry up to the minimum Food ration at zero price, in citizen order, while
-/// the stock lasts (GDD §6.3; Q68).
+/// Step 8b (provision systems with a state stock): issue every active citizen
+/// the minimum Food ration at zero price, in citizen order, within their
+/// pantry room and while the stock lasts (GDD §6.3; Q68 as revised by Q75).
 pub fn cycle_end_8b_provision_ration(b: &mut TickBuilder) {
     if b.rules.capabilities.redistribution != Redistribution::Provision
         || b.world.state_stock.is_none()
@@ -276,13 +276,19 @@ pub fn cycle_end_8b_provision_ration(b: &mut TickBuilder) {
             .copied()
             .unwrap_or(0);
         let on_hand = crate::ledger::goods_at(&b.world, Holder::StateStock, Good::Food);
-        let qty = ration.saturating_sub(have).min(on_hand);
+        let room = b
+            .world
+            .params
+            .pantry
+            .get(&Good::Food)
+            .map_or(u32::MAX, |cap| cap.saturating_sub(have));
+        let qty = ration.min(room).min(on_hand);
         if qty == 0 {
             continue;
         }
         let explain = Explain::new(
             RuleId::ProvisionRation,
-            "min(minimum_food_ration - pantry, stock)",
+            "min(minimum_food_ration, pantry room, stock)",
             qty,
         )
         .input("minimum_food_ration", ration)
