@@ -16,6 +16,7 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
 pub mod accounts;
+pub mod projections;
 pub mod reads;
 
 /// Migrations embedded from `crates/isms-store/migrations`.

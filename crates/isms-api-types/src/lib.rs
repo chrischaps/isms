@@ -2,6 +2,7 @@
 //! the server, the CLI, and the `OpenAPI` document. Engine enums are re-exported
 //! where the wire shape is the engine's own serde form.
 
+pub mod chronicle;
 pub mod society;
 
 use chrono::{DateTime, Utc};

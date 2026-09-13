@@ -609,6 +609,7 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(welcome))
         .routes(routes!(join))
         .merge(crate::society_api::routes())
+        .merge(crate::comms::routes())
 }
 
 /// The `OpenAPI` document, without a running server (`isms-server openapi`).

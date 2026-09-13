@@ -4,6 +4,8 @@
 pub mod actor;
 pub mod api;
 pub mod auth;
+pub mod chronicle;
+pub mod comms;
 pub mod error;
 pub mod limiter;
 pub mod mail;

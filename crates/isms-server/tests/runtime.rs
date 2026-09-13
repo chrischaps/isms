@@ -276,6 +276,7 @@ async fn runtime_starts_every_active_society(pool: PgPool) {
         &store,
         StartOptions {
             verify_replay: true,
+            ..Default::default()
         },
     )
     .await

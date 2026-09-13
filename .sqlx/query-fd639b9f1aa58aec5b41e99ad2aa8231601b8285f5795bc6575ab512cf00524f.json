@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT source_event_seq, ordinal, cycle, tick, headline FROM chronicle\n             WHERE society_id = $1 ORDER BY source_event_seq DESC, ordinal DESC LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_event_seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "ordinal",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "cycle",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "tick",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "headline",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fd639b9f1aa58aec5b41e99ad2aa8231601b8285f5795bc6575ab512cf00524f"
+}
