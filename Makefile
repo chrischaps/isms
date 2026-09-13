@@ -12,7 +12,7 @@ export DATABASE_URL ?= postgres://isms:isms@localhost:5433/isms
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check fmt fmt-check clippy test web-check db db-stop dev e2e sim sim-check sim-all sqlx-prepare openapi-lint api-types
+.PHONY: check fmt fmt-check clippy test web-check db db-stop dev e2e e2e-web sim sim-check sim-all sqlx-prepare openapi-lint api-types
 
 check: fmt-check clippy test web-check
 
@@ -46,6 +46,7 @@ db-stop:
 
 # Postgres + server (tick_seconds=10) + Vite. Server and Vite arrive with S1.2 and S1.7.
 dev: db
+	@echo "API on :8080; run 'pnpm --dir web dev' in another shell for the web client on :5173"
 	cargo run -p isms-server -- serve
 
 # The GDD 9.1 core loop against a throwaway society at tick_seconds=1 (S1.6).
@@ -67,8 +68,14 @@ openapi-lint:
 	cargo run -q -p isms-server -- openapi > target/openapi.json
 	pnpm --package=@redocly/cli@1 dlx redocly lint target/openapi.json
 
+# Regenerate the TypeScript client types from the OpenAPI document (S1.7).
 api-types:
-	@echo "make api-types arrives with S1.7"; exit 1
+	cargo run -q -p isms-server -- openapi > target/openapi.json
+	pnpm --dir web api-types
+
+# Playwright against a live server (S1.7).
+e2e-web:
+	bash scripts/e2e/web.sh
 
 # One run with the per-citizen, per-org, flow, trade, move and depth CSVs under target/sim/<preset>-<seed>/ (S0.14e).
 .PHONY: sim-detail
