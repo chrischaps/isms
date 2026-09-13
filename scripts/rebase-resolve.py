@@ -26,6 +26,12 @@ if not conflicted:
 
 renumbered = {}
 for path in conflicted:
+    if path.endswith((".postcard", ".jsonl")) and "/golden/" in path:
+        # Both tracks regenerated a golden: take main's, then regenerate on top.
+        sh("git", "checkout", "--ours", path)
+        sh("git", "add", path)
+        print(f"took main's {path}; run UPDATE_GOLDEN=1 cargo test -p isms-core golden and commit")
+        continue
     if not path.endswith("docs/QUESTIONS.md"):
         print(f"cannot resolve {path} automatically", file=sys.stderr)
         sys.exit(1)

@@ -12,8 +12,12 @@ for attempt in 1 2 3 4; do
     echo "PR conflicts with main (attempt $attempt): rebasing" >&2
     git fetch -q origin
     if ! git rebase -q origin/main; then
-      python scripts/rebase-resolve.py
+      # Mid-rebase the checkout is main, which may predate this script: read it from the branch.
+      git show "$branch:scripts/rebase-resolve.py" | python -
       GIT_EDITOR=true git rebase --continue
+    fi
+    if UPDATE_GOLDEN=1 cargo test -q -p isms-core golden >/dev/null 2>&1 && ! git diff --quiet; then
+      git commit -qam "goldens regenerated after rebase"
     fi
     git push -q --force-with-lease origin "$branch"
     sleep 20
@@ -45,8 +49,11 @@ for attempt in 1 2 3 4; do
     rm -f merge.err
     git fetch -q origin
     if ! git rebase -q origin/main; then
-      python scripts/rebase-resolve.py
+      git show "$branch:scripts/rebase-resolve.py" | python -
       GIT_EDITOR=true git rebase --continue
+    fi
+    if UPDATE_GOLDEN=1 cargo test -q -p isms-core golden >/dev/null 2>&1 && ! git diff --quiet; then
+      git commit -qam "goldens regenerated after rebase"
     fi
     git push -q --force-with-lease origin "$branch"
     continue
