@@ -101,4 +101,4 @@ Q20 (sticky hardship: decided, `food_meter_per_unit` 6) and Q46 (structural unem
 - [x] every Q entry answered (Q1–Q103)
 - [x] `docs/SESSIONS.md` complete through S0.18
 - [x] goldens regenerated at every shape change
-- [ ] cross-arch job dispatched once against main after S0.18 merges (`gh workflow run "cross-arch determinism"`)
+- [x] cross-arch job dispatched against main after S0.18 merged: run 34797893006, success (and 34796930373 on the engine-identical main before it, success)
