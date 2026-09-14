@@ -64,6 +64,7 @@ pub enum RuleId {
     StoreSurplusShare,
     StateStorePrice,
     ProvisionRation,
+    CapitalLevy,
 }
 
 impl RuleId {
@@ -157,6 +158,10 @@ impl RuleId {
             RuleId::ProvisionRation => (
                 "GDD §6.3",
                 "The society guarantees a minimum Food ration at zero price at every cycle end.",
+            ),
+            RuleId::CapitalLevy => (
+                "GDD §6.5",
+                "Each cooperative pays a small share of its Machines' value into the Public Investment Bank every cycle.",
             ),
         }
     }

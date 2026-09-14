@@ -136,6 +136,19 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
             orgs.push(org);
         }
     }
+    // The Public Investment Bank: a society-owned association whose treasury
+    // is the levy pool (S0.17c, Q92). No workplaces, no manager.
+    if world.constitution.capital == crate::constitution::CapitalMode::PublicBank {
+        events.push(Event::OrgFounded {
+            org: next_org,
+            kind: OrgKind::Association,
+            name: "Public Investment Bank".into(),
+            founder: None,
+            ownership: Ownership::Society,
+            manager: None,
+            fee_burned: Money::ZERO,
+        });
+    }
     // Initial dwellings, owned by the Builders (or the first org if there are none).
     let owners: Vec<OrgId> = if builders.is_empty() {
         orgs.iter().take(1).copied().collect()

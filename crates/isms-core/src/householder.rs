@@ -192,7 +192,11 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
             let best = world
                 .orgs
                 .values()
-                .filter(|o| crate::coop::open_places(world, o) > 0 && !o.members.contains(&id))
+                .filter(|o| {
+                    crate::coop::open_places(world, o) > 0
+                        && crate::coop::admitting(world, o)
+                        && !o.members.contains(&id)
+                })
                 .max_by(|a, b| {
                     crate::coop::surplus_per_member(a)
                         .partial_cmp(&crate::coop::surplus_per_member(b))
@@ -267,6 +271,7 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
             let better = world.orgs.values().any(|o| {
                 o.id != mine.id
                     && crate::coop::open_places(world, o) > 0
+                    && crate::coop::admitting(world, o)
                     && crate::coop::surplus_per_member(o) > my_share
             });
             if my_share < living && better {
@@ -475,33 +480,9 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
             .min(affordable)
             .saturating_sub(workers);
         let has_offer = world.offers.values().any(|o| matches!(o.body, OfferBody::Employment { workplace, places, .. } if workplace == *wp_id && places > 0));
-        // Hiring cap (Q2): stop hiring when output stock exceeds N cycles of full production.
-        let full_cycle_output = recipe.base_rate
-            * f64::from(p.labor.max_workers_per_workplace)
-            * f64::from(p.labor.base_budget_hours);
-        let stock = recipe.produces.as_good().map_or_else(
-            || {
-                // A Builders' coop is glutted by its dwellings standing empty; a
-                // firm's Builders keep building on the owner's account, as before.
-                if coop {
-                    u32::try_from(
-                        world
-                            .dwellings
-                            .values()
-                            .filter(|d| {
-                                d.owner == crate::world::Owner::Org(org_id) && d.occupant.is_none()
-                            })
-                            .count(),
-                    )
-                    .unwrap_or(u32::MAX)
-                } else {
-                    0
-                }
-            },
-            |g| org.inventory.get(&g).copied().unwrap_or(0),
-        );
-        let glutted = f64::from(stock)
-            > full_cycle_output * f64::from(p.householder.legacy_hire_inventory_cycles_cap);
+        // Hiring cap (Q2): stop hiring when output stock exceeds N cycles of
+        // full production (a Builders' coop: by its dwellings standing empty).
+        let glutted = crate::coop::glutted(world, org, wp);
         if coop && places > 0 && !glutted {
             // Admissions instead of hiring (Q86): pending requests, oldest first.
             let mut requests: Vec<(crate::ids::OfferId, CitizenId)> = world
@@ -629,7 +610,31 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         } else {
             org.treasury
         };
+        // A coop's Machine rule is keyed to its members, so a coop of one with
+        // a steady income would turn every credit into Machines (the Builders'
+        // rent did, 350 Machines for one steward): it stops at
+        // `max_machines_per_member` per working member (Q98).
+        let machines_wanted =
+            !coop || wp.machines < workers.saturating_mul(p.coop.max_machines_per_member);
+        // A coop that cannot afford one applies to the bank (S0.17c, Q94).
+        if coop
+            && workers > 0
+            && machines_wanted
+            && machine_price > Money::ZERO
+            && free <= threshold + machine_price
+            && open_bid_qty(world, me, Good::Machines) == 0
+            && let Some(bank) = crate::bank::bank_org(world)
+            && !crate::bank::pending_application(world, org_id)
+            && !crate::bank::open_bank_loan(world, bank, org_id)
+        {
+            cmds.push(Command::RequestBankLoan {
+                org: org_id,
+                principal: machine_price.min(p.bank.max_loan),
+                term_cycles: p.bank.max_term_cycles,
+            });
+        }
         if workers > 0
+            && machines_wanted
             && free > threshold + machine_price
             && machine_price > Money::ZERO
             && open_bid_qty(world, me, Good::Machines) == 0

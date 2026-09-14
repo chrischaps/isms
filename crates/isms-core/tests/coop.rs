@@ -210,27 +210,33 @@ fn installments_due_are_reserved_before_share_out() {
     let mut h = coop(1);
     admit(&mut h, 1);
     work(&mut h, 0, 8);
-    // A 100-credit peer loan to the coop (public_credit is gated like credit
-    // until S0.17c): 5 installments of 22 at 2 % a cycle.
+    // A 100-credit loan to the coop (peer credit is not a Commonwealth command,
+    // so the events are applied directly): 5 installments of 22 at 2 % a cycle.
     let lender = nth(&h, 1);
-    let events = h
-        .cmd(Envelope::citizen(
-            lender,
-            Command::OfferCredit {
-                to: Some(Party::Org(OrgId(0))),
-                principal: Money::credits(100),
-                rate_per_cycle_bp: 200,
-                term_cycles: 5,
-                collateral: None,
-            },
-            0,
-        ))
-        .unwrap();
-    let Event::CreditOffered { offer, .. } = events[0] else {
-        panic!()
-    };
-    h.cmd(Envelope::citizen(nth(&h, 0), Command::AcceptCredit { offer }, 0).on_behalf_of(OrgId(0)))
-        .unwrap();
+    let offer = h.world.next.offer;
+    h.apply(Event::CreditOffered {
+        offer,
+        by: Party::Citizen(lender),
+        body: isms_core::world::OfferBody::Credit {
+            to: Some(Party::Org(OrgId(0))),
+            principal: Money::credits(100),
+            rate_per_cycle_bp: 200,
+            term_cycles: 5,
+            collateral: None,
+        },
+    });
+    let (_, installment, _) = isms_core::credit::schedule(Money::credits(100), 200, 5);
+    let contract = h.world.next.contract;
+    h.apply(Event::CreditAccepted {
+        contract,
+        lender: Party::Citizen(lender),
+        borrower: Party::Org(OrgId(0)),
+        principal: Money::credits(100),
+        rate_per_cycle_bp: 200,
+        installment,
+        installments: 5,
+        collateral: None,
+    });
     assert_eq!(h.world.orgs[&OrgId(0)].treasury, Money::credits(100));
     // Revenue of 30 this cycle: the 22 due is held back, 8 is shared.
     h.apply(Event::Transferred {
@@ -405,12 +411,8 @@ fn householder_commonwealth_three_cycles_no_rejection_everyone_is_a_member() {
         .seed_epoch()
         .build();
     h.check_every_step = false;
-    assert!(
-        h.world
-            .orgs
-            .values()
-            .all(|o| o.kind == OrgKind::Cooperative && o.members.len() == 1)
-    );
+    assert!(h.world.orgs.values().all(|o| o.kind == OrgKind::Association
+        || (o.kind == OrgKind::Cooperative && o.members.len() == 1)));
     let mut shared = Money::ZERO;
     for _ in 0..72 {
         let rules = h.rules();

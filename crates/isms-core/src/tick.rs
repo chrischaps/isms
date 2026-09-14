@@ -265,6 +265,7 @@ fn cycle_end_8b_tax_and_provision(b: &mut TickBuilder) {
         crate::store::cycle_end_8b_surplus_shares(b);
     }
     crate::state_store::cycle_end_8b_provision_ration(b);
+    crate::bank::cycle_end_8b_levy_floor_and_lending(b);
 }
 fn cycle_end_8c_credit_installments(b: &mut TickBuilder) {
     crate::credit::cycle_end_8c_credit_installments(b);
@@ -287,7 +288,10 @@ fn cycle_end_8h_hardship_and_fatigue(b: &mut TickBuilder) {
 fn cycle_end_8i_norms_ledger(b: &mut TickBuilder) {
     crate::norms::cycle_end_8i_norms_ledger(b);
 }
-fn cycle_end_8j_votes_and_vacancies(_b: &mut TickBuilder) {}
+/// 8j. Votes close (admission proposals, S0.17c); elections and vacancies are Phase 2.
+fn cycle_end_8j_votes_and_vacancies(b: &mut TickBuilder) {
+    crate::bank::cycle_end_8j_close_proposals(b);
+}
 fn cycle_end_8k_dormancy(b: &mut TickBuilder) {
     crate::plan::cycle_end_8k_dormancy(b);
 }

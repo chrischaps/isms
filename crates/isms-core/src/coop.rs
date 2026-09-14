@@ -44,6 +44,56 @@ pub fn would_admit(world: &World, org: &Org) -> bool {
     org.kind == OrgKind::Cooperative && least_crowded(world, org).is_some()
 }
 
+/// The legacy hiring cap (Q2) as a coop sees it: a workplace is glutted when
+/// its output stock exceeds `legacy_hire_inventory_cycles_cap` cycles of full
+/// production; a Builders' coop when that many of its dwellings stand empty
+/// (a firm's Builders keep building on the owner's account). A glutted
+/// workplace admits nobody, and a member choosing where to go must know it
+/// (Q99): a mover into a glutted economy would otherwise land nowhere.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn glutted(world: &World, org: &Org, wp: &crate::world::Workplace) -> bool {
+    let p = &world.params;
+    let recipe = &p.recipes[&wp.kind];
+    let full_cycle_output = recipe.base_rate
+        * f64::from(p.labor.max_workers_per_workplace)
+        * f64::from(p.labor.base_budget_hours);
+    let stock = recipe.produces.as_good().map_or_else(
+        || {
+            if org.kind == OrgKind::Cooperative {
+                u32::try_from(
+                    world
+                        .dwellings
+                        .values()
+                        .filter(|d| {
+                            d.owner == crate::world::Owner::Org(org.id) && d.occupant.is_none()
+                        })
+                        .count(),
+                )
+                .unwrap_or(u32::MAX)
+            } else {
+                0
+            }
+        },
+        |g| org.inventory.get(&g).copied().unwrap_or(0),
+    );
+    f64::from(stock) > full_cycle_output * f64::from(p.householder.legacy_hire_inventory_cycles_cap)
+}
+
+/// Whether the coop's steward would admit anyone this hour: a workplace with
+/// room that is not glutted.
+#[must_use]
+pub fn admitting(world: &World, org: &Org) -> bool {
+    org.kind == OrgKind::Cooperative
+        && org.workplaces.iter().any(|w| {
+            world.workplaces.get(w).is_some_and(|wp| {
+                u32::try_from(wp.workers.len()).unwrap_or(u32::MAX)
+                    < world.params.labor.max_workers_per_workplace
+                    && !glutted(world, org, wp)
+            })
+        })
+}
+
 /// Places a coop could still fill, net of the requests already waiting on it:
 /// what a citizen choosing where to ask should count.
 #[must_use]

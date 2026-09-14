@@ -512,6 +512,39 @@ pub enum Event {
         org: OrgId,
         rule: crate::world::ShareRule,
     },
+    /// The capital levy, coop to bank (S0.17c).
+    LevyPaid {
+        org: OrgId,
+        bank: OrgId,
+        amount: Money,
+        explain: Explain,
+    },
+    BankLoanRequested {
+        offer: OfferId,
+        org: OrgId,
+        principal: Money,
+        term_cycles: u32,
+    },
+    BankLoanDecided {
+        application: OfferId,
+        org: OrgId,
+        granted: bool,
+    },
+    AdmissionProposed {
+        proposal: crate::ids::ProposalId,
+        org: OrgId,
+        citizen: CitizenId,
+        by: CitizenId,
+    },
+    AdmissionVoted {
+        proposal: crate::ids::ProposalId,
+        citizen: CitizenId,
+        approve: bool,
+    },
+    ProposalClosed {
+        proposal: crate::ids::ProposalId,
+        passed: bool,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -618,6 +651,15 @@ pub struct CycleAggregates {
     pub coop_surplus_per_member: f64,
     /// Mean membership tenure in cycles over coop members.
     pub mean_tenure_cycles: f64,
+    // --- S0.17c --------------------------------------------------------------
+    /// The Public Investment Bank's pool (its treasury) at cycle end.
+    pub levy_pool: Money,
+    /// Principal and interest still owed to the bank.
+    pub bank_loans_outstanding: Money,
+    /// The counts behind `investment_share`, so an epoch's share can be the
+    /// ratio of sums rather than a mean of per-cycle ratios (Q100).
+    pub materials_produced: u64,
+    pub materials_to_machines: u64,
 }
 
 impl Event {
@@ -708,6 +750,12 @@ impl Event {
             Event::SurplusDeclared { .. } => "SurplusDeclared",
             Event::ShareOutPaid { .. } => "ShareOutPaid",
             Event::ShareRuleSet { .. } => "ShareRuleSet",
+            Event::LevyPaid { .. } => "LevyPaid",
+            Event::BankLoanRequested { .. } => "BankLoanRequested",
+            Event::BankLoanDecided { .. } => "BankLoanDecided",
+            Event::AdmissionProposed { .. } => "AdmissionProposed",
+            Event::AdmissionVoted { .. } => "AdmissionVoted",
+            Event::ProposalClosed { .. } => "ProposalClosed",
         }
     }
 
@@ -796,5 +844,11 @@ impl Event {
         "SurplusDeclared",
         "ShareOutPaid",
         "ShareRuleSet",
+        "LevyPaid",
+        "BankLoanRequested",
+        "BankLoanDecided",
+        "AdmissionProposed",
+        "AdmissionVoted",
+        "ProposalClosed",
     ];
 }

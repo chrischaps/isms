@@ -284,6 +284,14 @@ fn execute_market_plan(b: &mut TickBuilder, id: CitizenId) {
     if plan.keep_food_at_least > food_have
         && let Some(last) = last_price(&b.world, Instrument::Good(Good::Food))
     {
+        // Hunger before savings (Q97): with an empty pantry the balance reserve
+        // does not apply to the Food bid. A saver keeps their reserve until
+        // there is nothing left to eat, then dips into it.
+        let spendable = if held(Good::Food, &b.world) == 0 {
+            balance
+        } else {
+            spendable
+        };
         let limit = plan
             .max_food_price
             .unwrap_or_else(|| default_max_price(last));

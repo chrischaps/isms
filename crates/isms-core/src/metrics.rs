@@ -257,6 +257,12 @@ pub fn aggregates(world: &World, low_population_cycles: u32) -> CycleAggregates 
                 })
                 .collect::<Vec<_>>(),
         ),
+        levy_pool: crate::bank::bank_org(world)
+            .and_then(|b| world.orgs.get(&b))
+            .map_or(Money::ZERO, |o| o.treasury),
+        bank_loans_outstanding: crate::bank::loans_outstanding(world),
+        materials_produced,
+        materials_to_machines: world.cycle.materials_to_machines,
     }
 }
 

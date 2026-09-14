@@ -195,6 +195,7 @@ fn tick_resolved_consumes_from_pantry_and_advances_the_clock() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn unimplemented_registry_matches_the_enum() {
     for k in UNIMPLEMENTED {
         assert!(Event::ALL_KINDS.contains(k), "{k} is not an Event kind");
@@ -283,6 +284,12 @@ fn unimplemented_registry_matches_the_enum() {
         "SurplusDeclared",
         "ShareOutPaid",
         "ShareRuleSet",
+        "LevyPaid",
+        "BankLoanRequested",
+        "BankLoanDecided",
+        "AdmissionProposed",
+        "AdmissionVoted",
+        "ProposalClosed",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -301,9 +308,9 @@ fn unimplemented_registry_matches_the_enum() {
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
     // Phase 0b variants are appended after `CycleClosed` (Q64).
-    let last = Event::ShareRuleSet {
-        org: crate::ids::OrgId(0),
-        rule: crate::world::ShareRule::Equal,
+    let last = Event::ProposalClosed {
+        proposal: crate::ids::ProposalId(0),
+        passed: false,
     };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {

@@ -766,6 +766,12 @@ pub enum OfferBody {
         org: OrgId,
         citizen: CitizenId,
     },
+    /// A cooperative's application to the Public Investment Bank (S0.17c).
+    BankLoan {
+        org: OrgId,
+        principal: Money,
+        term_cycles: u32,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -788,4 +794,15 @@ pub struct Proposal {
     pub by: CitizenId,
     pub opened_tick: Tick,
     pub title: String,
+    pub kind: ProposalKind,
+    /// Votes cast so far: citizen -> approve.
+    pub votes: BTreeMap<CitizenId, bool>,
+}
+
+/// What a proposal decides. Admission votes arrive with S0.17c; the
+/// assembly's, committee's and legislature's kinds are Phase 2.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalKind {
+    Admission { org: OrgId, citizen: CitizenId },
 }
