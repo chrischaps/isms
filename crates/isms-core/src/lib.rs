@@ -43,6 +43,7 @@ pub mod tax;
 pub mod test_support;
 pub mod tick;
 pub mod transfers;
+pub mod union;
 pub mod world;
 
 pub use apply::apply;

@@ -73,8 +73,9 @@ fn bracket_name(i: usize, what: &str) -> &'static str {
 /// minimum wage (0 or none = no enforcement). Collective agreements (S0.17d)
 /// raise it for their firms.
 #[must_use]
-pub fn wage_floor(world: &World, _org: OrgId) -> Money {
-    world.policy.minimum_wage.unwrap_or(Money::ZERO)
+pub fn wage_floor(world: &World, org: OrgId) -> Money {
+    let society = world.policy.minimum_wage.unwrap_or(Money::ZERO);
+    crate::union::agreement_for(world, org).map_or(society, |(floor, _)| society.max(floor))
 }
 
 /// The need floor in money: the floor's Food units at the last Food price

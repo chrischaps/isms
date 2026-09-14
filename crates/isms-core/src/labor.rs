@@ -72,6 +72,10 @@ pub fn phase_3_labor(world: &World) -> BTreeMap<WorkplaceId, Vec<WorkerTick>> {
             if !wp.workers.contains_key(&c.id) || a.hours == 0 {
                 continue;
             }
+            // A strike is a coordinated hours-zero (S0.17d).
+            if crate::union::on_strike(world, c.id, wp.id, world.cycle_of(world.meta.tick)) {
+                continue;
+            }
             let hours = u32::from(a.hours);
             let tick_hours = if total > budget {
                 hours * budget / total
@@ -349,6 +353,16 @@ pub fn set_labor(
                 format!("{} has no position at {}", citizen.id, a.workplace),
             ));
         };
+        // A union member's hours are capped by the collective agreement (Q102).
+        if let Some((_, cap)) = crate::union::agreement_for(world, wp.org)
+            && crate::union::union_for(world, wp.org, citizen.id).is_some()
+            && a.hours > cap
+        {
+            return Err(Reject::new(
+                RejectCode::OverContractHours,
+                format!("the agreement allows at most {cap} h at {}", a.workplace),
+            ));
+        }
         if let Some(k) = assignment.contract.and_then(|k| world.contracts.get(&k))
             && let crate::world::ContractBody::Employment { max_hours, .. } = k.body
             && a.hours > max_hours

@@ -207,7 +207,18 @@ pub fn accrued_pay(
     };
     let tpc = i64::from(world.params.time.ticks_per_cycle);
     match pay {
-        Pay::Hourly(w) => Money(w.0 * i64::from(a.cycle_tick_hours) / tpc),
+        Pay::Hourly(w) => {
+            // A union member's hourly rate is at least the agreed floor (S0.17d).
+            let firm = world.workplaces[&workplace].org;
+            let rate = match (
+                crate::union::union_for(world, firm, citizen),
+                crate::union::agreement_for(world, firm),
+            ) {
+                (Some(_), Some((floor, _))) => w.max(floor),
+                _ => w,
+            };
+            Money(rate.0 * i64::from(a.cycle_tick_hours) / tpc)
+        }
         Pay::PieceRate(r) => Money((r.0 as f64 * a.cycle_attributed).floor() as i64),
     }
 }

@@ -276,6 +276,24 @@ pub enum Command {
         proposal: crate::ids::ProposalId,
         approve: bool,
     },
+    /// Unions (S0.17d): an employee founds the firm's union and is its steward.
+    FormUnion {
+        firm: OrgId,
+        name: String,
+    },
+    OfferCollectiveAgreement {
+        union: OrgId,
+        wage_floor: Money,
+        hours: u8,
+        term_cycles: u32,
+    },
+    AcceptCollectiveAgreement {
+        offer: OfferId,
+    },
+    CallStrike {
+        union: OrgId,
+        cycles: u32,
+    },
 }
 
 impl Command {
@@ -329,6 +347,10 @@ impl Command {
             Command::RequestBankLoan { .. } => "RequestBankLoan",
             Command::ProposeAdmission { .. } => "ProposeAdmission",
             Command::VoteAdmission { .. } => "VoteAdmission",
+            Command::FormUnion { .. } => "FormUnion",
+            Command::OfferCollectiveAgreement { .. } => "OfferCollectiveAgreement",
+            Command::AcceptCollectiveAgreement { .. } => "AcceptCollectiveAgreement",
+            Command::CallStrike { .. } => "CallStrike",
         }
     }
 }
@@ -456,6 +478,10 @@ impl Capabilities {
             Command::RequestBankLoan { .. } => self.allows_contract(ContractKind::PublicCredit),
             Command::ProposeAdmission { .. } | Command::VoteAdmission { .. } => {
                 self.allows_org(OrgKind::Cooperative)
+            }
+            Command::FormUnion { .. } | Command::CallStrike { .. } => self.allows_org(OrgKind::Union),
+            Command::OfferCollectiveAgreement { .. } | Command::AcceptCollectiveAgreement { .. } => {
+                self.allows_contract(ContractKind::CollectiveAgreement)
             }
             Command::OfferLease { .. } | Command::AcceptLease { .. } | Command::EndLease { .. } => {
                 self.allows_contract(ContractKind::Lease)
@@ -588,6 +614,7 @@ pub fn handle(
         }
         Command::AdmitMember { org, citizen } => {
             crate::coop::admit(world, envelope, *org, *citizen)
+                .or_else(|| crate::union::admit(world, envelope, *org, *citizen))
                 .unwrap_or_else(|| crate::credit::admit_member(world, envelope, *org, *citizen))
         }
         Command::LeaveOrg { org } => crate::credit::leave_org(world, envelope, *org),
@@ -666,6 +693,26 @@ pub fn handle(
         }
         Command::VoteAdmission { proposal, approve } => {
             crate::bank::vote_admission(world, envelope, *proposal, *approve)
+        }
+        Command::FormUnion { firm, name } => crate::union::form_union(world, envelope, *firm, name),
+        Command::OfferCollectiveAgreement {
+            union,
+            wage_floor,
+            hours,
+            term_cycles,
+        } => crate::union::offer_agreement(
+            world,
+            envelope,
+            *union,
+            *wage_floor,
+            *hours,
+            *term_cycles,
+        ),
+        Command::AcceptCollectiveAgreement { offer } => {
+            crate::union::accept_agreement(world, envelope, *offer)
+        }
+        Command::CallStrike { union, cycles } => {
+            crate::union::call_strike(world, envelope, *union, *cycles)
         }
     }
 }

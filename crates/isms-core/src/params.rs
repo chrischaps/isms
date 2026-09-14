@@ -40,6 +40,20 @@ pub struct Params {
     pub seeding: SeedingParams,
     pub coop: CoopParams,
     pub bank: BankParams,
+    pub union: UnionParams,
+}
+
+/// Union dues and strike pay (GDD §6.4; S0.17d, Q101).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnionParams {
+    #[serde(rename = "dues_credits_per_cycle", with = "crate::money::credits")]
+    pub dues_per_cycle: Money,
+    #[serde(
+        rename = "strike_pay_credits_per_cycle",
+        with = "crate::money::credits"
+    )]
+    pub strike_pay_per_cycle: Money,
 }
 
 /// The Public Investment Bank's lending formula (GDD §6.5; S0.17c, Q94).
