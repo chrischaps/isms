@@ -334,6 +334,7 @@ pub fn offer(o: &Offer) -> OfferView {
         OfferBody::Lease { .. } => "lease",
         OfferBody::Membership { .. } => "membership",
         OfferBody::BankLoan { .. } => "bank_loan",
+        OfferBody::CollectiveAgreement { .. } => "collective_agreement",
     };
     OfferView {
         id: o.id.0,

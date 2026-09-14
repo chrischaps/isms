@@ -253,6 +253,7 @@ fn cycle_end_8a_payroll(b: &mut TickBuilder) {
     crate::employment::cycle_end_8a_payroll(b);
     crate::planning::cycle_end_8a_scale_payroll(b);
     crate::coop::cycle_end_8a_share_out(b);
+    crate::union::cycle_end_8a_unions(b);
 }
 /// 8b. Tax on the cycle's income and the resulting transfers and provision
 /// floors (TDD 5.5): the income tax and the money floor (tax-transfer), then

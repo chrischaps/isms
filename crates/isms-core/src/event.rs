@@ -545,6 +545,46 @@ pub enum Event {
         proposal: crate::ids::ProposalId,
         passed: bool,
     },
+    /// The org just founded is the union of `firm` (S0.17d).
+    UnionFormed {
+        org: OrgId,
+        firm: OrgId,
+    },
+    DuesPaid {
+        union: OrgId,
+        citizen: CitizenId,
+        amount: Money,
+    },
+    CollectiveAgreementOffered {
+        offer: OfferId,
+        body: OfferBody,
+    },
+    CollectiveAgreementAccepted {
+        contract: ContractId,
+        offer: OfferId,
+        union: OrgId,
+        firm: OrgId,
+        wage_floor: Money,
+        hours: u8,
+        term_cycles: u32,
+    },
+    CollectiveAgreementEnded {
+        contract: ContractId,
+    },
+    StrikeCalled {
+        union: OrgId,
+        firm: OrgId,
+        until_cycle: Cycle,
+    },
+    StrikePaid {
+        union: OrgId,
+        citizen: CitizenId,
+        amount: Money,
+        explain: Explain,
+    },
+    StrikeEnded {
+        union: OrgId,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -756,6 +796,14 @@ impl Event {
             Event::AdmissionProposed { .. } => "AdmissionProposed",
             Event::AdmissionVoted { .. } => "AdmissionVoted",
             Event::ProposalClosed { .. } => "ProposalClosed",
+            Event::UnionFormed { .. } => "UnionFormed",
+            Event::DuesPaid { .. } => "DuesPaid",
+            Event::CollectiveAgreementOffered { .. } => "CollectiveAgreementOffered",
+            Event::CollectiveAgreementAccepted { .. } => "CollectiveAgreementAccepted",
+            Event::CollectiveAgreementEnded { .. } => "CollectiveAgreementEnded",
+            Event::StrikeCalled { .. } => "StrikeCalled",
+            Event::StrikePaid { .. } => "StrikePaid",
+            Event::StrikeEnded { .. } => "StrikeEnded",
         }
     }
 
@@ -850,5 +898,13 @@ impl Event {
         "AdmissionProposed",
         "AdmissionVoted",
         "ProposalClosed",
+        "UnionFormed",
+        "DuesPaid",
+        "CollectiveAgreementOffered",
+        "CollectiveAgreementAccepted",
+        "CollectiveAgreementEnded",
+        "StrikeCalled",
+        "StrikePaid",
+        "StrikeEnded",
     ];
 }

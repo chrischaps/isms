@@ -363,6 +363,16 @@ pub struct Org {
     pub member_since: BTreeMap<CitizenId, Tick>,
     pub last_surplus: Money,
     pub last_share_out_members: u32,
+    /// Set for a union org (S0.17d).
+    pub union: Option<UnionState>,
+}
+
+/// A union's firm and its current strike, if any.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UnionState {
+    pub firm: OrgId,
+    /// The strike runs while `cycle < strike_until`.
+    pub strike_until: Option<Cycle>,
 }
 
 /// How a cooperative shares its surplus (GDD §6.5).
@@ -770,6 +780,14 @@ pub enum OfferBody {
     BankLoan {
         org: OrgId,
         principal: Money,
+        term_cycles: u32,
+    },
+    /// A union's proposed terms to its firm (S0.17d).
+    CollectiveAgreement {
+        union: OrgId,
+        firm: OrgId,
+        wage_floor: Money,
+        hours: u8,
         term_cycles: u32,
     },
 }

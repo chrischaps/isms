@@ -65,6 +65,7 @@ pub enum RuleId {
     StateStorePrice,
     ProvisionRation,
     CapitalLevy,
+    StrikePay,
 }
 
 impl RuleId {
@@ -158,6 +159,10 @@ impl RuleId {
             RuleId::ProvisionRation => (
                 "GDD §6.3",
                 "The society guarantees a minimum Food ration at zero price at every cycle end.",
+            ),
+            RuleId::StrikePay => (
+                "GDD §6.4",
+                "A striking member is paid from the union's dues, up to the strike pay rate.",
             ),
             RuleId::CapitalLevy => (
                 "GDD §6.5",

@@ -20,7 +20,7 @@ Householders are the AI citizens that fill a society up to its population floor.
 
 ## In the Republic
 
-The same householder and the same legacy firms as in Freeport. The householder pays its income tax at every cycle end and takes the need floor when the treasury tops it up, like anyone else; it never changes its plan because of either, and a legacy firm never offers below the minimum wage (its offers are at the legacy wage, above it).
+The same householder and the same legacy firms as in Freeport. The householder pays its income tax at every cycle end and takes the need floor when the treasury tops it up, like anyone else; it never changes its plan because of either, and a legacy firm never offers below the minimum wage (its offers are at the legacy wage, above it). No householder ever forms a union, signs a collective agreement or strikes; those are for humans.
 
 ## In the Commonwealth
 

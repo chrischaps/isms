@@ -1000,6 +1000,96 @@ pub fn apply(world: &mut World, event: &Event) {
         Event::ProposalClosed { proposal, .. } => {
             world.proposals.remove(proposal);
         }
+        Event::UnionFormed { org, firm } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.union = Some(crate::world::UnionState {
+                    firm: *firm,
+                    strike_until: None,
+                });
+            }
+        }
+        Event::DuesPaid {
+            union,
+            citizen,
+            amount,
+        } => {
+            debit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+            credit(world, Holder::Org(*union), Asset::Money(*amount));
+        }
+        Event::CollectiveAgreementOffered { offer, body } => {
+            if let crate::world::OfferBody::CollectiveAgreement { union, .. } = body {
+                world.offers.insert(
+                    *offer,
+                    crate::world::Offer {
+                        id: *offer,
+                        by: Party::Org(*union),
+                        created_tick: world.meta.tick,
+                        body: body.clone(),
+                    },
+                );
+                if world.next.offer.0 <= offer.0 {
+                    world.next.offer = offer.next();
+                }
+            }
+        }
+        Event::CollectiveAgreementAccepted {
+            contract,
+            offer,
+            union,
+            firm,
+            wage_floor,
+            hours,
+            term_cycles,
+        } => {
+            world.offers.remove(offer);
+            world.contracts.insert(
+                *contract,
+                crate::world::Contract {
+                    id: *contract,
+                    parties: (Party::Org(*union), Party::Org(*firm)),
+                    created_tick: world.meta.tick,
+                    term_cycles: Some(*term_cycles),
+                    status: crate::world::ContractStatus::Active,
+                    body: crate::world::ContractBody::CollectiveAgreement {
+                        wage_floor: *wage_floor,
+                        hours: *hours,
+                    },
+                },
+            );
+            if world.next.contract.0 <= contract.0 {
+                world.next.contract = contract.next();
+            }
+        }
+        Event::CollectiveAgreementEnded { contract } => {
+            if let Some(k) = world.contracts.get_mut(contract) {
+                k.status = crate::world::ContractStatus::Ended;
+            }
+        }
+        Event::StrikeCalled {
+            union, until_cycle, ..
+        } => {
+            if let Some(u) = world.orgs.get_mut(union).and_then(|o| o.union.as_mut()) {
+                u.strike_until = Some(*until_cycle);
+            }
+        }
+        Event::StrikePaid {
+            union,
+            citizen,
+            amount,
+            ..
+        } => {
+            debit(world, Holder::Org(*union), Asset::Money(*amount));
+            credit(world, Holder::Citizen(*citizen), Asset::Money(*amount));
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.cycle_wages += *amount;
+                c.taxable_income += *amount;
+            }
+        }
+        Event::StrikeEnded { union } => {
+            if let Some(u) = world.orgs.get_mut(union).and_then(|o| o.union.as_mut()) {
+                u.strike_until = None;
+            }
+        }
         Event::HouseholderEmigrated {
             citizen,
             burned_money,
@@ -1578,6 +1668,7 @@ fn apply_org_founded(
             member_since: founder.into_iter().map(|f| (f, world.meta.tick)).collect(),
             last_surplus: Money::ZERO,
             last_share_out_members: 0,
+            union: None,
         },
     );
     if world.next.org.0 <= org.0 {
