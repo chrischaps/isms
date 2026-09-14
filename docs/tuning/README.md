@@ -1,6 +1,6 @@
 # Tuning reports
 
-Per-preset stability reports from the headless simulator (Phase 0). `freeport-00.md` is the first raw run (S0.13); `freeport-01.md` the tuned result and Phase 0a exit (S0.14b, S0.14); `commune-01.md` the first stable Commune (S0.15); `directorate-01.md` the first stable Directorate (S0.16); `republic-01.md` the first stable Republic (S0.17a).
+Per-preset stability reports from the headless simulator (Phase 0). `freeport-00.md` is the first raw run (S0.13); `freeport-01.md` the tuned result and Phase 0a exit (S0.14b, S0.14); `commune-01.md` the first stable Commune (S0.15); `directorate-01.md` the first stable Directorate (S0.16); `republic-01.md` the first stable Republic (S0.17a); `commonwealth-01.md` the first stable Commonwealth (S0.17c); `neutrality-00.md` the five presets side by side and the Phase 0 exit checklist (S0.18).
 
 ## Running a sweep
 
@@ -20,9 +20,13 @@ during the cycle (Common Store and state stock; the `food_unfilled` and `stocked
 
 `--param` takes `params.<section>.<key>=<toml value>` and applies before validation, so any tunable in `_base.toml` or the preset can be swept without editing files. `--check` exits 1 when any epoch misses a target.
 
+## Nightly and the invariants
+
+`.github/workflows/sim-nightly.yml` runs `sim-all --check` and the five-epoch invariants test every night and on demand (`gh workflow run sim-nightly`); it is not a PR gate. `crates/isms-sim/tests/invariants.rs` checks, at every cycle close of every preset, that money and every good are conserved, no meter is above full, no balance, treasury or till is negative, and that two runs from one seed give one world; the one-epoch form runs in `make check`, the five-epoch, five-seed form is `cargo test -p isms-sim --release -- --ignored invariants`.
+
 ## Reading the table
 
-One line per epoch: mean need-fulfillment (target >= 95%), min/max price index over the epoch (target 0.7..1.3), mean consumption Gini, mean investment share (Materials to Machine Shops over Materials produced; band 0.05..0.6), the worst hardship count, the worst unemployment, the longest run of stocked-out cycles (at most 3), and rejected householder commands (must be 0: a rejection is a script bug).
+One line per epoch: mean need-fulfillment (target >= 95%), min/max price index over the epoch (target 0.7..1.3), mean consumption Gini, the epoch's investment share (Materials to Machine Shops over Materials produced, as a ratio of sums over the epoch's cycles; band 0.05..0.6), the worst hardship count, the worst unemployment, the longest run of stocked-out cycles (at most 3), and rejected householder commands (must be 0: a rejection is a script bug).
 
 The CSV has one row per cycle with every `CycleAggregates` field plus the Food and Wares ask depth and the Food last price, so a sweep can be plotted or diffed.
 

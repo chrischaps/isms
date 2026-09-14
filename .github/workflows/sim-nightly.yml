@@ -1,0 +1,18 @@
+name: sim-nightly
+# The GDD 17 stability targets for all five presets over seeds 1..5, plus the
+# five-epoch engine invariants (S0.18). Nightly and on demand; not a PR gate.
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+jobs:
+  sim-all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.92.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run -p isms-sim --release -- all --epochs 5 --seeds 1..5 --check
+      - run: cargo test -p isms-sim --release -- --ignored invariants
