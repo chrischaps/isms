@@ -64,7 +64,7 @@ export function PublicSociety({ id }: { id: number }) {
           <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>
         </div>
         <span className="num text-muted text-sm">
-          epoch {s.clock.epoch} · cycle {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle}
+          Epoch {s.clock.epoch} · Day {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle}
         </span>
       </header>
       <section>

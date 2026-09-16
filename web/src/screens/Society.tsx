@@ -7,7 +7,7 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import { credits } from "../api/client";
 import { useCapabilities, useHome, useLexicon, useMe, useSociety, useStream } from "../api/hooks";
-import { Countdown } from "../components/Countdown";
+import { WorldClock } from "../components/WorldClock";
 import { Home } from "./Home";
 
 const SCREENS: Record<
@@ -73,8 +73,7 @@ export function SocietyShell({ id }: { id: number }) {
               {t("balance")} {credits(home.data.household.balance)} cr ·{" "}
             </span>
           ) : null}
-          epoch {s.clock.epoch} · cycle {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle} ·{" "}
-          <Countdown at={s.next_tick_at} label="next tick" />
+          <WorldClock clock={s.clock} nextTickAt={s.next_tick_at} tickSeconds={s.tick_seconds} />
         </div>
       </header>
       <nav className="mt-3 flex flex-wrap gap-4 text-sm" aria-label="Sections">

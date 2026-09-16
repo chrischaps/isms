@@ -426,3 +426,11 @@ Provisional answers added to QUESTIONS.md: none.
 New tunables: none.
 Next session should know: a new epoch keeps every human citizen and their plan but nothing material; citizens who were dormant stay dormant. Epoch numbers on stored events come from the world at the time, so the ledger and Chronicle split cleanly by epoch. The society row's `epoch` column is informational; the world is the authority.
 make check: green · new tests: 0 (assertions added to one) · sim-check: n/a
+
+## S1.13e — The world clock in familiar units — 2026-09-16 — PR #59
+Built: `components/WorldClock.tsx`: the shell header reads "Epoch 1 · Day 6 · 2:35 PM" with a thin bar for the share of the current tick already elapsed and the countdown to the next tick beside it; a cycle is a day and a tick an hour when the cycle has 24, the minutes coming from the wall clock's position between ticks (`tickProgress` from `next_tick_at` and `tick_seconds`), and a cycle of another length falls back to "tick t/N". A held clock shows an empty bar and "clock held"; a society at tick length 0 says "as fast as it can". The public society page and the Operator room say "Day" for the cycle as well. Unit tests for the time and the progress; the gallery shows the running and the held clock.
+Deviations from TDD: none. "Day" and "Epoch" are the client's words rather than lexicon entries: every preset would spell them the same, and the lexicon's key test would want them in all five files for no gain.
+Provisional answers added to QUESTIONS.md: none.
+New tunables: none.
+Next session should know: the in-world time of day is a presentation of the tick index (tick 1 is midnight), not the preset's `cycle_boundary_hour`, which is informational until S1.14 decides how cycle ends map to wall-clock hours.
+make check: green · new tests: 2 unit · sim-check: n/a
