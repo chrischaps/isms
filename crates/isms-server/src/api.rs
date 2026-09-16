@@ -356,11 +356,11 @@ async fn public_stats(
     Path(id): Path<i64>,
 ) -> ApiResult<Json<PublicStatsView>> {
     let entry = society(&state, id)?;
-    let stats = crate::society_api::stats_of(&state, &entry, id).await?;
+    let numbers = crate::society_api::stats_of(&state, &entry, id).await?;
     let world = entry.handle.world.read().await;
     let c = &world.constitution;
     Ok(Json(PublicStatsView {
-        clock: stats.clock,
+        clock: numbers.clock,
         name: entry.row.name.clone(),
         display: world.meta.display.clone(),
         preset: entry.row.preset.clone(),
@@ -369,10 +369,10 @@ async fn public_stats(
             .contracts
             .contains(&isms_core::kinds::ContractKind::Credit),
         orgs: !c.org_kinds.is_empty(),
-        live: stats.live,
-        firm_count: stats.firm_count,
-        credit_outstanding: stats.credit_outstanding,
-        last_cycle: stats.last_cycle,
+        live: numbers.live,
+        firm_count: numbers.firm_count,
+        credit_outstanding: numbers.credit_outstanding,
+        last_cycle: numbers.last_cycle,
     }))
 }
 
