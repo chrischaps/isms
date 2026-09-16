@@ -12,7 +12,7 @@ use isms_server::actor::{SocietyHandle, spawn};
 use isms_server::chronicle::{Templates, rebuild, spawn_projector};
 use isms_server::mail::MemorySender;
 use isms_server::runtime::{SeedSpec, seed_society};
-use isms_server::scheduler::Schedule;
+use isms_server::scheduler::{Control, Schedule};
 use isms_server::state::{AppState, SocietyEntry};
 use isms_store::{PgEventStore, load_world};
 use serde_json::json;
@@ -70,10 +70,13 @@ async fn fixture(pool: PgPool) -> Fixture {
         SocietyEntry {
             row: row.clone(),
             handle: handle.clone(),
-            schedule: Schedule {
-                tick_seconds: 3600,
-                tick_origin: row.tick_origin,
-            },
+            control: Arc::new(Control::new(
+                Schedule {
+                    tick_seconds: 3600,
+                    tick_origin: row.tick_origin,
+                },
+                false,
+            )),
         },
     );
     let mail = Arc::new(MemorySender::default());
@@ -83,6 +86,7 @@ async fn fixture(pool: PgPool) -> Fixture {
         PathBuf::from(WORKSPACE_PRESETS_DIR),
         mail.clone(),
         BASE.into(),
+        std::collections::BTreeSet::new(),
     );
     Fixture {
         router: isms_server::api::router(state),

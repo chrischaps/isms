@@ -6,7 +6,10 @@
 use crate::actor::{ActorError, SocietyHandle};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use isms_core::ids::Tick;
+use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 /// A society's clock.
@@ -39,10 +42,85 @@ impl Schedule {
     }
 }
 
+/// The operator's hold on a society's clock (S1.13c, ADR-0007): pause and
+/// resume without catch-up, a new tick length, and a wake-up for the
+/// scheduler so a change takes effect at once.
+#[derive(Debug)]
+pub struct Control {
+    paused: AtomicBool,
+    schedule: RwLock<Schedule>,
+    notify: Notify,
+}
+
+impl Control {
+    #[must_use]
+    pub fn new(schedule: Schedule, paused: bool) -> Self {
+        Control {
+            paused: AtomicBool::new(paused),
+            schedule: RwLock::new(schedule),
+            notify: Notify::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::SeqCst)
+    }
+
+    #[must_use]
+    pub fn schedule(&self) -> Schedule {
+        *self.schedule.read().expect("schedule lock")
+    }
+
+    pub fn pause(&self) {
+        self.paused.store(true, Ordering::SeqCst);
+        self.notify.notify_waiters();
+    }
+
+    /// Resume with the clock re-anchored so `next_tick` is due one tick length
+    /// from `now`: a pause is not downtime, so nothing is caught up.
+    pub fn resume(&self, next_tick: Tick, now: DateTime<Utc>) -> Schedule {
+        let re = self.re_anchor(next_tick, now, None);
+        self.paused.store(false, Ordering::SeqCst);
+        self.notify.notify_waiters();
+        re
+    }
+
+    /// A new tick length, re-anchored the same way; takes effect at once.
+    pub fn set_tick_seconds(
+        &self,
+        tick_seconds: u32,
+        next_tick: Tick,
+        now: DateTime<Utc>,
+    ) -> Schedule {
+        let re = self.re_anchor(next_tick, now, Some(tick_seconds));
+        self.notify.notify_waiters();
+        re
+    }
+
+    fn re_anchor(
+        &self,
+        next_tick: Tick,
+        now: DateTime<Utc>,
+        tick_seconds: Option<u32>,
+    ) -> Schedule {
+        let mut s = self.schedule.write().expect("schedule lock");
+        if let Some(t) = tick_seconds {
+            s.tick_seconds = t;
+        }
+        // due_at(next_tick) == now + tick_seconds  <=>  origin == now - (next_tick - 1) * tick_seconds
+        s.tick_origin = now
+            - ChronoDuration::seconds(
+                i64::from(next_tick.saturating_sub(1)) * i64::from(s.tick_seconds),
+            );
+        *s
+    }
+}
+
 /// Drive one society's ticks until cancelled, the epoch ends, or the actor fails.
 pub async fn run(
     handle: SocietyHandle,
-    schedule: Schedule,
+    control: std::sync::Arc<Control>,
     cancel: CancellationToken,
 ) -> Result<(), ActorError> {
     loop {
@@ -59,6 +137,14 @@ pub async fn run(
             cancel.cancelled().await;
             return Ok(());
         }
+        if control.is_paused() {
+            tokio::select! {
+                () = cancel.cancelled() => return Ok(()),
+                () = control.notify.notified() => {}
+            }
+            continue;
+        }
+        let schedule = control.schedule();
         let now = Utc::now();
         if schedule.is_due(next_tick, now) {
             if let Err(e) = handle.tick().await {
@@ -72,6 +158,7 @@ pub async fn run(
         let wait = schedule.wait_for(next_tick, now);
         tokio::select! {
             () = cancel.cancelled() => return Ok(()),
+            () = control.notify.notified() => {}
             () = tokio::time::sleep(wait) => {}
         }
     }
@@ -80,6 +167,29 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resume_re_anchors_so_nothing_is_caught_up() {
+        use chrono::TimeZone;
+        let origin = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let c = Control::new(
+            Schedule {
+                tick_seconds: 60,
+                tick_origin: origin,
+            },
+            false,
+        );
+        c.pause();
+        assert!(c.is_paused());
+        // An hour later, tick 10 is next: it must be due one tick from now, not ten hours ago.
+        let now = origin + ChronoDuration::hours(1);
+        let s = c.resume(10, now);
+        assert!(!c.is_paused());
+        assert_eq!(s.due_at(10), now + ChronoDuration::seconds(60));
+        assert!(!s.is_due(10, now));
+        let s = c.set_tick_seconds(5, 10, now);
+        assert_eq!(s.due_at(10), now + ChronoDuration::seconds(5));
+    }
 
     #[test]
     fn due_times_and_catch_up() {

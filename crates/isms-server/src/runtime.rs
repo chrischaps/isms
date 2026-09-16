@@ -3,7 +3,7 @@
 
 use crate::actor::{self, ActorError, SocietyHandle};
 use crate::chronicle::{Templates, spawn_projector};
-use crate::scheduler::{self, Schedule};
+use crate::scheduler::{self, Control, Schedule};
 use chrono::Utc;
 use isms_core::config::ConfigError;
 use isms_core::event::{Actor, Event};
@@ -110,7 +110,7 @@ pub struct StartOptions {
 pub struct Running {
     pub row: SocietyRow,
     pub handle: SocietyHandle,
-    pub schedule: Schedule,
+    pub control: std::sync::Arc<Control>,
     actor_task: JoinHandle<()>,
     projector_task: Option<JoinHandle<()>>,
     scheduler_task: JoinHandle<Result<(), ActorError>>,
@@ -149,9 +149,10 @@ pub async fn start_society(
         tick_origin: row.tick_origin,
     };
     let (handle, actor_task) = actor::spawn(row.id, store.clone(), loaded);
+    let control = std::sync::Arc::new(Control::new(schedule, row.status == "paused"));
     let scheduler_task = tokio::spawn(scheduler::run(
         handle.clone(),
-        schedule,
+        control.clone(),
         cancel.child_token(),
     ));
     let projector_task =
@@ -159,7 +160,7 @@ pub async fn start_society(
     Ok(Running {
         row: row.clone(),
         handle,
-        schedule,
+        control,
         actor_task,
         projector_task,
         scheduler_task,
@@ -196,7 +197,8 @@ impl Runtime {
         let cancel = CancellationToken::new();
         let mut societies = BTreeMap::new();
         for row in store.list_societies().await? {
-            if row.status != "active" {
+            // A paused society loads with its scheduler held (S1.13c); only archived ones stay down.
+            if row.status != "active" && row.status != "paused" {
                 tracing::info!(society = row.id, status = %row.status, "skipped");
                 continue;
             }

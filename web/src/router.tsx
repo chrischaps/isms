@@ -12,6 +12,7 @@ import {
   createRouter,
   useParams,
 } from "@tanstack/react-router";
+import { Admin } from "./screens/Admin";
 import { Contracts } from "./screens/Contracts";
 import { EventScreen } from "./screens/Event";
 import { Gallery } from "./screens/Gallery";
@@ -133,6 +134,12 @@ function PublicSocietyRoute() {
   return <PublicSociety id={Number(id)} />;
 }
 
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin",
+  component: Admin,
+});
+
 const profileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/profile",
@@ -234,6 +241,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   galleryRoute,
   profileRoute,
+  adminRoute,
   publicRoute,
   publicSocietyRoute,
   societyRoute.addChildren([

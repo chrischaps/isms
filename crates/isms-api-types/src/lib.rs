@@ -69,6 +69,28 @@ pub struct Account {
     pub created_at: DateTime<Utc>,
     /// The one line the player writes (GDD 10); cosmetic, carried everywhere.
     pub biography: String,
+    /// May use the `/admin` routes (an operator of this server, S1.13c).
+    #[serde(default)]
+    pub operator: bool,
+}
+
+/// A society as the operator sees it (S1.13c): the summary plus the clock's hold.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct AdminSocietyView {
+    pub summary: SocietySummary,
+    pub paused: bool,
+    pub tick_origin: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct AdminSocietiesView {
+    pub societies: Vec<AdminSocietyView>,
+}
+
+/// A new tick length for a society (0 = as fast as possible).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct TickSecondsRequest {
+    pub tick_seconds: u32,
 }
 
 /// What a player may change about their account (S1.13).
