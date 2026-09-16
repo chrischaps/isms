@@ -12,6 +12,7 @@ import {
   createRouter,
   useParams,
 } from "@tanstack/react-router";
+import { Contracts } from "./screens/Contracts";
 import { Gallery } from "./screens/Gallery";
 import { Login } from "./screens/Login";
 import { Market } from "./screens/Market";
@@ -97,6 +98,11 @@ function SocietyOrgRoute() {
   return <Org id={Number(id)} oid={Number(oid)} />;
 }
 
+function SocietyContractsRoute() {
+  const { id } = useParams({ from: "/s/$id/contracts" });
+  return <Contracts id={Number(id)} />;
+}
+
 const societyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/s/$id",
@@ -145,6 +151,12 @@ const societyOrgRoute = createRoute({
   component: SocietyOrgRoute,
 });
 
+const societyContractsRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/contracts",
+  component: SocietyContractsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -157,6 +169,7 @@ const routeTree = rootRoute.addChildren([
     societyBookRoute,
     societyOrgsRoute,
     societyOrgRoute,
+    societyContractsRoute,
   ]),
 ]);
 
