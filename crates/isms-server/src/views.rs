@@ -56,6 +56,7 @@ pub fn household(world: &World, c: CitizenId) -> Option<HouseholdView> {
     Some(HouseholdView {
         balance: cents(h.balance),
         pantry: h.pantry.clone(),
+        pantry_capacity: world.params.pantry.clone(),
         dwelling: h.dwelling.and_then(|d| dwelling(world, d)),
     })
 }

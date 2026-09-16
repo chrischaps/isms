@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-router";
 import { Gallery } from "./screens/Gallery";
 import { Login } from "./screens/Login";
+import { Market } from "./screens/Market";
 import { PlanScreen } from "./screens/Plan";
 import { Societies } from "./screens/Societies";
 import { SocietyHome, SocietyShell } from "./screens/Society";
@@ -74,6 +75,16 @@ function SocietyPlanRoute() {
   return <PlanScreen id={Number(id)} />;
 }
 
+function SocietyMarketRoute() {
+  const { id } = useParams({ from: "/s/$id/market" });
+  return <Market id={Number(id)} />;
+}
+
+function SocietyBookRoute() {
+  const { id, instrument } = useParams({ from: "/s/$id/market/$instrument" });
+  return <Market id={Number(id)} instrument={instrument} />;
+}
+
 const societyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/s/$id",
@@ -98,11 +109,23 @@ const societyPlanRoute = createRoute({
   component: SocietyPlanRoute,
 });
 
+const societyMarketRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/market",
+  component: SocietyMarketRoute,
+});
+
+const societyBookRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/market/$instrument",
+  component: SocietyBookRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   galleryRoute,
-  societyRoute.addChildren([societyHomeRoute, societyWorkRoute, societyPlanRoute]),
+  societyRoute.addChildren([societyHomeRoute, societyWorkRoute, societyPlanRoute, societyMarketRoute, societyBookRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

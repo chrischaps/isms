@@ -9,6 +9,13 @@ import { useCapabilities, useLexicon, useSociety, useStream } from "../api/hooks
 import { Countdown } from "../components/Countdown";
 import { Home } from "./Home";
 
+const SCREENS: Record<string, "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market"> = {
+  "": "/s/$id",
+  work: "/s/$id/work",
+  plan: "/s/$id/plan",
+  market: "/s/$id/market",
+};
+
 export function SocietyShell({ id }: { id: number }) {
   const society = useSociety(id);
   const caps = useCapabilities(id);
@@ -24,7 +31,7 @@ export function SocietyShell({ id }: { id: number }) {
     { to: "", label: t("home_title"), built: true },
     { to: "work", label: t("work_screen"), built: true },
     { to: "plan", label: t("plan"), built: true },
-    ...(c.order_books ? [{ to: "market", label: t("store") }] : []),
+    ...(c.order_books ? [{ to: "market", label: t("store"), built: true }] : []),
     ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations" }] : []),
     { to: "contracts", label: "Contracts" },
     { to: "society", label: "Society" },
@@ -50,7 +57,7 @@ export function SocietyShell({ id }: { id: number }) {
           n.built ? (
             <Link
               key={n.to}
-              to={n.to === "" ? "/s/$id" : n.to === "work" ? "/s/$id/work" : "/s/$id/plan"}
+              to={SCREENS[n.to] ?? "/s/$id"}
               params={{ id: String(id) }}
               className="text-muted"
               activeOptions={{ exact: n.to === "" }}
