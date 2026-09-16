@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO accounts (email) VALUES ($1)\n             RETURNING id, email, created_at, consent_version, moderation_state",
+  "query": "SELECT id, email, created_at, consent_version, moderation_state, biography FROM accounts WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -27,11 +27,16 @@
         "ordinal": 4,
         "name": "moderation_state",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "biography",
+        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Int8"
       ]
     },
     "nullable": [
@@ -39,8 +44,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "6e9d69ad9fc2d07725693713a904386e1ebbade6b4e26968c9e57477ef767b94"
+  "hash": "e91a8145730e45433b5993f33cb531f28d6478e1806f46a286972f50152f56ef"
 }

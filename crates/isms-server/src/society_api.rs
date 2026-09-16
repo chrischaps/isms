@@ -976,6 +976,15 @@ async fn stats(
     Path(id): Path<i64>,
 ) -> ApiResult<Json<StatsView>> {
     let (entry, _me) = me_in(&state, &auth, id).await?;
+    Ok(Json(stats_of(&state, &entry, id).await?))
+}
+
+/// The numbers a society keeps; shared with the spectator route (S1.13).
+pub(crate) async fn stats_of(
+    state: &AppState,
+    entry: &SocietyEntry,
+    id: i64,
+) -> ApiResult<StatsView> {
     let last = state.store.read_last_of_kind(id, "CycleClosed", 1).await?;
     let last_cycle = last
         .first()
@@ -986,13 +995,13 @@ async fn stats(
                 .cloned()
         });
     let world = entry.handle.world.read().await;
-    Ok(Json(StatsView {
+    Ok(StatsView {
         clock: clock_of(&world),
         last_cycle,
         live: views::pulse(&world),
         firm_count: views::firm_count(&world),
         credit_outstanding: views::credit_outstanding(&world),
-    }))
+    })
 }
 
 #[utoipa::path(get, path = "/s/{id}/citizens", summary = "Public profiles and flags of every citizen",

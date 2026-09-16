@@ -62,6 +62,27 @@ impl PgEventStore {
     }
 
     /// The last `n` events of one kind, oldest first.
+    /// How a citizen's commands reached the engine: events by `client_kind`
+    /// for the commands this citizen sent (tick-produced events carry none).
+    /// Public telemetry (TDD 13); the Observatory reports it per society.
+    pub async fn action_share(
+        &self,
+        society: i64,
+        citizen: u32,
+    ) -> Result<Vec<(serde_json::Value, i64)>> {
+        let actor = serde_json::json!({ "citizen": citizen });
+        let rows = sqlx::query!(
+            r#"SELECT client_kind, COUNT(*) AS "n!" FROM events
+               WHERE society_id = $1 AND actor = $2 AND client_kind <> 'null'::jsonb
+               GROUP BY client_kind ORDER BY client_kind"#,
+            society,
+            actor
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| (r.client_kind, r.n)).collect())
+    }
+
     pub async fn read_last_of_kind(
         &self,
         society: i64,

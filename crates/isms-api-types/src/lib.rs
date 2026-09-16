@@ -67,6 +67,15 @@ pub struct Account {
     pub email: String,
     pub consent_version: i32,
     pub created_at: DateTime<Utc>,
+    /// The one line the player writes (GDD 10); cosmetic, carried everywhere.
+    pub biography: String,
+}
+
+/// What a player may change about their account (S1.13).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct UpdateMe {
+    /// At most 140 characters; whitespace trimmed.
+    pub biography: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -74,6 +83,9 @@ pub struct Citizenship {
     pub society_id: i64,
     pub citizen_id: u32,
     pub handle: String,
+    /// Commands by how they reached the engine: `web`, `api_key`, `plan`, ...
+    /// (TDD 13 telemetry; an agent on a key shows here).
+    pub action_share: BTreeMap<String, u64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -129,6 +141,25 @@ pub struct SocietySummary {
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct SocietyList {
     pub societies: Vec<SocietySummary>,
+}
+
+/// The spectator's numbers (TDD 10.2 public routes): what `/s/{id}/stats`
+/// shows a citizen, plus the society's name and which tiles apply, so a
+/// visitor's page needs no capabilities call.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct PublicStatsView {
+    pub clock: Clock,
+    pub name: String,
+    pub display: String,
+    pub preset: String,
+    pub money: bool,
+    pub credit: bool,
+    pub orgs: bool,
+    pub live: society::SocietyPulse,
+    pub firm_count: u32,
+    pub credit_outstanding: society::Cents,
+    #[schema(value_type = Option<Object>)]
+    pub last_cycle: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

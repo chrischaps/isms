@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, email, created_at, consent_version, moderation_state FROM accounts WHERE id = $1",
+  "query": "SELECT id, email, created_at, consent_version, moderation_state, biography FROM accounts WHERE email = $1",
   "describe": {
     "columns": [
       {
@@ -27,11 +27,16 @@
         "ordinal": 4,
         "name": "moderation_state",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "biography",
+        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Text"
       ]
     },
     "nullable": [
@@ -39,8 +44,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "e865834ccc24f8402626ac581b39df40292a8701ece8b81fb382b6e7f7d2e005"
+  "hash": "0155ae692eb11fea547e54a2d9cd2020e45511168b1d6d00f794985079432619"
 }
