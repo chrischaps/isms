@@ -310,7 +310,12 @@ pub fn record_tick(
 /// Step 8m: aggregates, then reset the per-citizen accumulators on the scratch
 /// world (the deltas carry the reset; `CycleClosed` resets the world's).
 pub fn cycle_end_8m_aggregates(b: &mut TickBuilder) {
-    let low = if b.active_humans() < b.world.params.population.floor {
+    // Collapse is for abandoned societies, not for ones that never drew a crowd
+    // (ADR-0006): the counter runs only once the floor has been reached this epoch.
+    let floor = b.world.params.population.floor;
+    let active = b.active_humans();
+    let reached = b.world.meta.reached_floor || active >= floor;
+    let low = if reached && active < floor {
         b.world.meta.low_population_cycles + 1
     } else {
         0
@@ -333,5 +338,6 @@ pub fn cycle_end_8m_aggregates(b: &mut TickBuilder) {
         cycle: b.cycle,
         aggregates,
         low_population_cycles: low,
+        reached_floor: reached,
     });
 }

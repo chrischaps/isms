@@ -33,6 +33,10 @@ pub struct SocietyMeta {
     pub epoch_ended: Option<EpochEndReason>,
     /// Consecutive cycles with active humans below the population floor (GDD Q7).
     pub low_population_cycles: u32,
+    /// Whether active humans have reached the population floor at any cycle end
+    /// of this epoch. Collapse counts only after that (ADR-0006): a society that
+    /// never drew a crowd is an AI economy, not an abandoned one.
+    pub reached_floor: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -121,6 +125,7 @@ impl World {
                 tick: 0,
                 epoch_ended: None,
                 low_population_cycles: 0,
+                reached_floor: false,
             },
             constitution: preset.constitution.clone(),
             policy: preset.policy.clone(),
