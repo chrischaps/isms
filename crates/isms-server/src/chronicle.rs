@@ -357,7 +357,6 @@ mod tests {
             hardship_count: hardship,
             store_stock: BTreeMap::new(),
             low_population_cycles: 0,
-            reached_floor: false,
             ..Default::default()
         }
     }
