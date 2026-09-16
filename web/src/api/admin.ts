@@ -18,7 +18,7 @@ export function useAdminSocieties(enabled: boolean) {
   });
 }
 
-type Act = "pause" | "resume" | "step" | "end-epoch";
+type Act = "pause" | "resume" | "step" | "end-epoch" | "new-epoch";
 
 export function useAdminAct() {
   const qc = useQueryClient();
@@ -34,6 +34,8 @@ export function useAdminAct() {
           return unwrap(await api.POST("/admin/s/{id}/step", params));
         case "end-epoch":
           return unwrap(await api.POST("/admin/s/{id}/end-epoch", params));
+        case "new-epoch":
+          return unwrap(await api.POST("/admin/s/{id}/new-epoch", params));
       }
     },
     onSuccess: (_r, { id }) => {

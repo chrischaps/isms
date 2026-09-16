@@ -14,7 +14,8 @@ test("an operator can pause, step and resume a society", async ({ page, context,
   test.setTimeout(90_000);
   await context.addCookies([{ name: "isms_session", value: admin!, domain: "127.0.0.1", path: "/" }]);
   await page.goto("/admin");
-  const row = page.locator('[data-testid^="admin-society-"]').first();
+  // The harness seeds a society named operator-* for this test alone (the others share the first).
+  const row = page.locator('[data-testid^="admin-society-"]', { hasText: "operator-" });
   await expect(row).toBeVisible();
   await expect(row.getByTestId("admin-state")).toHaveText("running");
 
@@ -35,6 +36,17 @@ test("an operator can pause, step and resume a society", async ({ page, context,
   await expect
     .poll(async () => tickOf((await row.getByTestId("admin-clock").textContent()) ?? ""), { timeout: 15_000 })
     .toBeGreaterThan(held + 1);
+
+  // End the epoch by hand, then start the next one: the clock restarts at epoch 2, tick 0, and runs.
+  await row.getByRole("button", { name: "end epoch" }).click();
+  await row.getByRole("button", { name: "Yes, end it" }).click();
+  await expect(row.getByTestId("admin-state")).toHaveText("epoch ended");
+  await row.getByRole("button", { name: "Start epoch 2" }).click();
+  await expect(row.getByTestId("admin-state")).toHaveText("running");
+  await expect(row.getByTestId("admin-clock")).toContainText("epoch 2");
+  await expect
+    .poll(async () => tickOf((await row.getByTestId("admin-clock").textContent()) ?? ""), { timeout: 15_000 })
+    .toBeGreaterThan(1);
 
   // Not an operator: the routes refuse and the page says so.
   const guest = await browser.newContext({ baseURL: "http://127.0.0.1:5173" });

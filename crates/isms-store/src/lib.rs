@@ -139,6 +139,8 @@ pub trait EventStore {
     async fn list_societies(&self) -> Result<Vec<SocietyRow>>;
     /// `active`, `paused` or `archived` (S1.13c).
     async fn set_society_status(&self, society: i64, status: &str) -> Result<()>;
+    /// The row's epoch after a rollover (S1.13d); the world is the authority.
+    async fn set_society_epoch(&self, society: i64, epoch: i32) -> Result<()>;
     /// The clock after an operator re-anchors it (S1.13c).
     async fn set_society_schedule(
         &self,
@@ -230,6 +232,17 @@ impl EventStore for PgEventStore {
             row.tick_seconds,
             row.tick_origin,
             row.cycle_boundary_hour
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn set_society_epoch(&self, society: i64, epoch: i32) -> Result<()> {
+        sqlx::query!(
+            "UPDATE societies SET epoch = $2 WHERE id = $1",
+            society,
+            epoch
         )
         .execute(&self.pool)
         .await?;

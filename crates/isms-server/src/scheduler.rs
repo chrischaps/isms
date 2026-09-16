@@ -77,6 +77,11 @@ impl Control {
         self.notify.notify_waiters();
     }
 
+    /// Wake the scheduler to look at the world again (after a rollover).
+    pub fn wake(&self) {
+        self.notify.notify_waiters();
+    }
+
     /// Resume with the clock re-anchored so `next_tick` is due one tick length
     /// from `now`: a pause is not downtime, so nothing is caught up.
     pub fn resume(&self, next_tick: Tick, now: DateTime<Utc>) -> Schedule {
@@ -132,10 +137,14 @@ pub async fn run(
             (world.meta.tick, world.meta.epoch_ended.is_some())
         };
         if ended {
-            // Epoch rollover is S1.15's; until then an ended society just waits.
+            // An ended society waits for an operator to start the next epoch
+            // (S1.13d) or for S1.15's rollover sequence; either wakes the loop.
             tracing::info!(society = handle.id, "epoch ended; scheduler idle");
-            cancel.cancelled().await;
-            return Ok(());
+            tokio::select! {
+                () = cancel.cancelled() => return Ok(()),
+                () = control.notify.notified() => {}
+            }
+            continue;
         }
         if control.is_paused() {
             tokio::select! {

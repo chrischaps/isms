@@ -1,7 +1,8 @@
 // The operator's room (S1.13c): every society with its clock, and the hold
 // on it. Pause stops the scheduler; step resolves one tick while held;
 // resume releases with no catch-up; the tick length can change; an epoch
-// can be ended by hand. Ending an epoch asks twice, since it cannot be undone.
+// can be ended by hand, and an ended society can start its next epoch (the
+// roster stays, material state resets). Ending asks twice; it cannot be undone.
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
@@ -119,7 +120,11 @@ export function Admin() {
                 </td>
                 <td className="py-2">
                   <div className="flex flex-wrap gap-2">
-                    {ended ? null : v.paused ? (
+                    {ended ? (
+                      <button type="button" disabled={act.isPending} className="bg-ink text-paper rounded-sm px-2 py-0.5 text-xs" onClick={() => act.mutate({ id: s.id, act: "new-epoch" }, { onError: fail })}>
+                        Start epoch {s.clock.epoch + 1}
+                      </button>
+                    ) : v.paused ? (
                       <>
                         <button type="button" disabled={act.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => act.mutate({ id: s.id, act: "step" }, { onError: fail })}>
                           Step one tick
