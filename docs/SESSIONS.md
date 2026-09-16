@@ -394,3 +394,11 @@ Provisional answers added to QUESTIONS.md: none; Q104 moved from provisional to 
 New tunables: none. The threshold is `population.floor`; `collapse_enabled` stays the simulator switch.
 Next session should know: `Meta` gained a field, so postcard snapshots written before this PR do not decode; dev databases from before it need reseeding (Phase 1 has no snapshot versioning; S1.15 should decide whether to add one before the playtest). Demo seeds no longer need `collapse_enabled=false`.
 make check: green · new tests: 2 · sim-check: n/a (the simulator runs with collapse disabled; no preset bytes change beyond the new field)
+
+## S1.11b — Payroll line and the balance in the header — 2026-09-16 — PR #55
+Built: on the org page the manager sees a payroll block under Production: what is due at cycle end (hourly contracts at the worker's hours this cycle, piece-rate ones at what is attributed so far, computed from the org's active employment contracts and its workers), the treasury, and covered or short by how much, with the consequence spelled out; a top-up form moves money from the manager's balance to the treasury as a transfer with the memo "treasury", with a one-click fill of the shortfall. The job-offer form now says that a new firm starts with an empty treasury because the founding fee is burned. The shell header shows the citizen's balance beside the clock where money exists. `orgs.spec.ts` asserts the due, the shortfall, the top-up and the header balance.
+Deviations from TDD: none. Prompted by Chris's playtest on 2026-09-16: ChapsCo hired at 8.25 an hour with an empty treasury and lost the worker at the first payday; nothing on the screen had said payroll would fall due.
+Provisional answers added to QUESTIONS.md: none.
+New tunables: none.
+Next session should know: the payroll figure is the client's estimate from the contract terms and the current allocation; the engine's own figure arrives with the `Paid` and `PaymentMissed` events. Householders take a job only while unemployed and never switch for a better wage; whether they should is a design question, not a UI fix.
+make check: green · new tests: 0 (assertions added to one) · sim-check: n/a

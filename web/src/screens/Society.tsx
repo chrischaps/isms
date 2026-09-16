@@ -5,7 +5,8 @@
 // are labels until their card lands.
 
 import { Link, Outlet } from "@tanstack/react-router";
-import { useCapabilities, useLexicon, useSociety, useStream } from "../api/hooks";
+import { credits } from "../api/client";
+import { useCapabilities, useHome, useLexicon, useSociety, useStream } from "../api/hooks";
 import { Countdown } from "../components/Countdown";
 import { Home } from "./Home";
 
@@ -27,6 +28,9 @@ export function SocietyShell({ id }: { id: number }) {
   const society = useSociety(id);
   const caps = useCapabilities(id);
   const { t } = useLexicon(id);
+  // The balance in the header: only where money exists, only for a citizen
+  // (a non-citizen gets a 403 here and simply sees no balance).
+  const home = useHome(id);
   useStream(id);
   if (society.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
   if (society.error || caps.error) {
@@ -58,6 +62,11 @@ export function SocietyShell({ id }: { id: number }) {
           <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>
         </div>
         <div className="num text-muted text-sm">
+          {c.money && home.data ? (
+            <span className="text-ink" data-testid="header-balance">
+              {t("balance")} {credits(home.data.household.balance)} cr ·{" "}
+            </span>
+          ) : null}
           epoch {s.clock.epoch} · cycle {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle} ·{" "}
           <Countdown at={s.next_tick_at} label="next tick" />
         </div>

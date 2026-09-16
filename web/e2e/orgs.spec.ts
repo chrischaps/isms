@@ -80,10 +80,20 @@ test("found a mine, hire, and see attributed output", async ({ page, context, br
   await other.close();
 
   // The manager sees the worker and, after a tick, attributed output.
-  const worker = page.getByTestId("manager-workspace").locator("..").getByText("bram");
+  const worker = page.getByTestId("manager-workspace").locator("..").getByText("bram").first();
   await expect(worker).toBeVisible({ timeout: 30_000 });
   const row = page.locator('[data-testid^="worker-"]', { hasText: "bram" });
   await expect(row.locator("td").nth(1)).toHaveText("8");
   await expect(row.locator("td").nth(2)).toHaveText(/^[1-9]\d*\.\d$/, { timeout: 30_000 });
   await expect(page.getByText("Monitoring here is exact")).toBeVisible();
+
+  // The payroll line: 8 h at 8.50 due, an empty treasury, so short; a top-up covers it.
+  const payroll = page.getByTestId("payroll");
+  await expect(payroll).toContainText("Payroll due at cycle end: 68.00 cr for 1 worker");
+  await expect(payroll).toContainText("Short by 68.00 cr");
+  await payroll.getByRole("button", { name: "cover the shortfall" }).click();
+  await payroll.getByRole("button", { name: "Transfer" }).click();
+  await expect(payroll).toContainText("Covered.");
+  // The header shows the balance the transfer came out of.
+  await expect(page.getByTestId("header-balance")).toContainText("Balance");
 });
