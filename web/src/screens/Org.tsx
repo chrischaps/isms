@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ApiError, credits, type OfferView } from "../api/client";
 import { useBoard, useCapabilities, useHome, useLexicon } from "../api/hooks";
+import { useContracts, useTransfer } from "../api/contracts";
 import { usePlaceOrder } from "../api/market";
 import {
   useAddWorkplace,
@@ -70,6 +71,9 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const cancelOffer = useCancelOffer(id);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const contracts = useContracts(id);
+  const transfer = useTransfer(id);
+  const [topUp, setTopUp] = useState("");
   // Forms.
   const [job, setJob] = useState({ workplace: 0, hourly: "8.00", piece: false, hours: 8, places: 1, term: "", notice: 1 });
   const [ask, setAsk] = useState({ good: "ore", qty: 10, limit: "" });
@@ -108,6 +112,26 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const slots = (all.data?.slots ?? {}) as Record<string, { total?: number | null; free?: number | null }>;
   const founding = all.data?.founding;
   const offers = (board.data?.offers ?? []).filter((x) => (x.by as Record<string, unknown>).org === oid);
+  // Payroll due at cycle end (TDD 5.5 8a): every active employment contract of
+  // this org, hourly ones at the worker's hours this cycle, piece-rate ones at
+  // what has been attributed so far. The treasury covers it or the workers are
+  // paid pro rata and their contracts end.
+  const payroll = (contracts.data?.contracts ?? [])
+    .filter((k) => k.status === "active")
+    .flatMap((k) => {
+      const e = (k.body as Record<string, unknown>).employment as Record<string, unknown> | undefined;
+      if (!e || e.org !== oid) return [];
+      const worker = (k.parties as unknown as Record<string, number>[]).find((p) => typeof p.citizen === "number")?.citizen;
+      const w = o.workplaces.flatMap((wp) => wp.workers).find((x) => x.citizen === worker);
+      const pay = e.pay as Record<string, number>;
+      const due =
+        pay.hourly !== undefined
+          ? (w?.hours ?? 0) * pay.hourly
+          : Math.round((w?.attributed_this_cycle ?? 0) * (pay.piece_rate ?? 0));
+      return [{ contract: k.id, worker: w?.handle ?? `citizen ${String(worker)}`, due }];
+    });
+  const payrollDue = payroll.reduce((n, p) => n + p.due, 0);
+  const shortfall = Math.max(0, payrollDue - o.treasury);
   const myContract = h.labor.employment.find(
     (k) => ((k.body as Record<string, unknown>).employment as Record<string, unknown> | undefined)?.org === oid,
   );
@@ -253,6 +277,59 @@ export function Org({ id, oid }: { id: number; oid: number }) {
       <section>
         <h3 className="text-lg">Production</h3>
         {o.workplaces.length === 0 ? <p className="text-muted mt-2 text-sm">No workplace.</p> : o.workplaces.map(production)}
+        {manage && c.money ? (
+          <div className="bg-paper-2 mt-3 rounded-sm p-3 text-sm" data-testid="payroll">
+            <p>
+              Payroll due at cycle end: <span className="num">{credits(payrollDue)} cr</span>
+              {payroll.length > 0 ? ` for ${payroll.length} worker${payroll.length === 1 ? "" : "s"}` : ""}. Treasury:{" "}
+              <span className="num">{credits(o.treasury)} cr</span>.{" "}
+              {payroll.length === 0 ? (
+                <span className="text-muted">Nobody on the payroll.</span>
+              ) : shortfall > 0 ? (
+                <span className="text-bad">
+                  Short by {credits(shortfall)} cr: workers would be paid pro rata, their contracts would end, and the firm would be flagged.
+                </span>
+              ) : (
+                <span className="text-good">Covered.</span>
+              )}
+            </p>
+            {payroll.length > 0 ? (
+              <p className="text-muted mt-1 text-xs">{payroll.map((p) => `${p.worker} ${credits(p.due)} cr`).join(" · ")}</p>
+            ) : null}
+            <form
+              className="mt-2 flex flex-wrap items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                transfer.mutate(
+                  { to: { org: oid } as never, asset: { money: cents(topUp) } as never, memo: "treasury" },
+                  { onSuccess: ok(`Moved ${credits(cents(topUp))} cr into the treasury.`), onError: fail },
+                );
+                setTopUp("");
+              }}
+            >
+              <span>Top up from your balance ({credits(h.household.balance)} cr):</span>
+              <input
+                aria-label="Top up amount"
+                type="number"
+                step="0.01"
+                min={0.01}
+                placeholder={shortfall > 0 ? (shortfall / 100).toFixed(2) : ""}
+                className="border-line num w-24 rounded-sm border px-1"
+                value={topUp}
+                onChange={(e) => setTopUp(e.target.value)}
+              />
+              <span className="text-muted text-xs">cr</span>
+              <button type="submit" disabled={transfer.isPending || cents(topUp) < 1} className="border-line rounded-sm border px-2 py-0.5 disabled:opacity-50">
+                Transfer
+              </button>
+              {shortfall > 0 ? (
+                <button type="button" className="text-muted text-xs underline" onClick={() => setTopUp((shortfall / 100).toFixed(2))}>
+                  cover the shortfall
+                </button>
+              ) : null}
+            </form>
+          </div>
+        ) : null}
         {manage ? (
           <p className="text-muted mt-2 text-xs">
             {sigma === 0
@@ -341,7 +418,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
             <button type="submit" disabled={offer.isPending || o.workplaces.length === 0} className="bg-ink text-paper self-start rounded-sm px-3 py-1 disabled:opacity-50">
               Post job offer
             </button>
-            <p className="text-muted text-xs">Payroll is due at cycle end from the treasury; short, and workers are paid pro rata and the firm is flagged.</p>
+            <p className="text-muted text-xs">A new firm has an empty treasury: the founding fee is burned, not deposited. Check the payroll line above before hiring.</p>
           </form>
 
           <div className="flex flex-col gap-6">
