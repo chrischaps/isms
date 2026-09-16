@@ -6,7 +6,7 @@
 
 import { Link, Outlet } from "@tanstack/react-router";
 import { credits } from "../api/client";
-import { useCapabilities, useHome, useLexicon, useSociety, useStream } from "../api/hooks";
+import { useCapabilities, useHome, useLexicon, useMe, useSociety, useStream } from "../api/hooks";
 import { Countdown } from "../components/Countdown";
 import { Home } from "./Home";
 
@@ -31,6 +31,7 @@ export function SocietyShell({ id }: { id: number }) {
   // The balance in the header: only where money exists, only for a citizen
   // (a non-citizen gets a 403 here and simply sees no balance).
   const home = useHome(id);
+  const me = useMe();
   useStream(id);
   if (society.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
   if (society.error || caps.error) {
@@ -58,6 +59,11 @@ export function SocietyShell({ id }: { id: number }) {
           <Link to="/profile" className="text-muted text-sm">
             Profile
           </Link>
+          {me.data?.account.operator ? (
+            <Link to="/admin" className="text-warn text-sm">
+              Operator
+            </Link>
+          ) : null}
           <h1 className="text-2xl">{s.display}</h1>
           <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>
         </div>

@@ -137,6 +137,15 @@ impl Snapshot {
 pub trait EventStore {
     async fn create_society(&self, row: &SocietyRow) -> Result<()>;
     async fn list_societies(&self) -> Result<Vec<SocietyRow>>;
+    /// `active`, `paused` or `archived` (S1.13c).
+    async fn set_society_status(&self, society: i64, status: &str) -> Result<()>;
+    /// The clock after an operator re-anchors it (S1.13c).
+    async fn set_society_schedule(
+        &self,
+        society: i64,
+        tick_seconds: i32,
+        tick_origin: DateTime<Utc>,
+    ) -> Result<()>;
     /// One more than the highest society id (1 for an empty table).
     async fn next_society_id(&self) -> Result<i64>;
     /// Append `batch` as `first_seq..first_seq + batch.len()` in one transaction.
@@ -221,6 +230,34 @@ impl EventStore for PgEventStore {
             row.tick_seconds,
             row.tick_origin,
             row.cycle_boundary_hour
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn set_society_status(&self, society: i64, status: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE societies SET status = $2 WHERE id = $1",
+            society,
+            status
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn set_society_schedule(
+        &self,
+        society: i64,
+        tick_seconds: i32,
+        tick_origin: DateTime<Utc>,
+    ) -> Result<()> {
+        sqlx::query!(
+            "UPDATE societies SET tick_seconds = $2, tick_origin = $3 WHERE id = $1",
+            society,
+            tick_seconds,
+            tick_origin
         )
         .execute(&self.pool)
         .await?;

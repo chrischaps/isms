@@ -15,15 +15,17 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use isms_api_types::{
-    Account, ApiKeyCreated, ApiKeySummary, CapabilitiesView, Citizenship, Clock, Health,
-    JoinRequest, Joined, Lexicon, MagicLinkRequest, MagicLinkSent, Me, NewApiKey, Problem,
-    PublicStatsView, SocietyList, SocietySummary, UpdateMe, Welcome,
+    Account, AdminSocietiesView, AdminSocietyView, ApiKeyCreated, ApiKeySummary, CapabilitiesView,
+    Citizenship, Clock, Health, JoinRequest, Joined, Lexicon, MagicLinkRequest, MagicLinkSent, Me,
+    NewApiKey, Problem, PublicStatsView, SocietyList, SocietySummary, TickSecondsRequest, UpdateMe,
+    Welcome,
 };
 use isms_core::command::Command;
 use isms_core::event::{Actor, Event};
 use isms_core::ids::CitizenId;
 use isms_core::kinds::{CitizenKind, ClientKind};
 use isms_core::rules::Rules;
+use isms_store::EventStore;
 use isms_store::accounts::CitizenRow;
 use serde::Deserialize;
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, Http, HttpAuthScheme, SecurityScheme};
@@ -120,10 +122,14 @@ async fn summary(entry: &SocietyEntry) -> SocietySummary {
             CitizenKind::Householder => householders += 1,
         }
     }
-    let next_tick_at = if world.meta.epoch_ended.is_some() || entry.schedule.tick_seconds == 0 {
+    let schedule = entry.schedule();
+    let next_tick_at = if world.meta.epoch_ended.is_some()
+        || schedule.tick_seconds == 0
+        || entry.control.is_paused()
+    {
         None
     } else {
-        Some(entry.schedule.due_at(world.meta.tick))
+        Some(schedule.due_at(world.meta.tick))
     };
     SocietySummary {
         id: entry.row.id,
@@ -135,7 +141,7 @@ async fn summary(entry: &SocietyEntry) -> SocietySummary {
         population,
         active_humans,
         householders,
-        tick_seconds: entry.schedule.tick_seconds,
+        tick_seconds: schedule.tick_seconds,
         next_tick_at,
     }
 }
@@ -298,6 +304,7 @@ async fn me(State(state): State<AppState>, auth: Auth) -> ApiResult<Json<Me>> {
             created_at: k.created_at,
         })
         .collect();
+    let operator = state.operators.contains(&account.email);
     Ok(Json(Me {
         account: Account {
             id: account.id,
@@ -305,10 +312,180 @@ async fn me(State(state): State<AppState>, auth: Auth) -> ApiResult<Json<Me>> {
             consent_version: account.consent_version,
             created_at: account.created_at,
             biography: account.biography,
+            operator,
         },
         citizenships,
         api_keys,
     }))
+}
+
+// -- operator routes (S1.13c, ADR-0007): the server's operators, named by email --
+
+async fn require_operator(state: &AppState, auth: &Auth) -> ApiResult<()> {
+    let account = state
+        .store
+        .account_by_id(auth.account_id)
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+    if state.operators.contains(&account.email) {
+        Ok(())
+    } else {
+        Err(ApiError::Forbidden("operators only".into()))
+    }
+}
+
+async fn admin_view(entry: &SocietyEntry) -> AdminSocietyView {
+    AdminSocietyView {
+        summary: summary(entry).await,
+        paused: entry.control.is_paused(),
+        tick_origin: entry.schedule().tick_origin,
+    }
+}
+
+#[utoipa::path(get, path = "/admin/societies", summary = "Operator: every society with its clock and whether it is held",
+    responses((status = 200, body = AdminSocietiesView), (status = 403, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn admin_societies(
+    State(state): State<AppState>,
+    auth: Auth,
+) -> ApiResult<Json<AdminSocietiesView>> {
+    require_operator(&state, &auth).await?;
+    let entries: Vec<SocietyEntry> = state
+        .societies
+        .read()
+        .expect("societies lock")
+        .values()
+        .cloned()
+        .collect();
+    let mut societies = Vec::with_capacity(entries.len());
+    for e in &entries {
+        societies.push(admin_view(e).await);
+    }
+    Ok(Json(AdminSocietiesView { societies }))
+}
+
+#[utoipa::path(post, path = "/admin/s/{id}/pause", summary = "Operator: hold the clock; nothing ticks until resumed",
+    params(("id" = i64, Path, description = "Society id")),
+    responses((status = 200, body = AdminSocietyView), (status = 403, body = Problem), (status = 404, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn admin_pause(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<AdminSocietyView>> {
+    require_operator(&state, &auth).await?;
+    let entry = society(&state, id)?;
+    entry.control.pause();
+    state.store.set_society_status(id, "paused").await?;
+    tracing::info!(
+        society = id,
+        account = auth.account_id,
+        "paused by operator"
+    );
+    Ok(Json(admin_view(&entry).await))
+}
+
+#[utoipa::path(post, path = "/admin/s/{id}/resume", summary = "Operator: release the clock with the next tick due one tick length from now (no catch-up)",
+    params(("id" = i64, Path, description = "Society id")),
+    responses((status = 200, body = AdminSocietyView), (status = 403, body = Problem), (status = 404, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn admin_resume(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<AdminSocietyView>> {
+    require_operator(&state, &auth).await?;
+    let entry = society(&state, id)?;
+    let next_tick = entry.handle.world.read().await.meta.tick;
+    let s = entry.control.resume(next_tick, chrono::Utc::now());
+    state
+        .store
+        .set_society_schedule(
+            id,
+            i32::try_from(s.tick_seconds).unwrap_or(i32::MAX),
+            s.tick_origin,
+        )
+        .await?;
+    state.store.set_society_status(id, "active").await?;
+    tracing::info!(
+        society = id,
+        account = auth.account_id,
+        "resumed by operator"
+    );
+    Ok(Json(admin_view(&entry).await))
+}
+
+#[utoipa::path(post, path = "/admin/s/{id}/step", summary = "Operator: resolve exactly one tick while the clock is held",
+    params(("id" = i64, Path, description = "Society id")),
+    responses((status = 200, body = AdminSocietyView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 409, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn admin_step(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<AdminSocietyView>> {
+    require_operator(&state, &auth).await?;
+    let entry = society(&state, id)?;
+    if !entry.control.is_paused() {
+        return Err(ApiError::BadRequest(
+            "pause the society before stepping it".into(),
+        ));
+    }
+    entry.handle.tick().await?;
+    Ok(Json(admin_view(&entry).await))
+}
+
+#[utoipa::path(post, path = "/admin/s/{id}/tick-seconds", summary = "Operator: a new tick length, re-anchored so the next tick is due one length from now",
+    params(("id" = i64, Path, description = "Society id")), request_body = TickSecondsRequest,
+    responses((status = 200, body = AdminSocietyView), (status = 403, body = Problem), (status = 404, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn admin_tick_seconds(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+    Json(req): Json<TickSecondsRequest>,
+) -> ApiResult<Json<AdminSocietyView>> {
+    require_operator(&state, &auth).await?;
+    let entry = society(&state, id)?;
+    let next_tick = entry.handle.world.read().await.meta.tick;
+    let s = entry
+        .control
+        .set_tick_seconds(req.tick_seconds, next_tick, chrono::Utc::now());
+    state
+        .store
+        .set_society_schedule(
+            id,
+            i32::try_from(s.tick_seconds).unwrap_or(i32::MAX),
+            s.tick_origin,
+        )
+        .await?;
+    tracing::info!(
+        society = id,
+        tick_seconds = req.tick_seconds,
+        "tick length set by operator"
+    );
+    Ok(Json(admin_view(&entry).await))
+}
+
+#[utoipa::path(post, path = "/admin/s/{id}/end-epoch", summary = "Operator: end the epoch now (the only operator command the engine takes)",
+    params(("id" = i64, Path, description = "Society id")),
+    responses((status = 200, body = AdminSocietyView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn admin_end_epoch(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<AdminSocietyView>> {
+    require_operator(&state, &auth).await?;
+    let entry = society(&state, id)?;
+    let env = envelope(
+        Actor::System,
+        auth.client_kind(),
+        Command::EndEpoch {
+            reason: "operator".into(),
+        },
+    );
+    entry.handle.command(env).await?.map_err(ApiError::Reject)?;
+    tracing::warn!(
+        society = id,
+        account = auth.account_id,
+        "epoch ended by operator"
+    );
+    Ok(Json(admin_view(&entry).await))
 }
 
 #[utoipa::path(patch, path = "/me", summary = "Change what you may about your account: the biography line", request_body = UpdateMe,
@@ -679,6 +856,12 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(me, update_me))
         .routes(routes!(public_societies))
         .routes(routes!(public_stats))
+        .routes(routes!(admin_societies))
+        .routes(routes!(admin_pause))
+        .routes(routes!(admin_resume))
+        .routes(routes!(admin_step))
+        .routes(routes!(admin_tick_seconds))
+        .routes(routes!(admin_end_epoch))
         .routes(routes!(create_api_key))
         .routes(routes!(revoke_api_key))
         .routes(routes!(list_societies))

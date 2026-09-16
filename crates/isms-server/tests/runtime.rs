@@ -205,7 +205,8 @@ async fn three_tick_outage_catches_up_in_order(pool: PgPool) {
         tick_origin: Utc::now() - ChronoDuration::milliseconds(2_500),
     };
     let cancel = CancellationToken::new();
-    let task = tokio::spawn(scheduler::run(handle.clone(), schedule, cancel.clone()));
+    let control = std::sync::Arc::new(scheduler::Control::new(schedule, false));
+    let task = tokio::spawn(scheduler::run(handle.clone(), control, cancel.clone()));
     let h = handle.clone();
     wait_until(Duration::from_secs(10), async || {
         h.world.read().await.meta.tick >= 4

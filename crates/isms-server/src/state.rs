@@ -5,12 +5,12 @@ use crate::actor::SocietyHandle;
 use crate::limiter::RateLimiter;
 use crate::mail::MailSender;
 use crate::runtime::Runtime;
-use crate::scheduler::Schedule;
+use crate::scheduler::{Control, Schedule};
 use isms_api_types::Clock;
 use isms_core::ids::CitizenId;
 use isms_core::world::World;
 use isms_store::{PgEventStore, SocietyRow};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -19,7 +19,15 @@ use std::sync::{Arc, Mutex, RwLock};
 pub struct SocietyEntry {
     pub row: SocietyRow,
     pub handle: SocietyHandle,
-    pub schedule: Schedule,
+    pub control: Arc<Control>,
+}
+
+impl SocietyEntry {
+    /// The clock as it stands now (an operator may have re-anchored it).
+    #[must_use]
+    pub fn schedule(&self) -> Schedule {
+        self.control.schedule()
+    }
 }
 
 #[derive(Clone)]
@@ -31,6 +39,8 @@ pub struct AppState {
     /// Public origin for links in mail and redirects, e.g. `https://isms.example`.
     pub base_url: String,
     pub limiter: Arc<RateLimiter>,
+    /// Account emails allowed the `/admin` routes (`ISMS_OPERATORS`, S1.13c).
+    pub operators: Arc<BTreeSet<String>>,
     /// Last tick at which each citizen was marked seen, so a `Seen` command
     /// goes to the actor at most once per tick per citizen.
     seen: Arc<Mutex<HashMap<(i64, CitizenId), u32>>>,
@@ -53,6 +63,7 @@ impl AppState {
         presets_dir: PathBuf,
         mail: Arc<dyn MailSender>,
         base_url: String,
+        operators: BTreeSet<String>,
     ) -> Self {
         AppState {
             store,
@@ -61,6 +72,7 @@ impl AppState {
             mail,
             base_url,
             limiter: Arc::new(RateLimiter::default()),
+            operators: Arc::new(operators),
             seen: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -77,7 +89,7 @@ impl AppState {
                     SocietyEntry {
                         row: r.row.clone(),
                         handle: r.handle.clone(),
-                        schedule: r.schedule,
+                        control: r.control.clone(),
                     },
                 )
             })

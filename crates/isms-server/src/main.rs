@@ -271,12 +271,21 @@ async fn serve(
         },
     )
     .await?;
+    // Operators, by account email: ISMS_OPERATORS="a@x.test,b@y.test" (S1.13c).
+    let operators: std::collections::BTreeSet<String> = std::env::var("ISMS_OPERATORS")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+    tracing::info!(operators = operators.len(), "operators configured");
     let state = AppState::new(
         store.clone(),
         AppState::entries_from(&runtime),
         presets_dir,
         mail,
         base_url.trim_end_matches('/').to_owned(),
+        operators,
     );
     let app = isms_server::api::router(state);
     let listener = tokio::net::TcpListener::bind(bind).await?;
