@@ -11,7 +11,8 @@ export ISMS_API="http://127.0.0.1:$PORT"
 export RUST_LOG="${RUST_LOG:-warn}"
 SERVER=target/debug/isms-server
 
-cargo build -q -p isms-server
+# The run's database does not exist yet, so the sqlx macros build from .sqlx.
+SQLX_OFFLINE=true cargo build -q -p isms-server
 "$SERVER" migrate
 "$SERVER" seed --preset freeport --name "web-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 "$SERVER" serve --bind "127.0.0.1:$PORT" --base-url "$ISMS_API" &
