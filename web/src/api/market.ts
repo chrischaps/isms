@@ -47,10 +47,12 @@ export function usePrices(id: number, window: number) {
   });
 }
 
+/** The org list; the same cache entry as `useOrgsView` (S1.11), narrowed. */
 export function useOrgs(id: number) {
   return useQuery({
     queryKey: marketKeys.orgs(id),
-    queryFn: async () => unwrap(await api.GET("/s/{id}/orgs", { params: { path: { id } } })).orgs,
+    queryFn: async () => unwrap(await api.GET("/s/{id}/orgs", { params: { path: { id } } })),
+    select: (v) => v.orgs,
   });
 }
 

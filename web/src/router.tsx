@@ -15,6 +15,8 @@ import {
 import { Gallery } from "./screens/Gallery";
 import { Login } from "./screens/Login";
 import { Market } from "./screens/Market";
+import { Org } from "./screens/Org";
+import { Orgs } from "./screens/Orgs";
 import { PlanScreen } from "./screens/Plan";
 import { Societies } from "./screens/Societies";
 import { SocietyHome, SocietyShell } from "./screens/Society";
@@ -85,6 +87,16 @@ function SocietyBookRoute() {
   return <Market id={Number(id)} instrument={instrument} />;
 }
 
+function SocietyOrgsRoute() {
+  const { id } = useParams({ from: "/s/$id/orgs" });
+  return <Orgs id={Number(id)} />;
+}
+
+function SocietyOrgRoute() {
+  const { id, oid } = useParams({ from: "/s/$id/orgs/$oid" });
+  return <Org id={Number(id)} oid={Number(oid)} />;
+}
+
 const societyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/s/$id",
@@ -121,11 +133,31 @@ const societyBookRoute = createRoute({
   component: SocietyBookRoute,
 });
 
+const societyOrgsRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/orgs",
+  component: SocietyOrgsRoute,
+});
+
+const societyOrgRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/orgs/$oid",
+  component: SocietyOrgRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   galleryRoute,
-  societyRoute.addChildren([societyHomeRoute, societyWorkRoute, societyPlanRoute, societyMarketRoute, societyBookRoute]),
+  societyRoute.addChildren([
+    societyHomeRoute,
+    societyWorkRoute,
+    societyPlanRoute,
+    societyMarketRoute,
+    societyBookRoute,
+    societyOrgsRoute,
+    societyOrgRoute,
+  ]),
 ]);
 
 export const router = createRouter({ routeTree });

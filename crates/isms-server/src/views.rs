@@ -5,12 +5,12 @@ use crate::state::clock_of;
 use crate::viewer::Viewer;
 use isms_api_types::society::{
     AllocationView, BookSummary, BookView, CitizenPublic, CitizenSelfView, ContractView,
-    DwellingView, EffortCosts, FirmValuation, HouseholdView, LaborView, Level, NeedsView,
-    OfferView, OrderView, OrgView, ScoreRow, SkillView, SocietyPulse, WorkerView, WorkplaceView,
-    cents, instrument_name,
+    DwellingView, EffortCosts, FirmValuation, FoundingCosts, HouseholdView, LaborView, Level,
+    NeedsView, OfferView, OrderView, OrgView, ScoreRow, SkillView, SlotSummary, SocietyPulse,
+    WorkerView, WorkplaceView, cents, instrument_name,
 };
 use isms_core::ids::{CitizenId, OrgId};
-use isms_core::kinds::{CitizenKind, Good};
+use isms_core::kinds::{CitizenKind, Good, WorkplaceKind};
 use isms_core::ledger::Party;
 use isms_core::market::{depth, last_price};
 use isms_core::needs::TENTHS;
@@ -18,6 +18,7 @@ use isms_core::shares::{book_value, net_worth, self_made, shares_held};
 use isms_core::world::{
     Contract, ContractBody, Instrument, Offer, OfferBody, Ownership, Side, World,
 };
+use std::collections::BTreeMap;
 
 fn tenths(v: u16) -> f64 {
     f64::from(v) / f64::from(TENTHS)
@@ -331,6 +332,32 @@ pub fn org(world: &World, viewer: &Viewer, id: OrgId) -> Option<OrgView> {
         my_shares,
         i_manage,
     })
+}
+
+pub fn founding(world: &World) -> FoundingCosts {
+    FoundingCosts {
+        money: if world.constitution.has_money() {
+            cents(world.params.money.founding_cost_money)
+        } else {
+            0
+        },
+        materials: world.params.founding.materials,
+    }
+}
+
+/// Slot-limited kinds only: total slots and how many are still free.
+pub fn slots(world: &World) -> BTreeMap<WorkplaceKind, SlotSummary> {
+    let mut out: BTreeMap<WorkplaceKind, SlotSummary> = BTreeMap::new();
+    for slot in world.land.slots.values() {
+        let e = out
+            .entry(slot.kind)
+            .or_insert(SlotSummary { total: 0, free: 0 });
+        e.total += 1;
+        if slot.workplace.is_none() {
+            e.free += 1;
+        }
+    }
+    out
 }
 
 pub fn orgs(world: &World, viewer: &Viewer) -> Vec<OrgView> {

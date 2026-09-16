@@ -9,11 +9,12 @@ import { useCapabilities, useLexicon, useSociety, useStream } from "../api/hooks
 import { Countdown } from "../components/Countdown";
 import { Home } from "./Home";
 
-const SCREENS: Record<string, "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market"> = {
+const SCREENS: Record<string, "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market" | "/s/$id/orgs"> = {
   "": "/s/$id",
   work: "/s/$id/work",
   plan: "/s/$id/plan",
   market: "/s/$id/market",
+  orgs: "/s/$id/orgs",
 };
 
 export function SocietyShell({ id }: { id: number }) {
@@ -32,7 +33,7 @@ export function SocietyShell({ id }: { id: number }) {
     { to: "work", label: t("work_screen"), built: true },
     { to: "plan", label: t("plan"), built: true },
     ...(c.order_books ? [{ to: "market", label: t("store"), built: true }] : []),
-    ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations" }] : []),
+    ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations", built: true }] : []),
     { to: "contracts", label: "Contracts" },
     { to: "society", label: "Society" },
     { to: "talk", label: "Talk" },

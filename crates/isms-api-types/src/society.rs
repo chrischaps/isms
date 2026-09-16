@@ -338,6 +338,25 @@ pub struct OrgView {
 pub struct OrgsView {
     pub clock: Clock,
     pub orgs: Vec<OrgView>,
+    /// What founding costs here (the client previews it before the command).
+    pub founding: FoundingCosts,
+    /// Slot scarcity per slot-limited workplace kind; an absent kind is unlimited.
+    #[schema(value_type = Object)]
+    pub slots: BTreeMap<WorkplaceKind, SlotSummary>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct FoundingCosts {
+    /// The founding fee (zero where money does not exist).
+    pub money: Cents,
+    /// Materials per workplace, from the founder's pantry (or the org's inventory later).
+    pub materials: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct SlotSummary {
+    pub total: u32,
+    pub free: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
