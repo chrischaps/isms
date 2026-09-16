@@ -1114,9 +1114,11 @@ pub fn apply(world: &mut World, event: &Event) {
         }
         Event::CycleClosed {
             low_population_cycles,
+            reached_floor,
             ..
         } => {
             world.meta.low_population_cycles = *low_population_cycles;
+            world.meta.reached_floor = *reached_floor;
             for o in world.orgs.values_mut() {
                 o.declared_dividend = None;
             }
@@ -1495,6 +1497,7 @@ fn reset_material_state(world: &mut World) {
     world.price_index = None;
     world.cycle = crate::metrics::WorldCycle::default();
     world.meta.low_population_cycles = 0;
+    world.meta.reached_floor = false;
     world.citizens.retain(|_, c| c.kind == CitizenKind::Human);
     let endowment = if world.constitution.has_money() {
         p.money.endowment

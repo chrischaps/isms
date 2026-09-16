@@ -391,6 +391,7 @@ mod tests {
             cycle: 0,
             aggregates: aggregates(Some(1.0), 0),
             low_population_cycles: 0,
+            reached_floor: false,
         };
         all.extend(p.observe(&c0, 3, 23, 0));
         let hardship = Event::HardshipBegan {
@@ -402,6 +403,7 @@ mod tests {
             cycle: 1,
             aggregates: aggregates(Some(1.12), 1),
             low_population_cycles: 0,
+            reached_floor: false,
         };
         all.extend(p.observe(&c1, 5, 47, 1));
         let texts: Vec<&str> = all.iter().map(|h| h.headline.as_str()).collect();
@@ -429,6 +431,7 @@ mod tests {
             cycle: 2,
             aggregates: aggregates(Some(1.176), 0),
             low_population_cycles: 0,
+            reached_floor: false,
         };
         assert!(p.observe(&c2, 6, 71, 2).is_empty());
     }

@@ -131,8 +131,10 @@ fn scheduled_epoch_end_at_tick_1007_and_no_tick_1008() {
 }
 
 #[test]
-fn collapse_fires_after_five_low_cycles_only_when_enabled() {
-    // Householders only: zero active humans, below the floor of 40.
+fn collapse_waits_for_the_floor_to_have_been_reached() {
+    // Householders only: zero active humans, below the floor of 40, and the
+    // floor never reached, so the counter never starts (ADR-0006). The
+    // reached-then-emptied case is `tests/collapse.rs`.
     let mut h = WorldBuilder::new("freeport")
         .with_preset(|p| {
             p.params.population.collapse_enabled = true;
@@ -141,18 +143,12 @@ fn collapse_fires_after_five_low_cycles_only_when_enabled() {
         .householders(3)
         .build();
     h.check_every_step = false;
-    let mut ended_at = None;
-    for t in 0..(24 * 6) {
+    for _ in 0..(24 * 6) {
         let events = h.tick();
-        if let Some(Event::EpochEnded { reason, cycle }) = events
-            .iter()
-            .find(|e| matches!(e, Event::EpochEnded { .. }))
-        {
-            ended_at = Some((t, *reason, *cycle));
-            break;
-        }
+        assert!(!kinds(&events).contains(&"EpochEnded"));
     }
-    assert_eq!(ended_at, Some((24 * 5 - 1, EpochEndReason::Collapse, 4)));
+    assert!(!h.world.meta.reached_floor);
+    assert_eq!(h.world.meta.low_population_cycles, 0);
     h.check();
 
     let mut h = WorldBuilder::new("freeport")

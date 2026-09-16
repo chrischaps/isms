@@ -391,6 +391,9 @@ pub enum Event {
         aggregates: CycleAggregates,
         /// The collapse counter after this cycle (phase 8m).
         low_population_cycles: u32,
+        /// Whether the floor has been reached this epoch, after this cycle (ADR-0006).
+        #[serde(default)]
+        reached_floor: bool,
     },
 
     // --- Phase 0b (appended: postcard tags variants by index, Q50) ----------
