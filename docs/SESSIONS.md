@@ -402,3 +402,11 @@ Provisional answers added to QUESTIONS.md: none.
 New tunables: none.
 Next session should know: the payroll figure is the client's estimate from the contract terms and the current allocation; the engine's own figure arrives with the `Paid` and `PaymentMissed` events. Householders take a job only while unemployed and never switch for a better wage; whether they should is a design question, not a UI fix.
 make check: green · new tests: 0 (assertions added to one) · sim-check: n/a
+
+## S1.11c — Treasury ledger, Max, and the book hint on the org page — 2026-09-16 — PR #56
+Built: `GET /s/{id}/orgs/{oid}/ledger` (`OrgLedgerView`): the events that moved the org's treasury or its escrow (Trade, SaleAccepted, Transferred, Paid, PaymentMissed, DividendPaid, OrderPlaced), oldest first, filtered by the org appearing anywhere in the payload, for the manager, shareholders and members (403 otherwise), as `EventRef`s through the viewer. The org page shows it as a `Ledger`, newest first, with the treasury's sign on each line (sales in, purchases and wages out, escrow on placed orders) and the Explain where the event carries one. The sell-from-inventory form gains a Max button that fills the quantity from the inventory of the chosen good and a hint beside the limit with the good's last price, best bid and best ask from its book. `orgs.spec.ts` asserts the top-up in the ledger, Max, and the hint.
+Deviations from TDD: none. Prompted by Chris asking how his treasury rose without a sale he could see: his resting asks were filling tick by tick against the legacy foundries' bids, visible only on the Market tape.
+Provisional answers added to QUESTIONS.md: none.
+New tunables: none.
+Next session should know: the ledger reads the last 500 events of each kind and filters, like the tape; a long-lived society will want a store query by org (an index on `payload` or an `org_id` column) before S1.15's load test. Order cancellations and expiries are not in the ledger because their events name only the order id; the escrow return shows up as the treasury total moving.
+make check: green · new tests: 0 (assertions added to one) · sim-check: n/a

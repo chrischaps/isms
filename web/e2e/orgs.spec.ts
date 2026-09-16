@@ -96,4 +96,14 @@ test("found a mine, hire, and see attributed output", async ({ page, context, br
   await expect(payroll).toContainText("Covered.");
   // The header shows the balance the transfer came out of.
   await expect(page.getByTestId("header-balance")).toContainText("Balance");
+
+  // The treasury ledger shows the top-up; Max fills the ask from inventory and the book hint names a price.
+  const ledger = page.getByTestId("treasury-ledger");
+  await expect(ledger).toContainText("Transfer in: treasury");
+  await expect(ledger).toContainText("+68.00");
+  const askForm = page.getByTestId("ask-form");
+  await askForm.getByRole("button", { name: "Max" }).click();
+  const heldText = await askForm.getByTestId("ask-held").textContent();
+  await expect(askForm.getByLabel("Ask quantity")).toHaveValue(String(Number(heldText!.replace(/\D/g, ""))));
+  await expect(page.getByTestId("ask-book-hint")).toContainText(/best bid (none|\d)/);
 });

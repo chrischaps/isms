@@ -18,9 +18,9 @@ use isms_api_types::society::{
     Committed, ContractsView, CreditOfferRequest, DigestView, DividendRequest,
     EmploymentOfferRequest, EventRef, ExplainView, FoundOrgRequest, Headline, HomeView,
     HouseholdersView, IssueSharesRequest, LeaseOfferRequest, MachinesRequest, MemberRequest,
-    NoticeBoardView, OrgView, OrgsView, PayslipsView, PlaceOrderRequest, PlanView, PricePoint,
-    PricesView, SaleOfferRequest, ScoreboardView, SetLaborRequest, SetPlanRequest, StatsView,
-    TransferRequest, WantedRequest, cents, instrument_name, parse_instrument,
+    NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlaceOrderRequest, PlanView,
+    PricePoint, PricesView, SaleOfferRequest, ScoreboardView, SetLaborRequest, SetPlanRequest,
+    StatsView, TransferRequest, WantedRequest, cents, instrument_name, parse_instrument,
 };
 use isms_core::command::Command;
 use isms_core::event::{Actor, Event};
@@ -524,6 +524,65 @@ async fn get_org(
     views::org(&world, &viewer, OrgId(oid))
         .map(Json)
         .ok_or_else(|| ApiError::NotFound(format!("no org {oid}")))
+}
+
+/// Does the payload name this org anywhere (`{"org": n}` as a party or as a field)?
+fn mentions_org(v: &serde_json::Value, oid: u32) -> bool {
+    match v {
+        serde_json::Value::Object(m) => {
+            if m.get("org").and_then(serde_json::Value::as_u64) == Some(u64::from(oid)) {
+                return true;
+            }
+            m.values().any(|x| mentions_org(x, oid))
+        }
+        serde_json::Value::Array(a) => a.iter().any(|x| mentions_org(x, oid)),
+        _ => false,
+    }
+}
+
+/// The event kinds that move an org's treasury or its escrow.
+const LEDGER_KINDS: [&str; 7] = [
+    "Trade",
+    "SaleAccepted",
+    "Transferred",
+    "Paid",
+    "PaymentMissed",
+    "DividendPaid",
+    "OrderPlaced",
+];
+
+#[utoipa::path(get, path = "/s/{id}/orgs/{oid}/ledger", summary = "Managers and owners: what moved the treasury, oldest first",
+    params(("id" = i64, Path, description = "Society id"), ("oid" = u32, Path, description = "Org id")),
+    responses((status = 200, body = OrgLedgerView), (status = 403, body = Problem), (status = 404, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn org_ledger(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path((id, oid)): Path<(i64, u32)>,
+) -> ApiResult<Json<OrgLedgerView>> {
+    let (entry, me) = me_in(&state, &auth, id).await?;
+    let mut stored = Vec::new();
+    for kind in LEDGER_KINDS {
+        stored.extend(state.store.read_last_of_kind(id, kind, 500).await?);
+    }
+    stored.sort_by_key(|e| e.seq);
+    let world = entry.handle.world.read().await;
+    let viewer = Viewer::new(&world, Some(me));
+    let org = views::org(&world, &viewer, OrgId(oid))
+        .ok_or_else(|| ApiError::NotFound(format!("no org {oid}")))?;
+    if !org.i_manage && org.my_shares == 0 && !org.members.contains(&me.0) {
+        return Err(ApiError::Forbidden(
+            "the ledger is for the org's manager, owners and members".into(),
+        ));
+    }
+    let entries = stored
+        .iter()
+        .filter(|e| serde_json::to_value(&e.event).is_ok_and(|v| mentions_org(&v, oid)))
+        .filter_map(|e| event_ref(&viewer, &world, e))
+        .collect();
+    Ok(Json(OrgLedgerView {
+        clock: clock_of(&world),
+        entries,
+    }))
 }
 
 #[utoipa::path(post, path = "/s/{id}/orgs/{oid}/offers", summary = "Manager: post a job offer for one of the org's workplaces",
@@ -1093,6 +1152,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(prices))
         .routes(routes!(orgs, found_org))
         .routes(routes!(get_org))
+        .routes(routes!(org_ledger))
         .routes(routes!(offer_employment))
         .routes(routes!(add_workplace))
         .routes(routes!(machines))

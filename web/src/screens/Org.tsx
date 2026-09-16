@@ -7,10 +7,11 @@
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ApiError, credits, type OfferView } from "../api/client";
+import { ApiError, credits, type EventRef, type OfferView } from "../api/client";
 import { useBoard, useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { useContracts, useTransfer } from "../api/contracts";
-import { usePlaceOrder } from "../api/market";
+import { useBook, usePlaceOrder } from "../api/market";
+import { Ledger, type LedgerRow } from "../components/Ledger";
 import {
   useAddWorkplace,
   useAppoint,
@@ -21,6 +22,7 @@ import {
   useOfferEmployment,
   useOfferSale,
   useOrg,
+  useOrgLedger,
   useOrgsView,
   type OrgView,
   type WorkplaceView,
@@ -73,10 +75,18 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const [note, setNote] = useState<string | null>(null);
   const contracts = useContracts(id);
   const transfer = useTransfer(id);
+  const [askGood, setAskGood] = useState("ore");
+  const askBook = useBook(id, askGood);
+  const meId = home.data?.citizen.id ?? -1;
+  const ledger = useOrgLedger(
+    id,
+    oid,
+    Boolean(org.data && (org.data.i_manage || org.data.my_shares > 0 || org.data.members.includes(meId))),
+  );
   const [topUp, setTopUp] = useState("");
   // Forms.
   const [job, setJob] = useState({ workplace: 0, hourly: "8.00", piece: false, hours: 8, places: 1, term: "", notice: 1 });
-  const [ask, setAsk] = useState({ good: "ore", qty: 10, limit: "" });
+  const [ask, setAsk] = useState({ qty: 10, limit: "" });
   const [buy, setBuy] = useState({ qty: 1, limit: "" });
   const [mach, setMach] = useState({ workplace: 0, qty: 1 });
   const [perShare, setPerShare] = useState("0.10");
@@ -148,6 +158,61 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const jobWp = job.workplace || firstWp;
   const machWp = mach.workplace || firstWp;
   const cents = (s: string) => Math.round(Number(s) * 100) || 0;
+
+  // The treasury's side of each event, in cents; goods movements as text.
+  const ledgerRows: LedgerRow[] = (ledger.data?.entries ?? [])
+    .slice()
+    .reverse()
+    .flatMap((e: EventRef): LedgerRow[] => {
+      const p = (e.payload[e.kind] ?? {}) as Record<string, unknown>;
+      const isOrg = (party: unknown) => (party as Record<string, unknown> | undefined)?.org === oid;
+      const when = `c${e.cycle + 1} t${e.tick}`;
+      const base = { key: String(e.seq), when, explain: (p.explain as LedgerRow["explain"]) ?? null };
+      switch (e.kind) {
+        case "Trade": {
+          const qty = Number(p.qty ?? 0);
+          const price = Number(p.price ?? 0);
+          const inst = Object.values((p.instrument as object) ?? {})[0];
+          const sold = isOrg(p.seller);
+          return [{ ...base, what: `${sold ? "Sold" : "Bought"} ${qty} ${String(inst)} at ${credits(price)}`, cents: sold ? qty * price : -qty * price }];
+        }
+        case "SaleAccepted": {
+          const money = Number((p.price as Record<string, number> | undefined)?.money ?? 0);
+          const sold = isOrg(p.seller);
+          return [{ ...base, what: `${sold ? "Sold" : "Bought"} by direct sale`, cents: sold ? money : -money }];
+        }
+        case "Transferred": {
+          const asset = (p.asset ?? {}) as Record<string, unknown>;
+          const inbound = isOrg(p.to);
+          const memo = String(p.memo ?? "").trim();
+          const what = `Transfer ${inbound ? "in" : "out"}${memo ? `: ${memo}` : ""}`;
+          if (typeof asset.money === "number") return [{ ...base, what, cents: inbound ? asset.money : -asset.money }];
+          const g = asset.good as [string, number] | undefined;
+          return [{ ...base, what, goods: g ? `${inbound ? "+" : "-"}${g[1]} ${g[0]}` : "" }];
+        }
+        case "Paid":
+          return [{ ...base, what: `Wages, citizen ${String(p.citizen)}`, cents: -Number(p.amount ?? 0) }];
+        case "PaymentMissed":
+          return [{ ...base, what: `Payday missed, citizen ${String(p.citizen)}: owed ${credits(Number(p.owed ?? 0))}, paid`, cents: -Number(p.paid ?? 0) }];
+        case "DividendPaid":
+          return [{ ...base, what: `Dividend, citizen ${String(p.citizen)}`, cents: -Number(p.amount ?? 0) }];
+        case "OrderPlaced": {
+          const order = (p.order ?? {}) as Record<string, unknown>;
+          if (!isOrg(order.owner)) return [];
+          const escrow = (p.escrow ?? {}) as Record<string, unknown>;
+          const inst = Object.values((order.instrument as object) ?? {})[0];
+          if (typeof escrow.money === "number") return [{ ...base, what: `Bid placed for ${String(order.qty)} ${String(inst)} (escrow)`, cents: -escrow.money }];
+          const g = escrow.good as [string, number] | undefined;
+          return [{ ...base, what: `Ask placed: ${String(order.qty)} ${String(inst)} at ${credits(Number(order.limit_price ?? 0))} (escrow)`, goods: g ? `-${g[1]} ${g[0]}` : "" }];
+        }
+        default:
+          return [];
+      }
+    });
+  const held = (g: string) => (o.inventory as Record<string, number>)[g] ?? 0;
+  const bookHint = askBook.data
+    ? `last ${askBook.data.last_price != null ? credits(askBook.data.last_price) : "none"} · best bid ${askBook.data.bids[0] ? credits(askBook.data.bids[0].price) : "none"} · best ask ${askBook.data.asks[0] ? credits(askBook.data.asks[0].price) : "none"}`
+    : "";
 
   const production = (w: WorkplaceView) => (
     <div key={w.id} className="mt-3" data-testid={`workplace-${w.id}`}>
@@ -339,6 +404,16 @@ export function Org({ id, oid }: { id: number; oid: number }) {
         ) : null}
       </section>
 
+      {ledger.data ? (
+        <section>
+          <h3 className="text-lg">Treasury ledger</h3>
+          <p className="text-muted mt-1 text-xs">Every movement of the treasury and its escrow, newest first: trades and sales, transfers, wages, dividends, orders placed.</p>
+          <div className="mt-2" data-testid="treasury-ledger">
+            <Ledger rows={ledgerRows} empty="Nothing has moved the treasury yet." />
+          </div>
+        </section>
+      ) : null}
+
       <section>
         <h3 className="text-lg">Open offers</h3>
         {offers.length === 0 ? (
@@ -429,14 +504,14 @@ export function Org({ id, oid }: { id: number; oid: number }) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   place.mutate(
-                    { instrument: ask.good, side: "ask", qty: ask.qty, limit_price: cents(ask.limit), on_behalf_of: oid },
-                    { onSuccess: ok(`Ask placed on the ${ask.good} book for the firm.`), onError: fail },
+                    { instrument: askGood, side: "ask", qty: ask.qty, limit_price: cents(ask.limit), on_behalf_of: oid },
+                    { onSuccess: ok(`Ask placed on the ${askGood} book for the firm.`), onError: fail },
                   );
                 }}
               >
                 <h3 className="text-lg">Sell from inventory</h3>
                 <Field label="Good">
-                  <select aria-label="Ask good" className="border-line rounded-sm border px-1" value={ask.good} onChange={(e) => setAsk({ ...ask, good: e.target.value })}>
+                  <select aria-label="Ask good" className="border-line rounded-sm border px-1" value={askGood} onChange={(e) => setAskGood(e.target.value)}>
                     {GOODS.map((g) => (
                       <option key={g} value={g}>
                         {g} ({(o.inventory as Record<string, number>)[g] ?? 0} held)
@@ -446,10 +521,18 @@ export function Org({ id, oid }: { id: number; oid: number }) {
                 </Field>
                 <Field label="Quantity">
                   <input aria-label="Ask quantity" type="number" min={1} className="border-line num w-20 rounded-sm border px-1" value={ask.qty} onChange={(e) => setAsk({ ...ask, qty: Number(e.target.value) })} />
+                  <button type="button" className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => setAsk({ ...ask, qty: held(askGood) })}>
+                    Max
+                  </button>
+                  <span className="text-muted text-xs" data-testid="ask-held">
+                    {held(askGood)} held
+                  </span>
                 </Field>
                 <Field label="Limit">
                   <input aria-label="Ask limit" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={ask.limit} onChange={(e) => setAsk({ ...ask, limit: e.target.value })} />
-                  <span className="text-muted text-xs">cr a unit; the goods sit in escrow until filled</span>
+                  <span className="text-muted text-xs" data-testid="ask-book-hint">
+                    cr a unit{bookHint ? ` · ${bookHint}` : ""}; the goods sit in escrow until filled
+                  </span>
                 </Field>
                 <button type="submit" disabled={place.isPending || cents(ask.limit) < 1} className="border-line self-start rounded-sm border px-3 py-1 text-sm">
                   Post ask

@@ -15,7 +15,19 @@ export type EmploymentOffer = Schemas["EmploymentOfferRequest"];
 
 export const orgKeys = {
   org: (id: number, oid: number) => ["society", id, "orgs", oid] as const,
+  ledger: (id: number, oid: number) => ["society", id, "orgs", oid, "ledger"] as const,
 };
+
+/** What moved the treasury; 403 for anyone but the manager, owners and members. */
+export function useOrgLedger(id: number, oid: number, enabled: boolean) {
+  return useQuery({
+    queryKey: orgKeys.ledger(id, oid),
+    queryFn: async () =>
+      unwrap(await api.GET("/s/{id}/orgs/{oid}/ledger", { params: { path: { id, oid } } })),
+    refetchInterval: TICK_FALLBACK_MS,
+    enabled,
+  });
+}
 
 export function useOrgsView(id: number) {
   return useQuery({
