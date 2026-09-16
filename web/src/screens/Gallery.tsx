@@ -9,6 +9,7 @@ import { Meter } from "../components/Meter";
 import { Num } from "../components/Num";
 import { OrderBook } from "../components/OrderBook";
 import { TimeSeries } from "../components/TimeSeries";
+import { WorldClock } from "../components/WorldClock";
 
 const explain = {
   rule: "payroll_hourly",
@@ -96,6 +97,15 @@ export function Gallery() {
         <div className="mt-2 max-w-lg">
           <DiffSinceLastSeen events={events} t={t} me={41} />
         </div>
+      </section>
+      <section>
+        <h2 className="text-xl">World clock</h2>
+        <p className="mt-2">
+          <WorldClock clock={{ epoch: 1, cycle: 12, tick: 17, ticks_per_cycle: 24 }} nextTickAt={new Date(Date.now() + 41 * 60_000).toISOString()} tickSeconds={3600} />
+        </p>
+        <p className="mt-2">
+          <WorldClock clock={{ epoch: 1, cycle: 12, tick: 17, ticks_per_cycle: 24 }} nextTickAt={null} tickSeconds={3600} />
+        </p>
       </section>
       <section>
         <h2 className="text-xl">Countdown</h2>

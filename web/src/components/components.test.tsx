@@ -3,6 +3,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Countdown, formatUntil } from "./Countdown";
+import { formatWorldTime, tickProgress } from "./WorldClock";
 import { Meter } from "./Meter";
 import { Num } from "./Num";
 
@@ -67,5 +68,25 @@ describe("Countdown", () => {
     expect(formatUntil(null, now)).toBe("—");
     render(<Countdown at="2099-01-01T00:00:00Z" label="Next tick" />);
     expect(screen.getByText("Next tick")).toBeTruthy();
+  });
+});
+
+describe("WorldClock", () => {
+  it("turns ticks into hours and the elapsed share into minutes", () => {
+    const day = { epoch: 1, cycle: 6, tick: 15, ticks_per_cycle: 24 };
+    expect(formatWorldTime(day, 0.5)).toBe("2:30 PM");
+    expect(formatWorldTime({ ...day, tick: 1 }, 0)).toBe("12:00 AM");
+    expect(formatWorldTime({ ...day, tick: 13 }, 0.999)).toBe("12:59 PM");
+    expect(formatWorldTime({ ...day, tick: 24 }, null)).toBe("11:00 PM");
+    expect(formatWorldTime({ ...day, ticks_per_cycle: 12, tick: 3 }, 0.5)).toBe("tick 3/12");
+  });
+
+  it("measures the tick's elapsed share from the next tick's due time", () => {
+    const now = Date.parse("2026-01-01T00:00:00Z");
+    const due = new Date(now + 2_500).toISOString();
+    expect(tickProgress(due, 10, now)).toBe(0.75);
+    expect(tickProgress(new Date(now - 1).toISOString(), 10, now)).toBe(1);
+    expect(tickProgress(null, 10, now)).toBeNull();
+    expect(tickProgress(due, 0, now)).toBeNull();
   });
 });

@@ -82,7 +82,7 @@ export function Admin() {
                   </span>
                 </td>
                 <td className="num py-2 pr-2" data-testid="admin-clock">
-                  epoch {s.clock.epoch} · cycle {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle}
+                  epoch {s.clock.epoch} · day {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle}
                   <span className="text-muted block text-xs">
                     {!ended && !v.paused ? <Countdown at={s.next_tick_at} label="next tick" /> : "no tick due"}
                   </span>
