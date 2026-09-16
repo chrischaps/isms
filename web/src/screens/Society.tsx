@@ -1,6 +1,8 @@
 // The society shell (TDD 11, GDD 15): the nav is built from capabilities and
 // labelled from the lexicon, so the absence of a widget is a design
 // statement. The index route is Home (S1.8), which onboards a non-citizen.
+// Sections with a screen are links (Work and the plan since S1.9); the rest
+// are labels until their card lands.
 
 import { Link, Outlet } from "@tanstack/react-router";
 import { useCapabilities, useLexicon, useSociety, useStream } from "../api/hooks";
@@ -18,9 +20,10 @@ export function SocietyShell({ id }: { id: number }) {
   }
   const s = society.data!;
   const c = caps.data!;
-  const nav: { to: string; label: string }[] = [
-    { to: "", label: t("home_title") },
-    { to: "work", label: t("work_screen") },
+  const nav: { to: string; label: string; built?: boolean }[] = [
+    { to: "", label: t("home_title"), built: true },
+    { to: "work", label: t("work_screen"), built: true },
+    { to: "plan", label: t("plan"), built: true },
     ...(c.order_books ? [{ to: "market", label: t("store") }] : []),
     ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations" }] : []),
     { to: "contracts", label: "Contracts" },
@@ -43,11 +46,24 @@ export function SocietyShell({ id }: { id: number }) {
         </div>
       </header>
       <nav className="mt-3 flex flex-wrap gap-4 text-sm" aria-label="Sections">
-        {nav.map((n) => (
-          <span key={n.to} className={n.to === "" ? "text-ink" : "text-muted"}>
-            {n.label}
-          </span>
-        ))}
+        {nav.map((n) =>
+          n.built ? (
+            <Link
+              key={n.to}
+              to={n.to === "" ? "/s/$id" : n.to === "work" ? "/s/$id/work" : "/s/$id/plan"}
+              params={{ id: String(id) }}
+              className="text-muted"
+              activeOptions={{ exact: n.to === "" }}
+              activeProps={{ className: "text-ink" }}
+            >
+              {n.label}
+            </Link>
+          ) : (
+            <span key={n.to} className="text-muted" title="Not built yet">
+              {n.label}
+            </span>
+          ),
+        )}
       </nav>
       <main className="mt-6">
         <Outlet />

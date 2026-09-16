@@ -3,37 +3,22 @@
 // were away, the next tick and cycle, and one tap to keep the plan.
 
 import { useEffect, useState } from "react";
-import { ApiError, credits, type HomeView } from "../api/client";
+import { Link } from "@tanstack/react-router";
+import { ApiError, credits, type EventRef } from "../api/client";
 import { useHome, useLexicon, useSociety } from "../api/hooks";
 import { usePayslips, useSetPlan } from "../api/society";
 import { Countdown } from "../components/Countdown";
 import { DiffSinceLastSeen } from "../components/DiffSinceLastSeen";
-import { Ledger, type LedgerRow } from "../components/Ledger";
+import { Ledger } from "../components/Ledger";
 import { Meter } from "../components/Meter";
-import { Num, type Explain } from "../components/Num";
+import { Num } from "../components/Num";
+import { orgNamer, payslipRows } from "../lib/payslips";
 import { Onboarding } from "./Onboarding";
 
 function nextCycleAt(nextTick: string | null | undefined, tickSeconds: number, tick: number, perCycle: number) {
   if (!nextTick || tickSeconds === 0) return null;
   const remaining = perCycle - tick; // ticks after this one until the cycle closes
   return new Date(new Date(nextTick).getTime() + remaining * tickSeconds * 1000).toISOString();
-}
-
-function payslipRows(h: HomeView, slips: { seq: number; tick: number; cycle: number; payload: Record<string, unknown> }[]): LedgerRow[] {
-  return slips
-    .slice(-5)
-    .reverse()
-    .map((s) => {
-      const p = (s.payload.Paid ?? {}) as Record<string, unknown>;
-      const org = h.labor.employment.find((k) => (k.body.employment as Record<string, unknown> | undefined)?.org === p.org);
-      return {
-        key: String(s.seq),
-        when: `c${s.cycle + 1} end`,
-        what: org ? `Payslip, org #${String(p.org)}` : `Payslip, org #${String(p.org)}`,
-        cents: Number(p.amount ?? 0),
-        explain: (p.explain as Explain | undefined) ?? null,
-      };
-    });
 }
 
 export function Home({ id }: { id: number }) {
@@ -115,7 +100,10 @@ export function Home({ id }: { id: number }) {
             {h.labor.allocations.length === 0
               ? "no position"
               : h.labor.allocations.map((a) => `${a.org_name}: ${a.hours} h, ${a.effort}`).join("; ")}
-            <span className="text-muted"> · budget {h.labor.budget} h</span>
+            <span className="text-muted"> · budget {h.labor.budget} h · </span>
+            <Link to="/s/$id/work" params={{ id: String(id) }} className="text-muted underline">
+              adjust
+            </Link>
           </dd>
         </dl>
       </section>
@@ -130,7 +118,15 @@ export function Home({ id }: { id: number }) {
           <h3 className="text-lg">{t("compensation")}</h3>
           <div className="mt-2" data-testid="payslips">
             <Ledger
-              rows={slips.data ? payslipRows(h, slips.data.payslips as never) : []}
+              rows={
+                slips.data
+                  ? payslipRows(
+                      slips.data.payslips as unknown as EventRef[],
+                      orgNamer(h.labor.allocations, h.labor.employment),
+                      5,
+                    )
+                  : []
+              }
               empty="No payslip yet. The first comes at the end of the cycle."
             />
           </div>
@@ -166,6 +162,9 @@ export function Home({ id }: { id: number }) {
           >
             Keep my plan
           </button>
+          <Link to="/s/$id/plan" params={{ id: String(id) }} className="text-muted ml-3 text-sm underline">
+            Edit plan
+          </Link>
           {kept !== null ? <span className="text-muted ml-3 text-sm">kept for cycle {kept}</span> : null}
         </div>
       </section>

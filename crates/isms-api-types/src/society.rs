@@ -108,6 +108,22 @@ pub struct LaborView {
     pub allocations: Vec<AllocationView>,
     pub skills: Vec<SkillView>,
     pub employment: Vec<ContractView>,
+    /// What each effort level costs and yields (GDD 4.3), from the preset.
+    pub effort: EffortCosts,
+}
+
+/// The effort table (GDD 4.3) as the client shows it in the editor's tooltips.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct EffortCosts {
+    /// Output multiplier per level: low, normal, high.
+    pub output_mult: [f64; 3],
+    /// Food decay multiplier per level: low, normal, high.
+    pub food_decay_mult: [f64; 3],
+    /// High effort for more than this many consecutive cycles accrues fatigue debt.
+    pub high_effort_debt_after_cycles: u8,
+    /// Hours of budget lost per cycle of debt.
+    pub high_effort_debt_hours: u8,
+    pub max_workplaces: u8,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]

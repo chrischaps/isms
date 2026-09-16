@@ -14,8 +14,10 @@ import {
 } from "@tanstack/react-router";
 import { Gallery } from "./screens/Gallery";
 import { Login } from "./screens/Login";
+import { PlanScreen } from "./screens/Plan";
 import { Societies } from "./screens/Societies";
 import { SocietyHome, SocietyShell } from "./screens/Society";
+import { Work } from "./screens/Work";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5_000 } },
@@ -62,6 +64,16 @@ function SocietyHomeRoute() {
   return <SocietyHome id={Number(id)} />;
 }
 
+function SocietyWorkRoute() {
+  const { id } = useParams({ from: "/s/$id/work" });
+  return <Work id={Number(id)} />;
+}
+
+function SocietyPlanRoute() {
+  const { id } = useParams({ from: "/s/$id/plan" });
+  return <PlanScreen id={Number(id)} />;
+}
+
 const societyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/s/$id",
@@ -74,11 +86,23 @@ const societyHomeRoute = createRoute({
   component: SocietyHomeRoute,
 });
 
+const societyWorkRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/work",
+  component: SocietyWorkRoute,
+});
+
+const societyPlanRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/plan",
+  component: SocietyPlanRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   galleryRoute,
-  societyRoute.addChildren([societyHomeRoute]),
+  societyRoute.addChildren([societyHomeRoute, societyWorkRoute, societyPlanRoute]),
 ]);
 
 export const router = createRouter({ routeTree });
