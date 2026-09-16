@@ -1247,6 +1247,15 @@ export interface components {
             kind: string;
             name: string;
         };
+        FoundingCosts: {
+            /**
+             * Format: int32
+             * @description Materials per workplace, from the founder's pantry (or the org's inventory later).
+             */
+            materials: number;
+            /** @description The founding fee (zero where money does not exist). */
+            money: components["schemas"]["i64"];
+        };
         /** @description A Chronicle headline (S1.5 fills these; empty until then). */
         Headline: {
             /** Format: int64 */
@@ -1457,7 +1466,11 @@ export interface components {
         };
         OrgsView: {
             clock: components["schemas"]["Clock"];
+            /** @description What founding costs here (the client previews it before the command). */
+            founding: components["schemas"]["FoundingCosts"];
             orgs: components["schemas"]["OrgView"][];
+            /** @description Slot scarcity per slot-limited workplace kind; an absent kind is unlimited. */
+            slots: Record<string, never>;
         };
         PayslipsView: {
             clock: components["schemas"]["Clock"];

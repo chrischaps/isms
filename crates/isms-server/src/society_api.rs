@@ -487,6 +487,8 @@ async fn orgs(
     Ok(Json(OrgsView {
         clock: clock_of(&world),
         orgs: views::orgs(&world, &viewer),
+        founding: views::founding(&world),
+        slots: views::slots(&world),
     }))
 }
 
