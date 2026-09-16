@@ -27,5 +27,7 @@ ISMS_SESSION_WORK="$("$SERVER" session --email work-$(date +%s)@example.test)"
 ISMS_SESSION_MARKET="$("$SERVER" session --email market-$(date +%s)@example.test)"
 ISMS_SESSION_ORG="$("$SERVER" session --email org-$(date +%s)@example.test)"
 ISMS_SESSION_HAND="$("$SERVER" session --email hand-$(date +%s)@example.test)"
-export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND
+ISMS_SESSION_LEND="$("$SERVER" session --email lend-$(date +%s)@example.test)"
+ISMS_SESSION_BORROW="$("$SERVER" session --email borrow-$(date +%s)@example.test)"
+export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND ISMS_SESSION_LEND ISMS_SESSION_BORROW
 (cd web && pnpm exec playwright test "$@")
