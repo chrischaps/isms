@@ -24,5 +24,6 @@ for _ in $(seq 1 60); do curl -fsS "$ISMS_API/healthz" >/dev/null 2>&1 && up=1 &
 ISMS_SESSION="$("$SERVER" session --email web@example.test)"
 ISMS_SESSION_NEW="$("$SERVER" session --email new-$(date +%s)@example.test)"
 ISMS_SESSION_WORK="$("$SERVER" session --email work-$(date +%s)@example.test)"
-export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK
+ISMS_SESSION_MARKET="$("$SERVER" session --email market-$(date +%s)@example.test)"
+export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET
 (cd web && pnpm exec playwright test "$@")

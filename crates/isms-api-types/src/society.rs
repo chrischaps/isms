@@ -63,6 +63,9 @@ pub struct HouseholdView {
     pub balance: Cents,
     #[schema(value_type = Object)]
     pub pantry: BTreeMap<Good, u32>,
+    /// Per-good pantry caps from the preset; a good absent here is uncapped.
+    #[schema(value_type = Object)]
+    pub pantry_capacity: BTreeMap<Good, u32>,
     pub dwelling: Option<DwellingView>,
 }
 

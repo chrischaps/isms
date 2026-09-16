@@ -1289,6 +1289,8 @@ export interface components {
             balance: components["schemas"]["i64"];
             dwelling?: null | components["schemas"]["DwellingView"];
             pantry: Record<string, never>;
+            /** @description Per-good pantry caps from the preset; a good absent here is uncapped. */
+            pantry_capacity: Record<string, never>;
         };
         HouseholdersView: {
             clock: components["schemas"]["Clock"];
