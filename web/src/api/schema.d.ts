@@ -671,6 +671,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/s/{id}/orgs/{oid}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Managers and owners: what moved the treasury, oldest first */
+        get: operations["org_ledger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/s/{id}/orgs/{oid}/machines": {
         parameters: {
             query?: never;
@@ -1504,6 +1521,14 @@ export interface components {
             remaining: number;
             side: string;
             source: string;
+        };
+        /**
+         * @description What moved the treasury (S1.11c): the org's trades, sales, transfers,
+         *     payroll, dividends and escrows, oldest first, for managers and owners.
+         */
+        OrgLedgerView: {
+            clock: components["schemas"]["Clock"];
+            entries: components["schemas"]["EventRef"][];
         };
         OrgView: {
             book_value: components["schemas"]["i64"];
@@ -3074,6 +3099,46 @@ export interface operations {
                 };
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    org_ledger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description Org id */
+                oid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgLedgerView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

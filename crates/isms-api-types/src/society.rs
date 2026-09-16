@@ -263,6 +263,14 @@ pub struct BookView {
     pub tape: Vec<EventRef>,
 }
 
+/// What moved the treasury (S1.11c): the org's trades, sales, transfers,
+/// payroll, dividends and escrows, oldest first, for managers and owners.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct OrgLedgerView {
+    pub clock: Clock,
+    pub entries: Vec<EventRef>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct PlaceOrderRequest {
     pub instrument: String,
