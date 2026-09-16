@@ -5,8 +5,9 @@ use crate::state::clock_of;
 use crate::viewer::Viewer;
 use isms_api_types::society::{
     AllocationView, BookSummary, BookView, CitizenPublic, CitizenSelfView, ContractView,
-    DwellingView, FirmValuation, HouseholdView, LaborView, Level, NeedsView, OfferView, OrderView,
-    OrgView, ScoreRow, SkillView, SocietyPulse, WorkerView, WorkplaceView, cents, instrument_name,
+    DwellingView, EffortCosts, FirmValuation, HouseholdView, LaborView, Level, NeedsView,
+    OfferView, OrderView, OrgView, ScoreRow, SkillView, SocietyPulse, WorkerView, WorkplaceView,
+    cents, instrument_name,
 };
 use isms_core::ids::{CitizenId, OrgId};
 use isms_core::kinds::{CitizenKind, Good};
@@ -132,6 +133,7 @@ pub fn labor(world: &World, viewer: &Viewer, c: CitizenId) -> Option<LaborView> 
         .into_iter()
         .filter(|k| k.body.get("employment").is_some() && k.role == "party")
         .collect();
+    let lp = &world.params.labor;
     Some(LaborView {
         budget: l.budget,
         fatigue_debt: l.fatigue_debt,
@@ -139,6 +141,21 @@ pub fn labor(world: &World, viewer: &Viewer, c: CitizenId) -> Option<LaborView> 
         allocations,
         skills,
         employment,
+        effort: EffortCosts {
+            output_mult: [
+                lp.effort_output_mult.low,
+                lp.effort_output_mult.normal,
+                lp.effort_output_mult.high,
+            ],
+            food_decay_mult: [
+                lp.effort_food_decay_mult.low,
+                lp.effort_food_decay_mult.normal,
+                lp.effort_food_decay_mult.high,
+            ],
+            high_effort_debt_after_cycles: lp.high_effort_debt_after_cycles,
+            high_effort_debt_hours: lp.high_effort_debt_hours,
+            max_workplaces: lp.max_workplaces,
+        },
     })
 }
 

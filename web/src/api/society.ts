@@ -8,6 +8,10 @@ import { TICK_FALLBACK_MS, keys } from "./hooks";
 export type PayslipsView = Schemas["PayslipsView"];
 export type PlanView = Schemas["PlanView"];
 export type Joined = Schemas["Joined"];
+export type LaborView = Schemas["LaborView"];
+export type AllocationView = Schemas["AllocationView"];
+export type Effort = "low" | "normal" | "high";
+export type Allocation = { workplace: number; hours: number; effort: Effort };
 
 export const societyKeys = {
   plan: (id: number) => ["society", id, "plan"] as const,
@@ -69,11 +73,11 @@ export function useAcceptOffer(id: number) {
 export function useSetLabor(id: number) {
   const done = useSocietyInvalidation(id);
   return useMutation({
-    mutationFn: async (a: { workplace: number; hours: number; effort: "low" | "normal" | "high" }) =>
+    mutationFn: async (allocations: Allocation[]) =>
       unwrap(
         await api.PUT("/s/{id}/labor", {
           params: { path: { id } },
-          body: { allocations: [{ workplace: a.workplace, hours: a.hours, effort: a.effort }] },
+          body: { allocations },
         }),
       ),
     onSuccess: done,

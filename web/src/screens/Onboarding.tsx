@@ -123,7 +123,7 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
                     accept.mutate(o.id, {
                       onSuccess: () =>
                         setLabor.mutate(
-                          { workplace: line.workplace, hours: line.hours, effort: "normal" },
+                          [{ workplace: line.workplace, hours: line.hours, effort: "normal" }],
                           { onSuccess: () => setStep("plan"), onError: fail },
                         ),
                       onError: fail,

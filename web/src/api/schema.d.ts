@@ -1177,6 +1177,25 @@ export interface components {
             owner: Record<string, never>;
             rent_per_cycle?: null | components["schemas"]["i64"];
         };
+        /** @description The effort table (GDD 4.3) as the client shows it in the editor's tooltips. */
+        EffortCosts: {
+            /** @description Food decay multiplier per level: low, normal, high. */
+            food_decay_mult: number[];
+            /**
+             * Format: int32
+             * @description High effort for more than this many consecutive cycles accrues fatigue debt.
+             */
+            high_effort_debt_after_cycles: number;
+            /**
+             * Format: int32
+             * @description Hours of budget lost per cycle of debt.
+             */
+            high_effort_debt_hours: number;
+            /** Format: int32 */
+            max_workplaces: number;
+            /** @description Output multiplier per level: low, normal, high. */
+            output_mult: number[];
+        };
         EmploymentOfferRequest: {
             /** Format: int32 */
             max_hours: number;
@@ -1295,6 +1314,8 @@ export interface components {
             allocations: components["schemas"]["AllocationView"][];
             /** Format: int32 */
             budget: number;
+            /** @description What each effort level costs and yields (GDD 4.3), from the preset. */
+            effort: components["schemas"]["EffortCosts"];
             employment: components["schemas"]["ContractView"][];
             /** Format: int32 */
             fatigue_debt: number;
