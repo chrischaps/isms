@@ -418,3 +418,11 @@ Provisional answers added to QUESTIONS.md: none.
 New tunables: none.
 Next session should know: commands still apply while a society is held (citizens can trade with the world standing still); a playtest that pauses should say so. Ending an epoch by hand leaves the society idle until S1.15's rollover. `.env` now documents `ISMS_OPERATORS`; the dev server for Chris runs with his email in it.
 make check: green · new tests: 1 unit, 1 Playwright · sim-check: n/a
+
+## S1.13d — Operator mode: start the next epoch — 2026-09-16 — PR #58
+Built: ADR-0007 amended. `ActorMsg::NewEpoch`: once the epoch has ended, the actor takes the engine's `start_epoch(world, rules, epoch + 1)` (S0.13: roster kept, material state reset, tick 0, legacy firms and householders reseeded) as one batch, with each event's meta taken against a scratch clone as the seeding at creation does; while the epoch is running it is rejected with `EpochEnded`. The scheduler no longer parks forever on an ended society: it waits for the control's wake-up, then looks at the world again. `POST /admin/s/{id}/new-epoch` (operator) starts the epoch, re-anchors the clock so tick 0 is due one tick length from now, and records the epoch on the society row (`set_society_epoch`). The Operator room shows "Start epoch N+1" on an ended society. `admin.spec.ts` now ends the epoch by hand, starts epoch 2, and sees it tick.
+Deviations from TDD: the amendment to ADR-0007; GDD 11.2's end-of-epoch sequence (announcement at N-2, closing statements, archive, Observatory snapshot) remains S1.15's, so this is the plain restart until then.
+Provisional answers added to QUESTIONS.md: none.
+New tunables: none.
+Next session should know: a new epoch keeps every human citizen and their plan but nothing material; citizens who were dormant stay dormant. Epoch numbers on stored events come from the world at the time, so the ledger and Chronicle split cleanly by epoch. The society row's `epoch` column is informational; the world is the authority.
+make check: green · new tests: 0 (assertions added to one) · sim-check: n/a

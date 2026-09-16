@@ -508,6 +508,41 @@ async fn update_me(
     me(State(state), auth).await
 }
 
+#[utoipa::path(post, path = "/admin/s/{id}/new-epoch", summary = "Operator: start the next epoch of an ended society (roster kept, material state reset)",
+    params(("id" = i64, Path, description = "Society id")),
+    responses((status = 200, body = AdminSocietyView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn admin_new_epoch(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<AdminSocietyView>> {
+    require_operator(&state, &auth).await?;
+    let entry = society(&state, id)?;
+    let epoch = entry.handle.new_epoch().await?.map_err(ApiError::Reject)?;
+    // Tick 0 of the new epoch is due one tick length from now; nothing is caught up.
+    let s = entry.control.resume(0, chrono::Utc::now());
+    state
+        .store
+        .set_society_schedule(
+            id,
+            i32::try_from(s.tick_seconds).unwrap_or(i32::MAX),
+            s.tick_origin,
+        )
+        .await?;
+    state.store.set_society_status(id, "active").await?;
+    state
+        .store
+        .set_society_epoch(id, i32::try_from(epoch).unwrap_or(i32::MAX))
+        .await?;
+    tracing::warn!(
+        society = id,
+        epoch,
+        account = auth.account_id,
+        "new epoch started by operator"
+    );
+    Ok(Json(admin_view(&entry).await))
+}
+
 // -- spectator routes: no citizenship, no session (TDD 10.2) --------------------
 
 #[utoipa::path(get, path = "/public/societies", summary = "Every society on this server, for anyone", security(()), responses((status = 200, body = SocietyList)))]
@@ -862,6 +897,7 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(admin_step))
         .routes(routes!(admin_tick_seconds))
         .routes(routes!(admin_end_epoch))
+        .routes(routes!(admin_new_epoch))
         .routes(routes!(create_api_key))
         .routes(routes!(revoke_api_key))
         .routes(routes!(list_societies))

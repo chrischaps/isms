@@ -8,5 +8,8 @@ TDD 10.2 lists one operator action, `EndEpoch`, "never from clients", and TDD 9.
 ## Decision
 Operators are account emails named in `ISMS_OPERATORS`; the API grows `/admin/*` routes (list, pause, resume, step, tick-seconds, end-epoch) that refuse anyone else with 403, so the web client and the CLI use the same surface (TDD 10.2's one-API rule). A pause is a hold on the scheduler, persisted as `societies.status = 'paused'` so a restart keeps it; a paused society still loads and answers reads and commands. Resume re-anchors `tick_origin` so the next tick is due one tick length from now: a pause is not downtime and nothing is caught up. Step resolves one tick while held. `EndEpoch` is sent as `Actor::System` from the operator's session and logged at warn.
 
+## Amendment (S1.13d, 2026-09-16)
+`POST /admin/s/{id}/new-epoch` starts the next epoch of an ended society by hand: the actor takes the engine's `start_epoch(world, rules, epoch + 1)` as one batch (roster kept, material state reset, tick 0), the scheduler wakes from its idle wait, and the clock is re-anchored so tick 0 is due one tick length from now. GDD 11.2's epoch-end sequence (announcement, closing statements, archive) is still S1.15's; this is the operator's plain restart until then.
+
 ## Consequences
 `SocietyEntry` carries an `Arc<Control>` instead of a copied `Schedule`; the summary's `tick_seconds` and `next_tick_at` read the live clock and `next_tick_at` is `null` while held. Commands during a pause still apply (a citizen can trade while the world stands still), which is what a test wants and what a playtest should be told. `tests/admin.spec.ts` and the scheduler's unit test assert the hold and the re-anchoring.

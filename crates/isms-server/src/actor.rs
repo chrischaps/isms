@@ -6,13 +6,13 @@
 //! on a scratch clone of the world so that the persist-then-apply contract
 //! holds for their events too.
 
-use isms_core::command::{Command, Envelope, Reject};
+use isms_core::command::{Command, Envelope, Reject, RejectCode};
 use isms_core::event::{Actor, Event};
 use isms_core::householder::run_round;
 use isms_core::ids::{Cycle, Epoch, Tick};
 use isms_core::kinds::ClientKind;
 use isms_core::rules::Rules;
-use isms_core::tick::{TickError, TickInput, tick};
+use isms_core::tick::{TickError, TickInput, start_epoch, tick};
 use isms_core::world::World;
 use isms_core::{apply, handle};
 use isms_store::{EventMeta, EventStore, Loaded, NewEvent, PgEventStore, StoreError};
@@ -72,6 +72,10 @@ pub enum ActorMsg {
     Snapshot {
         reply: oneshot::Sender<Result<(), ActorError>>,
     },
+    /// Operator: start the next epoch once this one has ended (S1.13d).
+    NewEpoch {
+        reply: oneshot::Sender<Result<Result<Epoch, Reject>, ActorError>>,
+    },
     Shutdown {
         reply: oneshot::Sender<Result<(), ActorError>>,
     },
@@ -83,6 +87,7 @@ impl std::fmt::Debug for ActorMsg {
             ActorMsg::Command { .. } => "Command",
             ActorMsg::Tick { .. } => "Tick",
             ActorMsg::Snapshot { .. } => "Snapshot",
+            ActorMsg::NewEpoch { .. } => "NewEpoch",
             ActorMsg::Shutdown { .. } => "Shutdown",
         })
     }
@@ -123,6 +128,11 @@ impl SocietyHandle {
     /// Resolve the next tick (householder round first).
     pub async fn tick(&self) -> Result<TickOutcome, ActorError> {
         self.send(|reply| ActorMsg::Tick { reply }).await
+    }
+
+    /// Start the next epoch; `Err(Reject)` while the current one is still running.
+    pub async fn new_epoch(&self) -> Result<Result<Epoch, Reject>, ActorError> {
+        self.send(|reply| ActorMsg::NewEpoch { reply }).await
     }
 
     pub async fn snapshot(&self) -> Result<(), ActorError> {
@@ -211,6 +221,14 @@ impl SocietyActor {
                 }
                 ActorMsg::Snapshot { reply } => {
                     let _ = reply.send(self.snapshot().await);
+                }
+                ActorMsg::NewEpoch { reply } => {
+                    let result = self.new_epoch().await;
+                    let fatal = is_fatal(&result);
+                    let _ = reply.send(result);
+                    if fatal {
+                        break;
+                    }
                 }
                 ActorMsg::Shutdown { reply } => {
                     let _ = reply.send(self.snapshot().await);
@@ -311,6 +329,38 @@ impl SocietyActor {
         metrics::histogram!("isms_command_seconds", "society" => self.id.to_string())
             .record(started.elapsed().as_secs_f64());
         result
+    }
+
+    /// The rollover (TDD S0.13, driven by hand until S1.15's sequence): the
+    /// engine's `start_epoch` for the next number, one batch, metas taken
+    /// event by event against a scratch clone as the seeding at creation does.
+    async fn new_epoch(&mut self) -> Result<Result<Epoch, Reject>, ActorError> {
+        let mut scratch = self.world.read().await.clone();
+        if scratch.meta.epoch_ended.is_none() {
+            return Ok(Err(Reject::new(
+                RejectCode::EpochEnded,
+                "the epoch is still running; end it first",
+            )));
+        }
+        let next = scratch.meta.epoch + 1;
+        let rules = self.rules(&scratch).clone();
+        let mut batch = Vec::new();
+        for e in start_epoch(&scratch, &rules, next) {
+            batch.push(NewEvent {
+                meta: EventMeta::at(&scratch, None, None),
+                event: e.clone(),
+            });
+            apply(&mut scratch, &e);
+        }
+        let n = batch.len();
+        self.commit(batch).await?;
+        tracing::warn!(
+            society = self.id,
+            epoch = next,
+            events = n,
+            "epoch started by operator"
+        );
+        Ok(Ok(next))
     }
 
     async fn resolve_tick(&mut self) -> Result<TickOutcome, ActorError> {

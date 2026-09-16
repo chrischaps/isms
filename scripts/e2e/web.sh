@@ -15,6 +15,8 @@ SERVER=target/debug/isms-server
 SQLX_OFFLINE=true cargo build -q -p isms-server
 "$SERVER" migrate
 "$SERVER" seed --preset freeport --name "web-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
+# A second society for the operator test, which holds, ends and restarts a clock nobody else is using.
+"$SERVER" seed --preset freeport --name "operator-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 ISMS_OPERATORS="admin@example.test" "$SERVER" serve --bind "127.0.0.1:$PORT" --base-url "$ISMS_API" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
