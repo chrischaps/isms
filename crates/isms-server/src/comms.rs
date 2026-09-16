@@ -66,17 +66,39 @@ async fn chronicle(
     Query(q): Query<CycleQuery>,
 ) -> ApiResult<Json<ChronicleView>> {
     let (entry, _me) = me_in(&state, &auth, id).await?;
+    Ok(Json(chronicle_view(&state, &entry, id, q.cycle).await?))
+}
+
+/// One edition; shared with the spectator route (S1.13).
+async fn chronicle_view(
+    state: &AppState,
+    entry: &SocietyEntry,
+    id: i64,
+    cycle: Option<u32>,
+) -> ApiResult<ChronicleView> {
     let clock = clock_of(&*entry.handle.world.read().await);
-    let cycle = q.cycle.unwrap_or(clock.cycle).max(1);
+    let cycle = cycle.unwrap_or(clock.cycle).max(1);
     let rows = state
         .store
         .headlines_for_cycle(id, i32::try_from(cycle - 1).unwrap_or(i32::MAX))
         .await?;
-    Ok(Json(ChronicleView {
+    Ok(ChronicleView {
         clock,
         cycle,
         headlines: rows.into_iter().map(headline_view).collect(),
-    }))
+    })
+}
+
+#[utoipa::path(get, path = "/public/s/{id}/chronicle", summary = "One edition of the Chronicle, for anyone", security(()),
+    params(("id" = i64, Path, description = "Society id"), CycleQuery),
+    responses((status = 200, body = ChronicleView), (status = 404, body = Problem)))]
+async fn public_chronicle(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Query(q): Query<CycleQuery>,
+) -> ApiResult<Json<ChronicleView>> {
+    let entry = society(&state, id)?;
+    Ok(Json(chronicle_view(&state, &entry, id, q.cycle).await?))
 }
 
 /// The latest headlines, for the Situation view.
@@ -306,6 +328,7 @@ async fn post_dm(
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(chronicle))
+        .routes(routes!(public_chronicle))
         .routes(routes!(read_messages, post_message))
         .routes(routes!(read_dm, post_dm))
 }

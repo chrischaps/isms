@@ -9,13 +9,18 @@ import { useCapabilities, useLexicon, useSociety, useStream } from "../api/hooks
 import { Countdown } from "../components/Countdown";
 import { Home } from "./Home";
 
-const SCREENS: Record<string, "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market" | "/s/$id/orgs" | "/s/$id/contracts"> = {
+const SCREENS: Record<
+  string,
+  "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market" | "/s/$id/orgs" | "/s/$id/contracts" | "/s/$id/society" | "/s/$id/talk"
+> = {
   "": "/s/$id",
   work: "/s/$id/work",
   plan: "/s/$id/plan",
   market: "/s/$id/market",
   orgs: "/s/$id/orgs",
   contracts: "/s/$id/contracts",
+  society: "/s/$id/society",
+  talk: "/s/$id/talk",
 };
 
 export function SocietyShell({ id }: { id: number }) {
@@ -36,8 +41,8 @@ export function SocietyShell({ id }: { id: number }) {
     ...(c.order_books ? [{ to: "market", label: t("store"), built: true }] : []),
     ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations", built: true }] : []),
     { to: "contracts", label: "Contracts", built: true },
-    { to: "society", label: "Society" },
-    { to: "talk", label: "Talk" },
+    { to: "society", label: "Society", built: true },
+    { to: "talk", label: "Talk", built: true },
   ];
   return (
     <div>
@@ -45,6 +50,9 @@ export function SocietyShell({ id }: { id: number }) {
         <div className="flex items-baseline gap-3">
           <Link to="/" className="text-muted text-sm">
             Societies
+          </Link>
+          <Link to="/profile" className="text-muted text-sm">
+            Profile
           </Link>
           <h1 className="text-2xl">{s.display}</h1>
           <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>

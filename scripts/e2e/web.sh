@@ -11,7 +11,8 @@ export ISMS_API="http://127.0.0.1:$PORT"
 export RUST_LOG="${RUST_LOG:-warn}"
 SERVER=target/debug/isms-server
 
-cargo build -q -p isms-server
+# The run's database does not exist yet, so the sqlx macros build from .sqlx.
+SQLX_OFFLINE=true cargo build -q -p isms-server
 "$SERVER" migrate
 "$SERVER" seed --preset freeport --name "web-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 "$SERVER" serve --bind "127.0.0.1:$PORT" --base-url "$ISMS_API" &
@@ -29,5 +30,6 @@ ISMS_SESSION_ORG="$("$SERVER" session --email org-$(date +%s)@example.test)"
 ISMS_SESSION_HAND="$("$SERVER" session --email hand-$(date +%s)@example.test)"
 ISMS_SESSION_LEND="$("$SERVER" session --email lend-$(date +%s)@example.test)"
 ISMS_SESSION_BORROW="$("$SERVER" session --email borrow-$(date +%s)@example.test)"
-export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND ISMS_SESSION_LEND ISMS_SESSION_BORROW
+ISMS_SESSION_CIVIC="$("$SERVER" session --email civic-$(date +%s)@example.test)"
+export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND ISMS_SESSION_LEND ISMS_SESSION_BORROW ISMS_SESSION_CIVIC
 (cd web && pnpm exec playwright test "$@")

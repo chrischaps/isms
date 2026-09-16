@@ -13,8 +13,8 @@ const api = process.env.ISMS_API ?? "http://127.0.0.1:8080";
 const bypass = (req: { headers: { accept?: string; upgrade?: string } }) =>
   req.headers.upgrade === undefined && req.headers.accept?.includes("text/html") ? "/index.html" : undefined;
 const proxy = Object.fromEntries(
-  ["^/auth/", "^/me$", "^/me/", "^/societies", "^/s/[0-9]+", "^/healthz", "^/openapi.json", "^/docs"].map(
-    (p) => [p, { target: api, changeOrigin: false, ws: true, ...(p.startsWith("^/s") ? { bypass } : {}) }],
+  ["^/auth/", "^/me$", "^/me/", "^/societies", "^/s/[0-9]+", "^/public/", "^/healthz", "^/openapi.json", "^/docs"].map(
+    (p) => [p, { target: api, changeOrigin: false, ws: true, ...(p.startsWith("^/s") || p.startsWith("^/public") ? { bypass } : {}) }],
   ),
 );
 

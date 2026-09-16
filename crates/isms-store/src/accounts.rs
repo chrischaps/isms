@@ -12,6 +12,7 @@ pub struct AccountRow {
     pub created_at: DateTime<Utc>,
     pub consent_version: i32,
     pub moderation_state: String,
+    pub biography: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,7 +61,7 @@ impl PgEventStore {
     pub async fn account_by_email(&self, email: &str) -> Result<Option<AccountRow>> {
         let row = sqlx::query_as!(
             AccountRow,
-            "SELECT id, email, created_at, consent_version, moderation_state FROM accounts WHERE email = $1",
+            "SELECT id, email, created_at, consent_version, moderation_state, biography FROM accounts WHERE email = $1",
             email
         )
         .fetch_optional(&self.pool)
@@ -68,10 +69,22 @@ impl PgEventStore {
         Ok(row)
     }
 
+    /// The profile's one written line (S1.13).
+    pub async fn set_biography(&self, id: i64, biography: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE accounts SET biography = $2 WHERE id = $1",
+            id,
+            biography
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn account_by_id(&self, id: i64) -> Result<Option<AccountRow>> {
         let row = sqlx::query_as!(
             AccountRow,
-            "SELECT id, email, created_at, consent_version, moderation_state FROM accounts WHERE id = $1",
+            "SELECT id, email, created_at, consent_version, moderation_state, biography FROM accounts WHERE id = $1",
             id
         )
         .fetch_optional(&self.pool)
@@ -100,7 +113,7 @@ impl PgEventStore {
         let account = sqlx::query_as!(
             AccountRow,
             "INSERT INTO accounts (email) VALUES ($1)
-             RETURNING id, email, created_at, consent_version, moderation_state",
+             RETURNING id, email, created_at, consent_version, moderation_state, biography",
             email
         )
         .fetch_one(&mut *tx)
@@ -125,7 +138,7 @@ impl PgEventStore {
             AccountRow,
             "INSERT INTO accounts (email) VALUES ($1)
              ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-             RETURNING id, email, created_at, consent_version, moderation_state",
+             RETURNING id, email, created_at, consent_version, moderation_state, biography",
             email
         )
         .fetch_one(&self.pool)

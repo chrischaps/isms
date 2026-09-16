@@ -13,14 +13,19 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { Contracts } from "./screens/Contracts";
+import { EventScreen } from "./screens/Event";
 import { Gallery } from "./screens/Gallery";
 import { Login } from "./screens/Login";
 import { Market } from "./screens/Market";
 import { Org } from "./screens/Org";
 import { Orgs } from "./screens/Orgs";
 import { PlanScreen } from "./screens/Plan";
+import { Profile } from "./screens/Profile";
+import { PublicSocieties, PublicSociety } from "./screens/Public";
 import { Societies } from "./screens/Societies";
 import { SocietyHome, SocietyShell } from "./screens/Society";
+import { SocietyScreen } from "./screens/SocietyScreen";
+import { Talk } from "./screens/Talk";
 import { Work } from "./screens/Work";
 
 const queryClient = new QueryClient({
@@ -103,6 +108,49 @@ function SocietyContractsRoute() {
   return <Contracts id={Number(id)} />;
 }
 
+function SocietySocietyRoute() {
+  const { id } = useParams({ from: "/s/$id/society" });
+  return <SocietyScreen id={Number(id)} />;
+}
+
+function SocietyTalkRoute() {
+  const { id } = useParams({ from: "/s/$id/talk" });
+  return <Talk id={Number(id)} />;
+}
+
+function SocietyChannelRoute() {
+  const { id, channel } = useParams({ from: "/s/$id/talk/$channel" });
+  return <Talk id={Number(id)} channel={channel} />;
+}
+
+function SocietyEventRoute() {
+  const { id, seq } = useParams({ from: "/s/$id/events/$seq" });
+  return <EventScreen id={Number(id)} seq={Number(seq)} />;
+}
+
+function PublicSocietyRoute() {
+  const { id } = useParams({ from: "/public/s/$id" });
+  return <PublicSociety id={Number(id)} />;
+}
+
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile",
+  component: Profile,
+});
+
+const publicRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/public",
+  component: PublicSocieties,
+});
+
+const publicSocietyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/public/s/$id",
+  component: PublicSocietyRoute,
+});
+
 const societyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/s/$id",
@@ -157,10 +205,37 @@ const societyContractsRoute = createRoute({
   component: SocietyContractsRoute,
 });
 
+const societySocietyRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/society",
+  component: SocietySocietyRoute,
+});
+
+const societyTalkRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/talk",
+  component: SocietyTalkRoute,
+});
+
+const societyChannelRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/talk/$channel",
+  component: SocietyChannelRoute,
+});
+
+const societyEventRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/events/$seq",
+  component: SocietyEventRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   galleryRoute,
+  profileRoute,
+  publicRoute,
+  publicSocietyRoute,
   societyRoute.addChildren([
     societyHomeRoute,
     societyWorkRoute,
@@ -170,6 +245,10 @@ const routeTree = rootRoute.addChildren([
     societyOrgsRoute,
     societyOrgRoute,
     societyContractsRoute,
+    societySocietyRoute,
+    societyTalkRoute,
+    societyChannelRoute,
+    societyEventRoute,
   ]),
 ]);
 

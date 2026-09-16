@@ -86,7 +86,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Change what you may about your account: the biography line */
+        patch: operations["update_me"];
         trace?: never;
     };
     "/me/api-keys": {
@@ -118,6 +119,57 @@ export interface paths {
         post?: never;
         /** Revoke an API key */
         delete: operations["revoke_api_key"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/s/{id}/chronicle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One edition of the Chronicle, for anyone */
+        get: operations["public_chronicle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/s/{id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The numbers a society keeps, for anyone */
+        get: operations["public_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/societies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every society on this server, for anyone */
+        get: operations["public_societies"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -955,6 +1007,8 @@ export interface components {
             on_behalf_of?: number | null;
         };
         Account: {
+            /** @description The one line the player writes (GDD 10); cosmetic, carried everywhere. */
+            biography: string;
             /** Format: int32 */
             consent_version: number;
             /** Format: date-time */
@@ -1095,6 +1149,13 @@ export interface components {
             clock: components["schemas"]["Clock"];
         };
         Citizenship: {
+            /**
+             * @description Commands by how they reached the engine: `web`, `api_key`, `plan`, ...
+             *     (TDD 13 telemetry; an agent on a key shows here).
+             */
+            action_share: {
+                [key: string]: number;
+            };
             /** Format: int32 */
             citizen_id: number;
             handle: string;
@@ -1522,6 +1583,25 @@ export interface components {
             title: string;
             type: string;
         };
+        /**
+         * @description The spectator's numbers (TDD 10.2 public routes): what `/s/{id}/stats`
+         *     shows a citizen, plus the society's name and which tiles apply, so a
+         *     visitor's page needs no capabilities call.
+         */
+        PublicStatsView: {
+            clock: components["schemas"]["Clock"];
+            credit: boolean;
+            credit_outstanding: components["schemas"]["i64"];
+            display: string;
+            /** Format: int32 */
+            firm_count: number;
+            last_cycle?: Record<string, never> | null;
+            live: components["schemas"]["SocietyPulse"];
+            money: boolean;
+            name: string;
+            orgs: boolean;
+            preset: string;
+        };
         RateLimitView: {
             /** Format: int32 */
             burst: number;
@@ -1622,6 +1702,11 @@ export interface components {
             on_behalf_of?: number | null;
             /** @description `{"citizen": id}` or `{"org": id}`. */
             to: Record<string, never>;
+        };
+        /** @description What a player may change about their account (S1.13). */
+        UpdateMe: {
+            /** @description At most 140 characters; whitespace trimmed. */
+            biography: string;
         };
         WantedRequest: {
             good: string;
@@ -1810,6 +1895,45 @@ export interface operations {
             };
         };
     };
+    update_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMe"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     create_api_key: {
         parameters: {
             query?: never;
@@ -1865,6 +1989,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_chronicle: {
+        parameters: {
+            query?: {
+                /** @description 1-based cycle; default the current one. */
+                cycle?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChronicleView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicStatsView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_societies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyList"];
                 };
             };
         };

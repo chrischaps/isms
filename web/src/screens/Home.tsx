@@ -141,7 +141,11 @@ export function Home({ id }: { id: number }) {
           ) : (
             <ul className="mt-2 flex flex-col gap-1 text-sm">
               {h.headlines.map((hl) => (
-                <li key={hl.seq}>{hl.text}</li>
+                <li key={hl.seq}>
+                  <Link to="/s/$id/events/$seq" params={{ id: String(id), seq: String(hl.seq) }} className="underline decoration-dotted">
+                    {hl.text}
+                  </Link>
+                </li>
               ))}
             </ul>
           )}

@@ -17,7 +17,7 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use isms_api_types::{
     Account, ApiKeyCreated, ApiKeySummary, CapabilitiesView, Citizenship, Clock, Health,
     JoinRequest, Joined, Lexicon, MagicLinkRequest, MagicLinkSent, Me, NewApiKey, Problem,
-    SocietyList, SocietySummary, Welcome,
+    PublicStatsView, SocietyList, SocietySummary, UpdateMe, Welcome,
 };
 use isms_core::command::Command;
 use isms_core::event::{Actor, Event};
@@ -262,17 +262,28 @@ async fn me(State(state): State<AppState>, auth: Auth) -> ApiResult<Json<Me>> {
         .account_by_id(auth.account_id)
         .await?
         .ok_or(ApiError::Unauthorized)?;
-    let citizenships = state
-        .store
-        .citizenships(auth.account_id)
-        .await?
-        .into_iter()
-        .map(|c| Citizenship {
+    let mut citizenships = Vec::new();
+    for c in state.store.citizenships(auth.account_id).await? {
+        let citizen_id = u32::try_from(c.citizen_id).unwrap_or(u32::MAX);
+        let action_share = state
+            .store
+            .action_share(c.society_id, citizen_id)
+            .await?
+            .into_iter()
+            .map(|(kind, n)| {
+                let kind = kind
+                    .as_str()
+                    .map_or_else(|| kind.to_string(), str::to_owned);
+                (kind, u64::try_from(n).unwrap_or(0))
+            })
+            .collect();
+        citizenships.push(Citizenship {
             society_id: c.society_id,
-            citizen_id: u32::try_from(c.citizen_id).unwrap_or(u32::MAX),
+            citizen_id,
             handle: c.handle,
-        })
-        .collect();
+            action_share,
+        });
+    }
     let api_keys = state
         .store
         .list_api_keys(auth.account_id)
@@ -293,9 +304,75 @@ async fn me(State(state): State<AppState>, auth: Auth) -> ApiResult<Json<Me>> {
             email: account.email,
             consent_version: account.consent_version,
             created_at: account.created_at,
+            biography: account.biography,
         },
         citizenships,
         api_keys,
+    }))
+}
+
+#[utoipa::path(patch, path = "/me", summary = "Change what you may about your account: the biography line", request_body = UpdateMe,
+    responses((status = 200, body = Me), (status = 400, body = Problem), (status = 401, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn update_me(
+    State(state): State<AppState>,
+    auth: Auth,
+    Json(req): Json<UpdateMe>,
+) -> ApiResult<Json<Me>> {
+    let biography = req.biography.trim();
+    if biography.chars().count() > 140 {
+        return Err(ApiError::BadRequest(
+            "biography: at most 140 characters".into(),
+        ));
+    }
+    state
+        .store
+        .set_biography(auth.account_id, biography)
+        .await?;
+    me(State(state), auth).await
+}
+
+// -- spectator routes: no citizenship, no session (TDD 10.2) --------------------
+
+#[utoipa::path(get, path = "/public/societies", summary = "Every society on this server, for anyone", security(()), responses((status = 200, body = SocietyList)))]
+async fn public_societies(State(state): State<AppState>) -> ApiResult<Json<SocietyList>> {
+    let entries: Vec<SocietyEntry> = state
+        .societies
+        .read()
+        .expect("societies lock")
+        .values()
+        .cloned()
+        .collect();
+    let mut societies = Vec::with_capacity(entries.len());
+    for e in &entries {
+        societies.push(summary(e).await);
+    }
+    Ok(Json(SocietyList { societies }))
+}
+
+#[utoipa::path(get, path = "/public/s/{id}/stats", summary = "The numbers a society keeps, for anyone", security(()),
+    params(("id" = i64, Path, description = "Society id")), responses((status = 200, body = PublicStatsView), (status = 404, body = Problem)))]
+async fn public_stats(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<PublicStatsView>> {
+    let entry = society(&state, id)?;
+    let numbers = crate::society_api::stats_of(&state, &entry, id).await?;
+    let world = entry.handle.world.read().await;
+    let c = &world.constitution;
+    Ok(Json(PublicStatsView {
+        clock: numbers.clock,
+        name: entry.row.name.clone(),
+        display: world.meta.display.clone(),
+        preset: entry.row.preset.clone(),
+        money: c.has_money(),
+        credit: c
+            .contracts
+            .contains(&isms_core::kinds::ContractKind::Credit),
+        orgs: !c.org_kinds.is_empty(),
+        live: numbers.live,
+        firm_count: numbers.firm_count,
+        credit_outstanding: numbers.credit_outstanding,
+        last_cycle: numbers.last_cycle,
     }))
 }
 
@@ -599,7 +676,9 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(magic_link))
         .routes(routes!(auth_callback))
         .routes(routes!(logout))
-        .routes(routes!(me))
+        .routes(routes!(me, update_me))
+        .routes(routes!(public_societies))
+        .routes(routes!(public_stats))
         .routes(routes!(create_api_key))
         .routes(routes!(revoke_api_key))
         .routes(routes!(list_societies))

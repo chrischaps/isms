@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, email, created_at, consent_version, moderation_state FROM accounts WHERE email = $1",
+  "query": "INSERT INTO accounts (email) VALUES ($1)\n             ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email\n             RETURNING id, email, created_at, consent_version, moderation_state, biography",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,11 @@
         "ordinal": 4,
         "name": "moderation_state",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "biography",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -39,8 +44,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "283511c020a8adfdd06a9cf19329f76d173d75b7138c4c0977b6aebc40f8a041"
+  "hash": "fce018b4bc12b22758d089e61ced6171ef1befe47b09e17b4a838f9900f6c8f1"
 }
