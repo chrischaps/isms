@@ -19,6 +19,7 @@ export function Admin() {
   const [tick, setTickInput] = useState<Record<number, string>>({});
   const [arming, setArming] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<Record<number, string>>({});
 
   if (me.isPending) return <p className="text-muted">Loading.</p>;
   if (!operator) {
@@ -32,6 +33,31 @@ export function Admin() {
     );
   }
   const fail = (e: Error) => setError(e.message);
+  // Each action answers with the society's new clock; say what it did, since a step changes nothing else on this page.
+  const run = (sid: number, what: "pause" | "resume" | "step") => {
+    setError(null);
+    act.mutate(
+      { id: sid, act: what },
+      {
+        onError: fail,
+        onSuccess: (r) => {
+          const k = r.summary.clock;
+          const left = k.ticks_per_cycle - k.tick;
+          const at = `day ${k.cycle}, tick ${k.tick}/${k.ticks_per_cycle}`;
+          const payday = left === 0 ? "the next tick closes the day (payday)" : `${left + 1} more ticks close the day (payday)`;
+          setNote({
+            ...note,
+            [sid]:
+              what === "step"
+                ? `Stepped: one tick resolved; the clock stands at ${at}. ${payday}.`
+                : what === "pause"
+                  ? `Held at ${at}. Nothing resolves until you step or resume.`
+                  : `Resumed at ${at}; the next tick comes one tick length from now.`,
+          });
+        },
+      },
+    );
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,6 +112,11 @@ export function Admin() {
                   <span className="text-muted block text-xs">
                     {!ended && !v.paused ? <Countdown at={s.next_tick_at} label="next tick" /> : "no tick due"}
                   </span>
+                  {note[s.id] ? (
+                    <span className="text-ink block max-w-xs text-xs" role="status" data-testid="admin-note">
+                      {note[s.id]}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="num py-2 pr-2">
                   {s.active_humans} of {s.population}
@@ -126,15 +157,15 @@ export function Admin() {
                       </button>
                     ) : v.paused ? (
                       <>
-                        <button type="button" disabled={act.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => act.mutate({ id: s.id, act: "step" }, { onError: fail })}>
+                        <button type="button" disabled={act.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => run(s.id, "step")}>
                           Step one tick
                         </button>
-                        <button type="button" disabled={act.isPending} className="bg-ink text-paper rounded-sm px-2 py-0.5 text-xs" onClick={() => act.mutate({ id: s.id, act: "resume" }, { onError: fail })}>
+                        <button type="button" disabled={act.isPending} className="bg-ink text-paper rounded-sm px-2 py-0.5 text-xs" onClick={() => run(s.id, "resume")}>
                           Resume
                         </button>
                       </>
                     ) : (
-                      <button type="button" disabled={act.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => act.mutate({ id: s.id, act: "pause" }, { onError: fail })}>
+                      <button type="button" disabled={act.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => run(s.id, "pause")}>
                         Pause
                       </button>
                     )}
