@@ -43,8 +43,9 @@ export function workplaceTitles(workplaces: { id: number; kind: string }[]): Map
   return titles;
 }
 
-export function buildNames(orgs: OrgLike[], citizens: CitizenLike[], me?: number): Names {
-  const orgNames = new Map(orgs.map((o) => [o.id, o.name]));
+/** `former`: orgs only the log remembers (an earlier epoch's, or dissolved), so an old payslip still names its payer. */
+export function buildNames(orgs: OrgLike[], citizens: CitizenLike[], me?: number, former: { id: number; name: string }[] = []): Names {
+  const orgNames = new Map([...former, ...orgs].map((o) => [o.id, o.name]));
   const handles = new Map(citizens.map((c) => [c.id, c.handle]));
   const places = new Map<number, string>();
   const titles = new Map<number, string>();
@@ -130,5 +131,8 @@ export function useNames(id: number, me?: number, enabled = true): Names {
     queryFn: async () => unwrap(await api.GET("/s/{id}/citizens", { params: { path: { id } } })),
     enabled,
   });
-  return useMemo(() => buildNames(orgs.data?.orgs ?? [], citizens.data?.citizens ?? [], me), [orgs.data, citizens.data, me]);
+  return useMemo(
+    () => buildNames(orgs.data?.orgs ?? [], citizens.data?.citizens ?? [], me, orgs.data?.former ?? []),
+    [orgs.data, citizens.data, me],
+  );
 }

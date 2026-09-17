@@ -350,11 +350,22 @@ pub struct OrgView {
 pub struct OrgsView {
     pub clock: Clock,
     pub orgs: Vec<OrgView>,
+    /// Orgs the log remembers and the world no longer holds (an earlier epoch's, or dissolved):
+    /// enough to name them where an old payslip or trade still points at one.
+    pub former: Vec<FormerOrg>,
     /// What founding costs here (the client previews it before the command).
     pub founding: FoundingCosts,
     /// Slot scarcity per slot-limited workplace kind; an absent kind is unlimited.
     #[schema(value_type = Object)]
     pub slots: BTreeMap<WorkplaceKind, SlotSummary>,
+}
+
+/// An org that exists only in the log. `epoch` is 0-based, like `EventRef`'s.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct FormerOrg {
+    pub id: u32,
+    pub name: String,
+    pub epoch: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]

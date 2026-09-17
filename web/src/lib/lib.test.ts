@@ -71,6 +71,12 @@ describe("names", () => {
     expect(workplaceTitles(orgs[1]!.workplaces).get(8)).toBe("mine");
   });
 
+  it("names an org of an earlier epoch from the former list", () => {
+    const withFormer = buildNames(orgs, citizens, 1, [{ id: 3, name: "Legacy Machine Shop No. 1" }]);
+    expect(withFormer.org(3)).toBe("Legacy Machine Shop No. 1");
+    expect(withFormer.org(15)).toBe("Greenfield");
+  });
+
   it("spells out an id only when the directory has no entry", () => {
     expect(names.org(99)).toBe("organization no. 99");
     expect(names.citizen(99)).toBe("citizen no. 99");

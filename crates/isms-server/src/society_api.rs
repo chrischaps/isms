@@ -16,7 +16,7 @@ use isms_api_types::Problem;
 use isms_api_types::society::{
     AcceptRequest, AddWorkplaceRequest, AppointRequest, BookView, BooksView, CitizensView,
     Committed, ContractsView, CreditOfferRequest, DigestView, DividendRequest,
-    EmploymentOfferRequest, EventRef, ExplainView, FoundOrgRequest, Headline, HomeView,
+    EmploymentOfferRequest, EventRef, ExplainView, FormerOrg, FoundOrgRequest, Headline, HomeView,
     HouseholdersView, IssueSharesRequest, LeaseOfferRequest, MachinesRequest, MemberRequest,
     NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlaceOrderRequest, PlanView,
     PricePoint, PricesView, SaleOfferRequest, ScoreboardView, SetLaborRequest, SetPlanRequest,
@@ -490,11 +490,29 @@ async fn orgs(
     Path(id): Path<i64>,
 ) -> ApiResult<Json<OrgsView>> {
     let (entry, me) = me_in(&state, &auth, id).await?;
+    let founded = state
+        .store
+        .read_last_of_kind(id, "OrgFounded", READ_CAP)
+        .await?;
     let world = entry.handle.world.read().await;
     let viewer = Viewer::new(&world, Some(me));
+    let former = founded
+        .iter()
+        .filter_map(|e| match &e.event {
+            Event::OrgFounded { org, name, .. } if !world.orgs.contains_key(org) => {
+                Some(FormerOrg {
+                    id: org.0,
+                    name: name.clone(),
+                    epoch: e.meta.epoch,
+                })
+            }
+            _ => None,
+        })
+        .collect();
     Ok(Json(OrgsView {
         clock: clock_of(&world),
         orgs: views::orgs(&world, &viewer),
+        former,
         founding: views::founding(&world),
         slots: views::slots(&world),
     }))

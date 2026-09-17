@@ -1460,6 +1460,14 @@ export interface components {
             /** Format: int32 */
             slot?: number | null;
         };
+        /** @description An org that exists only in the log. `epoch` is 0-based, like `EventRef`'s. */
+        FormerOrg: {
+            /** Format: int32 */
+            epoch: number;
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
         FoundOrgRequest: {
             first_workplace?: null | components["schemas"]["FirstWorkplace"];
             kind: string;
@@ -1692,6 +1700,11 @@ export interface components {
         };
         OrgsView: {
             clock: components["schemas"]["Clock"];
+            /**
+             * @description Orgs the log remembers and the world no longer holds (an earlier epoch's, or dissolved):
+             *     enough to name them where an old payslip or trade still points at one.
+             */
+            former: components["schemas"]["FormerOrg"][];
             /** @description What founding costs here (the client previews it before the command). */
             founding: components["schemas"]["FoundingCosts"];
             orgs: components["schemas"]["OrgView"][];
