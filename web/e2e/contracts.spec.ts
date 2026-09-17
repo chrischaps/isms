@@ -44,8 +44,8 @@ test("a loan repays at cycle end and a lease houses you", async ({ page, context
   const shelter = page.getByTestId("housing").getByRole("meter", { name: "Shelter" });
   const before = Number(await shelter.getAttribute("aria-valuenow"));
   await leases.getByRole("button", { name: "Rent it" }).first().click();
-  await expect(page.getByText("Rented. Shelter recovers from the next tick.")).toBeVisible();
-  await expect(page.getByTestId("my-dwelling")).toContainText(/Dwelling #\d+, owned by .*8\.00 cr a cycle/);
+  await expect(page.getByText("Rented. Shelter recovers from the next hour.")).toBeVisible();
+  await expect(page.getByTestId("my-dwelling")).toContainText(/Dwelling no\. \d+, owned by .*8\.00 cr a day/);
   await expect
     .poll(async () => Number(await shelter.getAttribute("aria-valuenow")), { timeout: 30_000 })
     .toBeGreaterThan(Math.min(before, 99));
@@ -55,11 +55,11 @@ test("a loan repays at cycle end and a lease houses you", async ({ page, context
   await form.getByLabel("Principal").fill("100.00");
   await form.getByLabel("Rate").fill("1.00");
   await form.getByLabel("Term").fill("2");
-  await form.getByLabel("Borrower").fill(String(otto));
+  await form.getByLabel("Borrower").selectOption(String(otto));
   await expect(page.getByTestId("schedule")).toContainText("2 installment(s) of 51.00 cr");
   await form.getByRole("button", { name: "Offer loan" }).click();
   await expect(page.getByText(/Loan offered/)).toBeVisible();
-  await expect(page.getByTestId("ads")).toContainText("100.00 cr at 1.00% a cycle over 2 cycles");
+  await expect(page.getByTestId("ads")).toContainText("100.00 cr at 1.00% a day over 2 days");
 
   const board = (await (await other.request.get(`/s/${society}/notice-board`)).json()) as {
     offers: { id: number; kind: string; body: { credit?: { to?: { citizen?: number } | null } } }[];

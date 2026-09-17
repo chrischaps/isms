@@ -5,6 +5,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEvent } from "../api/civic";
 import { Num, type Explain } from "../components/Num";
+import { whenOf } from "../lib/when";
 
 export function EventScreen({ id, seq }: { id: number; seq: number }) {
   const ev = useEvent(id, seq);
@@ -16,10 +17,10 @@ export function EventScreen({ id, seq }: { id: number; seq: number }) {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-2xl">
-          {e.kind} <span className="num text-muted text-base">#{e.seq}</span>
+          {e.kind.replace(/([a-z])([A-Z])/g, "$1 $2")} <span className="num text-muted text-base">#{e.seq}</span>
         </h2>
         <span className="num text-muted text-sm">
-          cycle {e.cycle + 1} · tick {e.tick}
+          {whenOf(e)}
         </span>
       </header>
       {explains.length > 0 ? (

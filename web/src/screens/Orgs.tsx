@@ -9,6 +9,7 @@ import { ApiError, credits } from "../api/client";
 import { useBoard, useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { useAcceptOffer } from "../api/society";
 import { useFoundOrg, useOrgsView, type OrgView } from "../api/orgs";
+import { useNames } from "../lib/names";
 import { jobLine } from "../lib/offers";
 
 const WORKPLACE_KINDS = ["farm", "mine", "foundry", "mill", "workshop", "machine_shop", "builder"];
@@ -27,6 +28,7 @@ export function Orgs({ id }: { id: number }) {
   const { t } = useLexicon(id);
   const caps = useCapabilities(id);
   const home = useHome(id);
+  const who = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const orgs = useOrgsView(id);
   const board = useBoard(id);
   const found = useFoundOrg(id);
@@ -118,7 +120,7 @@ export function Orgs({ id }: { id: number }) {
           <h3 className="text-lg">Job board</h3>
           <p className="text-muted mt-1 text-xs">Open {t("job").toLowerCase()}s from the notice board. Taking one sets nothing else; hours live on {t("work_screen")}.</p>
           {jobs.length === 0 ? (
-            <p className="text-muted mt-2 text-sm">Nobody is hiring this tick.</p>
+            <p className="text-muted mt-2 text-sm">Nobody is hiring this hour.</p>
           ) : (
             <table className="mt-2 w-full text-sm" data-testid="job-board">
               <thead className="text-muted text-left text-xs uppercase tracking-wide">
@@ -134,13 +136,13 @@ export function Orgs({ id }: { id: number }) {
                   <tr key={o.id} className="rule align-top">
                     <td className="py-1 pr-2">
                       <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(line!.org) }} className="underline">
-                        {names.get(line!.org) ?? `org #${line!.org}`}
+                        {names.get(line!.org) ?? who.org(line!.org)}
                       </Link>
-                      <span className="text-muted block text-xs">workplace {line!.workplace}</span>
+                      <span className="text-muted block text-xs">{who.workplaceTitle(line!.workplace)}</span>
                     </td>
                     <td className="num py-1 pr-2 whitespace-nowrap">{line!.pay}</td>
                     <td className="py-1 pr-2 text-xs">
-                      up to {line!.hours} h · {line!.term} · notice {line!.notice} · {line!.places} open
+                      up to {line!.hours} h a day · {line!.term} · notice {line!.notice} day(s) · {line!.places} open
                     </td>
                     <td className="py-1 text-right">
                       <button

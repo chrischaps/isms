@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ApiError, credits, type OfferView } from "../api/client";
 import { useBoard, useCapabilities, useHome, useLexicon } from "../api/hooks";
+import { useCitizens } from "../api/civic";
 import { useOrgs } from "../api/market";
 import { useCancelOffer, useOfferSale } from "../api/orgs";
 import { useAcceptOffer } from "../api/society";
@@ -23,18 +24,12 @@ import {
   type ContractView,
 } from "../api/contracts";
 import { Meter } from "../components/Meter";
+import { useNames, type Names } from "../lib/names";
 import { jobLine } from "../lib/offers";
+import { whenOfTick } from "../lib/when";
 
 const GOODS = ["grain", "ore", "materials", "food", "wares", "machines"];
 type Party = { citizen: number } | { org: number };
-
-function partyName(p: unknown, me: number, orgs: Map<number, string>): string {
-  const q = (p ?? {}) as Record<string, unknown>;
-  if (typeof q.citizen === "number") return q.citizen === me ? "you" : `citizen ${q.citizen}`;
-  if (typeof q.org === "number") return orgs.get(q.org) ?? `org #${q.org}`;
-  if (p === "society") return "the society";
-  return "?";
-}
 
 function isMe(p: unknown, me: number): boolean {
   return typeof (p as Record<string, unknown> | undefined)?.citizen === "number" && (p as { citizen: number }).citizen === me;
@@ -51,12 +46,12 @@ function schedule(principal: number, bp: number, term: number) {
   return { total, installment, last: total - installment * (n - 1) };
 }
 
-function assetText(a: unknown): string {
+function assetText(a: unknown, names: Names): string {
   const o = (a ?? {}) as Record<string, unknown>;
   if (Array.isArray(o.good)) return `${String(o.good[1])} ${String(o.good[0])}`;
-  if (Array.isArray(o.shares)) return `${String(o.shares[1])} shares of org #${String(o.shares[0])}`;
-  if (o.dwelling !== undefined) return `dwelling #${String(o.dwelling)}`;
-  if (o.workplace !== undefined) return `workplace #${String(o.workplace)}`;
+  if (Array.isArray(o.shares)) return `${String(o.shares[1])} shares of ${names.org(Number(o.shares[0]))}`;
+  if (o.dwelling !== undefined) return `dwelling no. ${String(o.dwelling)}`;
+  if (o.workplace !== undefined) return `the ${names.workplace(Number(o.workplace))}`;
   if (typeof o.money === "number") return `${credits(o.money)} cr`;
   return JSON.stringify(a);
 }
@@ -68,17 +63,17 @@ function priceText(p: unknown): string {
   return JSON.stringify(p);
 }
 
-function contractLine(k: ContractView, me: number, orgs: Map<number, string>) {
+function contractLine(k: ContractView, me: number, names: Names) {
   const body = k.body as Record<string, Record<string, unknown>>;
   const parties = k.parties as unknown as [Party, Party];
   const other = isMe(parties[0], me) ? parties[1] : parties[0];
-  const who = partyName(other, me, orgs);
+  const who = names.party(other);
   if (body.employment) {
     const e = body.employment;
     const pay = e.pay as Record<string, number>;
     return {
       kind: "Employment",
-      text: `with ${who}: ${pay.hourly !== undefined ? `${credits(pay.hourly)} cr/h` : `${credits(pay.piece_rate ?? 0)} cr/unit`}, up to ${String(e.max_hours)} h, notice ${String(e.notice_cycles)}`,
+      text: `with ${who}: ${pay.hourly !== undefined ? `${credits(pay.hourly)} cr/h` : `${credits(pay.piece_rate ?? 0)} cr/unit`}, up to ${String(e.max_hours)} h a day, notice ${String(e.notice_cycles)} day(s)`,
       endable: true,
     };
   }
@@ -87,7 +82,7 @@ function contractLine(k: ContractView, me: number, orgs: Map<number, string>) {
     const lender = isMe(parties[0], me);
     return {
       kind: lender ? "Loan out" : "Loan",
-      text: `${lender ? "to" : "from"} ${who}: ${credits(Number(c.principal))} cr at ${(Number(c.rate_per_cycle_bp) / 100).toFixed(2)}% a cycle, ${credits(Number(c.installment))} cr a cycle, ${String(c.installments_left)} installment(s) left${c.collateral ? `, collateral ${assetText(c.collateral)}` : ""}${c.missed ? ", an installment missed" : ""}`,
+      text: `${lender ? "to" : "from"} ${who}: ${credits(Number(c.principal))} cr at ${(Number(c.rate_per_cycle_bp) / 100).toFixed(2)}% a day, ${credits(Number(c.installment))} cr a day, ${String(c.installments_left)} installment(s) left${c.collateral ? `, collateral ${assetText(c.collateral, names)}` : ""}${c.missed ? ", an installment missed" : ""}`,
       endable: false,
     };
   }
@@ -96,7 +91,7 @@ function contractLine(k: ContractView, me: number, orgs: Map<number, string>) {
     const owner = isMe(parties[0], me);
     return {
       kind: owner ? "Lease out" : "Lease",
-      text: `${owner ? "to" : "from"} ${who}: ${assetText(l.asset)} at ${credits(Number(l.rent_per_cycle))} cr a cycle${Number(l.missed_cycles) > 0 ? `, ${String(l.missed_cycles)} cycle(s) unpaid` : ""}`,
+      text: `${owner ? "to" : "from"} ${who}: ${assetText(l.asset, names)} at ${credits(Number(l.rent_per_cycle))} cr a day${Number(l.missed_cycles) > 0 ? `, ${String(l.missed_cycles)} day(s) unpaid` : ""}`,
       endable: true,
     };
   }
@@ -111,6 +106,8 @@ export function Contracts({ id }: { id: number }) {
   const board = useBoard(id);
   const contracts = useContracts(id);
   const orgs = useOrgs(id);
+  const citizens = useCitizens(id);
+  const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const accept = useAcceptOffer(id);
   const withdraw = useCancelOffer(id);
   const offerCredit = useOfferCredit(id);
@@ -146,7 +143,7 @@ export function Contracts({ id }: { id: number }) {
   const h = home.data!;
   const c = caps.data!;
   const me = h.citizen.id;
-  const names = new Map((orgs.data ?? []).map((o) => [o.id, o.name]));
+  const others = (citizens.data?.citizens ?? []).filter((z) => z.id !== me).sort((a, b) => a.handle.localeCompare(b.handle));
   const offers = board.data!.offers;
   const enabled = new Set(c.contracts);
   const fail = (e: Error) => {
@@ -184,8 +181,8 @@ export function Contracts({ id }: { id: number }) {
         </div>
         {dwelling ? (
           <p className="mt-2 text-sm" data-testid="my-dwelling">
-            Dwelling #{dwelling.id}, owned by {partyName(dwelling.owner, me, names)}
-            {dwelling.rent_per_cycle != null ? `, ${credits(dwelling.rent_per_cycle)} cr a cycle` : ", yours"}.{" "}
+            Dwelling no. {dwelling.id}, owned by {names.party(dwelling.owner)}
+            {dwelling.rent_per_cycle != null ? `, ${credits(dwelling.rent_per_cycle)} cr a day` : ", yours"}.{" "}
             {myLease ? (
               <button type="button" className="text-muted underline" onClick={() => terminate.mutate(myLease.id, { onSuccess: ok("Lease ended."), onError: fail })}>
                 End the lease
@@ -198,7 +195,7 @@ export function Contracts({ id }: { id: number }) {
           </p>
         ) : (
           <div className="mt-2 text-sm">
-            <p className="text-muted">No dwelling: Shelter falls every tick until you rent or buy one.</p>
+            <p className="text-muted">No dwelling: Shelter falls every hour until you rent or buy one.</p>
             {leases.length === 0 ? (
               <p className="text-muted mt-1">Nothing to let on the board.</p>
             ) : (
@@ -207,7 +204,7 @@ export function Contracts({ id }: { id: number }) {
                   <tr>
                     <th className="py-1 font-normal">Dwelling</th>
                     <th className="py-1 font-normal">Landlord</th>
-                    <th className="py-1 text-right font-normal">Rent a cycle</th>
+                    <th className="py-1 text-right font-normal">Rent a day</th>
                     <th className="py-1 font-normal">Term</th>
                     <th className="py-1 font-normal" />
                   </tr>
@@ -217,8 +214,8 @@ export function Contracts({ id }: { id: number }) {
                     const l = (o.body as Record<string, unknown>).lease as Record<string, unknown>;
                     return (
                       <tr key={o.id} className="rule">
-                        <td className="py-1 pr-2">{assetText(l.asset)}</td>
-                        <td className="py-1 pr-2">{partyName(o.by, me, names)}</td>
+                        <td className="py-1 pr-2">{assetText(l.asset, names)}</td>
+                        <td className="py-1 pr-2">{names.party(o.by)}</td>
                         <td className="num py-1 pr-2 text-right">{credits(Number(l.rent_per_cycle))} cr</td>
                         <td className="py-1 pr-2">{l.term_cycles == null ? "open" : `${String(l.term_cycles)} cycles`}</td>
                         <td className="py-1 text-right">
@@ -227,7 +224,7 @@ export function Contracts({ id }: { id: number }) {
                               withdraw
                             </button>
                           ) : (
-                            <button type="button" disabled={accept.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => accept.mutate(o.id, { onSuccess: ok("Rented. Shelter recovers from the next tick."), onError: fail })}>
+                            <button type="button" disabled={accept.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => accept.mutate(o.id, { onSuccess: ok("Rented. Shelter recovers from the next hour."), onError: fail })}>
                               Rent it
                             </button>
                           )}
@@ -269,13 +266,13 @@ export function Contracts({ id }: { id: number }) {
                 let terms = "";
                 let action: string | null = null;
                 if (b.sale) {
-                  terms = `${assetText(b.sale.asset)} for ${priceText(b.sale.price)}${b.sale.to ? `, for ${partyName(b.sale.to, me, names)} only` : ""}`;
+                  terms = `${assetText(b.sale.asset, names)} for ${priceText(b.sale.price)}${b.sale.to ? `, for ${names.party(b.sale.to)} only` : ""}`;
                   action = "Buy";
                 } else if (b.wanted) {
                   terms = `${String(b.wanted.qty)} ${String(b.wanted.good)} at up to ${credits(Number(b.wanted.max_price))} cr each; answer it with a sale offer addressed to the poster`;
                 } else if (b.credit) {
                   const s = schedule(Number(b.credit.principal), Number(b.credit.rate_per_cycle_bp), Number(b.credit.term_cycles));
-                  terms = `${credits(Number(b.credit.principal))} cr at ${(Number(b.credit.rate_per_cycle_bp) / 100).toFixed(2)}% a cycle over ${String(b.credit.term_cycles)} cycles: ${credits(s.installment)} cr a cycle, ${credits(s.total)} cr in all${b.credit.collateral ? `, against ${assetText(b.credit.collateral)}` : ""}${b.credit.to ? `, for ${partyName(b.credit.to, me, names)} only` : ""}`;
+                  terms = `${credits(Number(b.credit.principal))} cr at ${(Number(b.credit.rate_per_cycle_bp) / 100).toFixed(2)}% a day over ${String(b.credit.term_cycles)} days: ${credits(s.installment)} cr a day, ${credits(s.total)} cr in all${b.credit.collateral ? `, against ${assetText(b.credit.collateral, names)}` : ""}${b.credit.to ? `, for ${names.party(b.credit.to)} only` : ""}`;
                   action = "Borrow";
                 } else {
                   terms = JSON.stringify(o.body);
@@ -286,7 +283,7 @@ export function Contracts({ id }: { id: number }) {
                   <tr key={o.id} className="rule align-top">
                     <td className="py-1 pr-2">{o.kind.replace("_", " ")}</td>
                     <td className="py-1 pr-2">{terms}</td>
-                    <td className="py-1 pr-2">{partyName(o.by, me, names)}</td>
+                    <td className="py-1 pr-2">{names.party(o.by)}</td>
                     <td className="py-1 text-right whitespace-nowrap">
                       {byMe(o) ? (
                         <button type="button" className="text-muted text-xs underline" onClick={() => withdraw.mutate(o.id, { onSuccess: ok("Withdrawn."), onError: fail })}>
@@ -338,36 +335,54 @@ export function Contracts({ id }: { id: number }) {
               <span className="text-muted text-xs">cr</span>
             </label>
             <label className="flex items-center gap-2">
-              <span className="w-28">Rate a cycle</span>
+              <span className="w-28">Rate a day</span>
               <input aria-label="Rate" type="number" step="0.01" min={0} className="border-line num w-20 rounded-sm border px-1" value={credit.rate} onChange={(e) => setCredit({ ...credit, rate: e.target.value })} />
               <span className="text-muted text-xs">%</span>
             </label>
             <label className="flex items-center gap-2">
               <span className="w-28">Term</span>
               <input aria-label="Term" type="number" min={1} className="border-line num w-16 rounded-sm border px-1" value={credit.term} onChange={(e) => setCredit({ ...credit, term: Math.max(1, Number(e.target.value)) })} />
-              <span className="text-muted text-xs">cycles</span>
+              <span className="text-muted text-xs">days</span>
             </label>
             <label className="flex items-center gap-2">
               <span className="w-28">To</span>
-              <input aria-label="Borrower" type="number" min={1} placeholder="anyone" className="border-line num w-20 rounded-sm border px-1" value={credit.to} onChange={(e) => setCredit({ ...credit, to: e.target.value })} />
-              <span className="text-muted text-xs">citizen id, or blank for an open offer</span>
+              <select aria-label="Borrower" className="border-line rounded-sm border px-1" value={credit.to} onChange={(e) => setCredit({ ...credit, to: e.target.value })}>
+                <option value="">anyone</option>
+                {others.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.handle}
+                  </option>
+                ))}
+              </select>
+              <span className="text-muted text-xs">one citizen, or an open offer</span>
             </label>
             <label className="flex items-center gap-2">
               <span className="w-28">Collateral</span>
-              <select aria-label="Collateral" className="border-line rounded-sm border px-1" value={credit.collateralKind} onChange={(e) => setCredit({ ...credit, collateralKind: e.target.value })}>
+              <select aria-label="Collateral" className="border-line rounded-sm border px-1" value={credit.collateralKind} onChange={(e) => setCredit({ ...credit, collateralKind: e.target.value, collateralId: "" })}>
                 <option value="none">none</option>
                 <option value="dwelling">a dwelling</option>
                 <option value="shares">shares</option>
               </select>
               {credit.collateralKind !== "none" ? (
-                <input aria-label="Collateral id" type="number" min={1} placeholder={credit.collateralKind === "dwelling" ? "dwelling id" : "org id"} className="border-line num w-24 rounded-sm border px-1" value={credit.collateralId} onChange={(e) => setCredit({ ...credit, collateralId: e.target.value })} />
+                credit.collateralKind === "dwelling" ? (
+                  <input aria-label="Collateral id" type="number" min={1} placeholder="dwelling no." className="border-line num w-28 rounded-sm border px-1" value={credit.collateralId} onChange={(e) => setCredit({ ...credit, collateralId: e.target.value })} />
+                ) : (
+                  <select aria-label="Collateral id" className="border-line rounded-sm border px-1" value={credit.collateralId} onChange={(e) => setCredit({ ...credit, collateralId: e.target.value })}>
+                    <option value="">which organization</option>
+                    {(orgs.data ?? []).map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                )
               ) : null}
               {credit.collateralKind === "shares" ? (
                 <input aria-label="Collateral shares" type="number" min={1} className="border-line num w-16 rounded-sm border px-1" value={credit.collateralQty} onChange={(e) => setCredit({ ...credit, collateralQty: Number(e.target.value) })} />
               ) : null}
             </label>
             <p className="bg-paper-2 rounded-sm p-2 text-xs" data-testid="schedule">
-              Repaid as {credit.term} installment(s) of {credits(sched.installment)} cr{sched.last !== sched.installment ? ` (the last ${credits(sched.last)} cr)` : ""} at cycle end, {credits(sched.total)} cr in all. A missed installment seizes the collateral, then flags the borrower.
+              Repaid as {credit.term} installment(s) of {credits(sched.installment)} cr{sched.last !== sched.installment ? ` (the last ${credits(sched.last)} cr)` : ""} at the end of each day, {credits(sched.total)} cr in all. A missed installment seizes the collateral, then flags the borrower.
             </p>
             <button type="submit" disabled={offerCredit.isPending || toCents(credit.principal) < 1} className="bg-ink text-paper self-start rounded-sm px-3 py-1 disabled:opacity-50">
               Offer loan
@@ -400,7 +415,15 @@ export function Contracts({ id }: { id: number }) {
               <span>for</span>
               <input aria-label="Sale price" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={sale.price} onChange={(e) => setSale({ ...sale, price: e.target.value })} />
               <span className="text-muted text-xs">cr the lot</span>
-              <input aria-label="Sale to" type="number" min={1} placeholder="anyone" className="border-line num w-20 rounded-sm border px-1" value={sale.to} onChange={(e) => setSale({ ...sale, to: e.target.value })} />
+              <span>to</span>
+              <select aria-label="Sale to" className="border-line rounded-sm border px-1" value={sale.to} onChange={(e) => setSale({ ...sale, to: e.target.value })}>
+                <option value="">anyone</option>
+                {others.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.handle}
+                  </option>
+                ))}
+              </select>
               <button type="submit" disabled={offerSale.isPending || toCents(sale.price) < 1} className="border-line rounded-sm border px-2 py-0.5">
                 Offer
               </button>
@@ -448,11 +471,11 @@ export function Contracts({ id }: { id: number }) {
             >
               <h3 className="text-lg">Let a dwelling you own</h3>
               <div className="flex flex-wrap items-center gap-2">
-                <span>Dwelling</span>
+                <span>Dwelling no.</span>
                 <input aria-label="Lease dwelling" type="number" min={1} className="border-line num w-20 rounded-sm border px-1" value={lease.dwelling} onChange={(e) => setLease({ ...lease, dwelling: e.target.value })} />
                 <span>at</span>
                 <input aria-label="Lease rent" type="number" step="0.01" min={0} className="border-line num w-24 rounded-sm border px-1" value={lease.rent} onChange={(e) => setLease({ ...lease, rent: e.target.value })} />
-                <span className="text-muted text-xs">cr a cycle, term</span>
+                <span className="text-muted text-xs">cr a day, term in days</span>
                 <input aria-label="Lease term" type="number" min={1} placeholder="open" className="border-line num w-16 rounded-sm border px-1" value={lease.term} onChange={(e) => setLease({ ...lease, term: e.target.value })} />
                 <button type="submit" disabled={offerLease.isPending || lease.dwelling.trim() === ""} className="border-line rounded-sm border px-2 py-0.5">
                   Offer
@@ -475,11 +498,18 @@ export function Contracts({ id }: { id: number }) {
             <p className="text-muted text-xs">A gift, dues, alms, or a side-payment: all transfers, told apart by the memo.</p>
             <div className="flex flex-wrap items-center gap-2">
               <span>To</span>
-              <select aria-label="Transfer to kind" className="border-line rounded-sm border px-1" value={gift.toKind} onChange={(e) => setGift({ ...gift, toKind: e.target.value })}>
-                <option value="citizen">citizen</option>
-                <option value="org">org</option>
+              <select aria-label="Transfer to kind" className="border-line rounded-sm border px-1" value={gift.toKind} onChange={(e) => setGift({ ...gift, toKind: e.target.value, to: "" })}>
+                <option value="citizen">a citizen</option>
+                <option value="org">an organization</option>
               </select>
-              <input aria-label="Transfer to" type="number" min={1} className="border-line num w-20 rounded-sm border px-1" value={gift.to} onChange={(e) => setGift({ ...gift, to: e.target.value })} />
+              <select aria-label="Transfer to" className="border-line rounded-sm border px-1" value={gift.to} onChange={(e) => setGift({ ...gift, to: e.target.value })}>
+                <option value="">who</option>
+                {(gift.toKind === "citizen" ? others.map((z) => ({ id: z.id, name: z.handle })) : (orgs.data ?? [])).map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name}
+                  </option>
+                ))}
+              </select>
               {c.money ? (
                 <select aria-label="Transfer kind" className="border-line rounded-sm border px-1" value={gift.kind} onChange={(e) => setGift({ ...gift, kind: e.target.value })}>
                   <option value="money">money</option>
@@ -540,8 +570,8 @@ export function Contracts({ id }: { id: number }) {
                     <td className="py-1 pr-2">
                       {line.text}
                       <span className="text-muted block text-xs">
-                        #{k.id} · since tick {k.created_tick}
-                        {k.term_cycles != null ? ` · term ${k.term_cycles} cycles` : ""}
+                        since {whenOfTick(k.created_tick, h.clock.ticks_per_cycle)}
+                        {k.term_cycles != null ? ` · term ${k.term_cycles} days` : ""}
                       </span>
                     </td>
                     <td className="py-1 pr-2">{k.status}</td>

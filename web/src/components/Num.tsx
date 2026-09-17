@@ -64,7 +64,7 @@ export function Num({
               <span className="mb-2 block font-mono text-xs">{explain.rule}</span>
               {inputs.map(([k, v]) => (
                 <span key={k} className="flex justify-between gap-4">
-                  <span className="text-muted">{k}</span>
+                  <span className="text-muted">{k.replaceAll("_", " ")}</span>
                   <span className="num">{show(v)}</span>
                 </span>
               ))}

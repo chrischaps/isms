@@ -8,6 +8,7 @@ import { ApiError } from "../api/client";
 import { useHome, useLexicon } from "../api/hooks";
 import { useOrgs } from "../api/market";
 import { useChannel, useCitizens, usePost } from "../api/civic";
+import { whenOfTick } from "../lib/when";
 
 export function Talk({ id, channel = "square" }: { id: number; channel?: string }) {
   const { t } = useLexicon(id);
@@ -48,7 +49,7 @@ export function Talk({ id, channel = "square" }: { id: number; channel?: string 
       ? "The Square"
       : channel.startsWith("org:")
         ? (myOrgs.find((o) => `org:${o.id}` === channel)?.name ?? channel)
-        : `with ${handles.get(Number(channel.slice(3))) ?? `citizen ${channel.slice(3)}`}`;
+        : `with ${handles.get(Number(channel.slice(3))) ?? "a citizen"}`;
   const go = (ch: string) => void navigate({ to: "/s/$id/talk/$channel", params: { id: String(id), channel: ch } });
 
   return (
@@ -112,7 +113,7 @@ export function Talk({ id, channel = "square" }: { id: number; channel?: string 
             (messages.data?.messages ?? []).map((m) => (
               <div key={m.id} className="rule pt-1">
                 <span className={m.sender === me ? "text-ink" : "text-accent"}>{m.handle}</span>
-                <span className="num text-muted ml-2 text-xs">t{m.tick}</span>
+                <span className="num text-muted ml-2 text-xs">{whenOfTick(m.tick)}</span>
                 <p className="whitespace-pre-wrap">{m.body}</p>
               </div>
             ))

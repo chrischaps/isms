@@ -12,7 +12,7 @@ export function jobLine(o: OfferView) {
     workplace: Number(e.workplace),
     hours: Number(e.max_hours),
     places: Number(e.places),
-    term: e.term_cycles == null ? "open term" : `${String(e.term_cycles)} cycles`,
+    term: e.term_cycles == null ? "open term" : `${String(e.term_cycles)} days`,
     notice: Number(e.notice_cycles ?? 0),
     pay: pay.hourly !== undefined ? `${credits(pay.hourly)} cr/h` : `${credits(pay.piece_rate ?? 0)} cr/unit`,
   };

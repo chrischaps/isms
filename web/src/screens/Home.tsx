@@ -12,7 +12,9 @@ import { DiffSinceLastSeen } from "../components/DiffSinceLastSeen";
 import { Ledger } from "../components/Ledger";
 import { Meter } from "../components/Meter";
 import { Num } from "../components/Num";
-import { orgNamer, payslipRows } from "../lib/payslips";
+import { useNames } from "../lib/names";
+import { payslipRows } from "../lib/payslips";
+import { whenOfTick } from "../lib/when";
 import { Onboarding } from "./Onboarding";
 
 function nextCycleAt(nextTick: string | null | undefined, tickSeconds: number, tick: number, perCycle: number) {
@@ -26,6 +28,7 @@ export function Home({ id }: { id: number }) {
   const society = useSociety(id);
   const slips = usePayslips(id);
   const { t } = useLexicon(id);
+  const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const keep = useSetPlan(id);
   const [kept, setKept] = useState<number | null>(null);
   // A non-citizen is onboarded; the flow stays mounted past the join (which
@@ -63,13 +66,13 @@ export function Home({ id }: { id: number }) {
           {t("home_title")} <span className="text-muted text-base">{h.citizen.handle}</span>
         </h2>
         <div className="flex gap-4">
-          <Countdown at={s?.next_tick_at} label="next tick" />
+          <Countdown at={s?.next_tick_at} label="next hour" />
           <Countdown at={nextCycle} label="payday" />
         </div>
       </header>
 
       {h.citizen.flags && (h.citizen.flags as Record<string, boolean>).in_hardship ? (
-        <p className="text-bad text-sm">You are in hardship: Food has been under 20 for a whole cycle. Eat first.</p>
+        <p className="text-bad text-sm">You are in hardship: Food has been under 20 for a whole day. Eat first.</p>
       ) : null}
 
       <section className="grid gap-8 md:grid-cols-2">
@@ -92,7 +95,7 @@ export function Home({ id }: { id: number }) {
           <dt className="text-muted">{t("dwelling")}</dt>
           <dd>
             {h.household.dwelling
-              ? `#${h.household.dwelling.id}${rent != null ? `, ${credits(rent)} cr a cycle` : ""}`
+              ? `No. ${h.household.dwelling.id}${rent != null ? `, ${credits(rent)} cr a day` : ""}`
               : "none (Shelter falls until you rent)"}
           </dd>
           <dt className="text-muted">{t("work_screen")}</dt>
@@ -111,7 +114,7 @@ export function Home({ id }: { id: number }) {
       <section className="grid gap-8 md:grid-cols-2">
         <div>
           <h3 className="text-lg">While you were away</h3>
-          <p className="text-muted mb-2 text-xs">since tick {h.since_last_seen.since_tick + 1}</p>
+          <p className="text-muted mb-2 text-xs">since {whenOfTick(h.since_last_seen.since_tick + 1, h.clock.ticks_per_cycle)}</p>
           <DiffSinceLastSeen events={h.since_last_seen.events} t={t} me={h.citizen.id} />
         </div>
         <div>
@@ -120,14 +123,10 @@ export function Home({ id }: { id: number }) {
             <Ledger
               rows={
                 slips.data
-                  ? payslipRows(
-                      slips.data.payslips as unknown as EventRef[],
-                      orgNamer(h.labor.allocations, h.labor.employment),
-                      5,
-                    )
+                  ? payslipRows(slips.data.payslips as unknown as EventRef[], names.org, 5)
                   : []
               }
-              empty="No payslip yet. The first comes at the end of the cycle."
+              empty="No payslip yet. The first comes at the end of the day."
             />
           </div>
         </div>
@@ -169,7 +168,7 @@ export function Home({ id }: { id: number }) {
           <Link to="/s/$id/plan" params={{ id: String(id) }} className="text-muted ml-3 text-sm underline">
             Edit plan
           </Link>
-          {kept !== null ? <span className="text-muted ml-3 text-sm">kept for cycle {kept}</span> : null}
+          {kept !== null ? <span className="text-muted ml-3 text-sm">kept for Day {kept}</span> : null}
         </div>
       </section>
       <p className="text-muted text-xs">

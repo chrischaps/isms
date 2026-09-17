@@ -9,6 +9,7 @@ import { credits } from "../api/client";
 import { useCapabilities, useLexicon, useSociety } from "../api/hooks";
 import { useChronicle, useCitizens, useHouseholders, useScoreboard, useStats, type HeadlineView } from "../api/civic";
 import { Markdown } from "../lib/markdown";
+import { hourName, whenOfTick } from "../lib/when";
 
 type Aggregates = Record<string, unknown>;
 
@@ -48,11 +49,11 @@ export function StatTiles({
       <Stat label="Citizens" value={`${live.population}`} note={`${live.active_humans} people here`} />
       <Stat label="Without work" value={`${live.unemployed}`} />
       {money ? <Stat label={t("society_stat")} value={num(live.price_index ?? a.price_index, 2)} note="reference basket, Food = 1" /> : null}
-      {money ? <Stat label="Mean cycle wage" value={typeof a.mean_cycle_wage === "number" ? `${a.mean_cycle_wage.toFixed(2)} cr` : "—"} note="last cycle, those paid anything" /> : null}
+      {money ? <Stat label="Mean daily wage" value={typeof a.mean_cycle_wage === "number" ? `${a.mean_cycle_wage.toFixed(2)} cr` : "—"} note="yesterday, those paid anything" /> : null}
       {orgs ? <Stat label="Firms" value={`${stats.firm_count}`} /> : null}
       {credit ? <Stat label="Credit outstanding" value={`${credits(stats.credit_outstanding)} cr`} /> : null}
-      <Stat label="Need fulfillment" value={typeof a.need_fulfillment_rate === "number" ? `${(a.need_fulfillment_rate * 100).toFixed(0)}%` : "—"} note="citizen-cycles never under the line" />
-      <Stat label="In hardship" value={num(a.hardship_count)} note="at last cycle end" />
+      <Stat label="Need fulfillment" value={typeof a.need_fulfillment_rate === "number" ? `${(a.need_fulfillment_rate * 100).toFixed(0)}%` : "—"} note="share of citizen-days never under the line" />
+      <Stat label="In hardship" value={num(a.hardship_count)} note="at the end of yesterday" />
       <Stat label="Median wellbeing" value={num(a.median_wellbeing)} note="of 100" />
       <Stat label="Consumption Gini" value={num(a.consumption_gini, 2)} note="of what is eaten, worn and housed; never of wealth" />
     </div>
@@ -82,7 +83,7 @@ export function ChronicleReader({
         <button type="button" disabled={cycle <= 1} className="text-muted underline disabled:opacity-40" onClick={() => setCycle(cycle - 1)}>
           earlier
         </button>
-        <span className="num">cycle {cycle}</span>
+        <span className="num">Day {cycle}</span>
         <button type="button" disabled={cycle >= current} className="text-muted underline disabled:opacity-40" onClick={() => setCycle(cycle + 1)}>
           later
         </button>
@@ -90,12 +91,12 @@ export function ChronicleReader({
       {pending ? (
         <p className="text-muted mt-2 text-sm">Loading.</p>
       ) : headlines.length === 0 ? (
-        <p className="text-muted mt-2 text-sm">Nothing to report that cycle.</p>
+        <p className="text-muted mt-2 text-sm">Nothing to report that day.</p>
       ) : (
         <ol className="mt-2 flex flex-col gap-1 text-sm">
           {headlines.map((h) => (
             <li key={h.seq} className="flex gap-3">
-              <span className="num text-muted w-10 shrink-0">t{h.tick}</span>
+              <span className="num text-muted w-14 shrink-0">{hourName(h.tick % 24)}</span>
               {link ? (
                 <Link to="/s/$id/events/$seq" params={{ id: String(id), seq: String(h.seq) }} className="underline decoration-dotted">
                   {h.text}
@@ -208,7 +209,7 @@ export function SocietyScreen({ id }: { id: number }) {
                       </Link>
                     </td>
                     <td className="py-1 pr-2">{z.kind}{z.dormant ? ", dormant" : ""}</td>
-                    <td className="num py-1 pr-2">tick {z.joined_tick}</td>
+                    <td className="num py-1 pr-2">{whenOfTick(z.joined_tick)}</td>
                     <td className="py-1 text-xs">{flags.join(", ")}</td>
                   </tr>
                 );

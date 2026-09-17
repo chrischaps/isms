@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { ApiError } from "../api/client";
 import { useMe, useSocieties } from "../api/hooks";
 import { Countdown } from "../components/Countdown";
+import { hourOfClock } from "../lib/when";
 
 export function Societies() {
   const me = useMe();
@@ -51,12 +52,12 @@ export function Societies() {
                 </Link>
                 <span className="text-muted ml-2 text-sm">{s.name}</span>
                 <div className="text-muted text-sm">
-                  epoch {s.clock.epoch}, cycle {s.clock.cycle}, tick {s.clock.tick} of {s.clock.ticks_per_cycle};{" "}
+                  Epoch {s.clock.epoch}, Day {s.clock.cycle}, {hourOfClock(s.clock)};{" "}
                   {s.population} citizens, {s.active_humans} people
                 </div>
               </div>
               <div className="flex items-baseline gap-4">
-                <Countdown at={s.next_tick_at} label="next tick" />
+                <Countdown at={s.next_tick_at} label="next hour" />
                 {c ? (
                   <span className="text-sm">
                     you are <span className="font-mono">{c.handle}</span>

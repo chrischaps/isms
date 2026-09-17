@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useLexicon } from "../api/hooks";
 import { usePublicChronicle, usePublicSocieties, usePublicStats } from "../api/civic";
+import { hourOfClock } from "../lib/when";
 import { ChronicleReader, StatTiles } from "./SocietyScreen";
 
 export function PublicSocieties() {
@@ -33,7 +34,7 @@ export function PublicSocieties() {
                 {s.display}
               </Link>
               <span className="num text-muted text-sm">
-                {s.preset} · epoch {s.clock.epoch}, cycle {s.clock.cycle} · {s.population} citizens, {s.active_humans} people
+                {s.preset} · Epoch {s.clock.epoch}, Day {s.clock.cycle} · {s.population} citizens, {s.active_humans} people
               </span>
             </li>
           ))}
@@ -64,7 +65,7 @@ export function PublicSociety({ id }: { id: number }) {
           <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>
         </div>
         <span className="num text-muted text-sm">
-          Epoch {s.clock.epoch} · Day {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle}
+          Epoch {s.clock.epoch} · Day {s.clock.cycle} · {hourOfClock(s.clock)}
         </span>
       </header>
       <section>

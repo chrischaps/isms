@@ -38,7 +38,9 @@ test("a crossing bid fills into the tape and the pantry", async ({ page, context
   await form.getByRole("button", { name: "Place bid" }).click();
   await expect(page.getByText(/Placed; filled \d+ of 3 at once/)).toBeVisible();
   const tape = page.getByTestId("tape");
-  await expect(tape.getByText(/you bought from org/).first()).toBeVisible();
+  // The seller is named, never numbered.
+  await expect(tape.getByText(/you bought from \S/).first()).toBeVisible();
+  await expect(tape).not.toContainText(/org #|organization no\./);
   await expect(page.getByTestId("pantry-line")).toContainText(/[1-9]\d* food/);
 
   // The rejection text comes from the engine.

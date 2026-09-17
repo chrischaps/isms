@@ -9,7 +9,8 @@ export DATABASE_URL="${BASE_URL%/*}/isms_e2e_$(date +%s)_$RANDOM"
 PORT="${E2E_PORT:-18080}"
 export ISMS_API="http://127.0.0.1:$PORT"
 export RUST_LOG="${RUST_LOG:-warn}"
-SERVER=target/debug/isms-server
+# CARGO_TARGET_DIR lets a run build beside a dev server that holds target/debug/isms-server.exe open.
+SERVER="${CARGO_TARGET_DIR:-target}/debug/isms-server"
 
 # The run's database does not exist yet, so the sqlx macros build from .sqlx.
 SQLX_OFFLINE=true cargo build -q -p isms-server

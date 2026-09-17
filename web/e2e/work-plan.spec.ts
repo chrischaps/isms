@@ -29,7 +29,7 @@ test("work and standing plan", async ({ page, context }) => {
   await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Work" }).click();
   const editor = page.getByTestId("allocation-editor");
   await expect(editor).toBeVisible();
-  const hours = editor.getByLabel(/^Hours at workplace/).first();
+  const hours = editor.getByLabel(/^Hours at /).first();
   await expect(hours).toHaveValue("8");
   await hours.fill("9");
   await page.getByRole("button", { name: "Set my hours" }).click();
@@ -37,9 +37,9 @@ test("work and standing plan", async ({ page, context }) => {
   // Effort costs come from the preset, not the client.
   await expect(editor.getByText(/output x1\.0, Food decay x1\.0/)).toBeVisible();
   await hours.fill("6");
-  await editor.getByLabel(/^Effort at workplace/).first().selectOption("high");
+  await editor.getByLabel(/^Effort at /).first().selectOption("high");
   await page.getByRole("button", { name: "Set my hours" }).click();
-  await expect(page.getByText("Set. It counts from the next tick.")).toBeVisible();
+  await expect(page.getByText("Set. It counts from the next hour.")).toBeVisible();
 
   // The plan: edit, save, reload, still there.
   await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Standing plan" }).click();
@@ -48,7 +48,7 @@ test("work and standing plan", async ({ page, context }) => {
   await food.fill("30");
   await page.getByLabel("Keep balance at least").fill("12.50");
   await page.getByRole("button", { name: "Save my plan" }).click();
-  await expect(page.getByText("Saved. It acts from the next tick.")).toBeVisible();
+  await expect(page.getByText("Saved. It acts from the next hour.")).toBeVisible();
   await page.reload();
   await expect(page.getByLabel("Keep Food at least")).toHaveValue("30");
   await expect(page.getByLabel("Keep balance at least")).toHaveValue("12.50");

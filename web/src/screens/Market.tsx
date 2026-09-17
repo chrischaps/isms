@@ -20,6 +20,8 @@ import {
 } from "../api/market";
 import { OrderBook } from "../components/OrderBook";
 import { TimeSeries } from "../components/TimeSeries";
+import { useNames } from "../lib/names";
+import { deadlineOfTick, whenOf } from "../lib/when";
 
 const GOOD_ORDER = ["food", "wares", "grain", "ore", "materials", "machines"];
 type Side = "bid" | "ask";
@@ -35,7 +37,7 @@ function orgOf(instrument: string): number | null {
 function label(instrument: string, orgs: OrgView[] | undefined): string {
   const org = orgOf(instrument);
   if (org === null) return instrument;
-  return orgs?.find((o) => o.id === org)?.name ?? `org #${org}`;
+  return `shares of ${orgs?.find((o) => o.id === org)?.name ?? `organization no. ${org}`}`;
 }
 
 /** Change over the window: first VWAP to last, as a signed percentage. */
@@ -47,16 +49,10 @@ function change(points: { instrument: string; tick: number; vwap: number }[], in
   return first > 0 ? ((last - first) / first) * 100 : null;
 }
 
-function party(p: Record<string, unknown> | undefined, me: number): string {
-  if (!p) return "?";
-  if ("citizen" in p) return p.citizen === me ? "you" : `citizen ${String(p.citizen)}`;
-  if ("org" in p) return `org #${String(p.org)}`;
-  return "?";
-}
-
 export function Market({ id, instrument = "food" }: { id: number; instrument?: string }) {
   const { t } = useLexicon(id);
   const home = useHome(id);
+  const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const books = useBooks(id);
   const book = useBook(id, instrument);
   const orgs = useOrgs(id);
@@ -85,7 +81,6 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
   }
   if (home.error || books.error) return <p className="text-bad">Could not load: {String(home.error ?? books.error)}</p>;
   const h = home.data!;
-  const me = h.citizen.id;
   const plan = h.plan as Record<string, unknown>;
   const floor = Number(plan.keep_balance_at_least ?? 0);
   const wares = plan.buy_wares_when as { comfort_below: number; balance_above: number; max_price: number | null } | null;
@@ -131,7 +126,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
           setPlaced(
             filled > 0
               ? `Placed; filled ${filled} of ${qty} at once.`
-              : `Placed; resting on the book until tick ${nextCycleEnd}.`,
+              : `Placed; resting on the book until ${deadlineOfTick(nextCycleEnd, ticksPerCycle)}.`,
           );
           setLimit(null);
         },
@@ -178,7 +173,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
               <tr>
                 <th className="py-1 font-normal">Good</th>
                 <th className="py-1 text-right font-normal">Last</th>
-                <th className="py-1 text-right font-normal">3 cycles</th>
+                <th className="py-1 text-right font-normal">3 days</th>
               </tr>
             </thead>
             <tbody>{goods.map((g) => row(g, g, summaries.get(g)))}</tbody>
@@ -189,7 +184,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
                 <tr>
                   <th className="py-1 font-normal">Shares</th>
                   <th className="py-1 text-right font-normal">Last</th>
-                  <th className="py-1 text-right font-normal">3 cycles</th>
+                  <th className="py-1 text-right font-normal">3 days</th>
                 </tr>
               </thead>
               <tbody>
@@ -295,12 +290,12 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
                         .slice(0, 10)
                         .map((e) => {
                           const tr = ((e.payload as Record<string, unknown>).Trade ?? {}) as Record<string, unknown>;
-                          const buyer = party(tr.buyer as Record<string, unknown>, me);
-                          const seller = party(tr.seller as Record<string, unknown>, me);
+                          const buyer = names.party(tr.buyer);
+                          const seller = names.party(tr.seller);
                           const yours = buyer === "you" || seller === "you";
                           return (
                             <tr key={e.seq} className={`rule ${yours ? "text-ink" : "text-muted"}`}>
-                              <td className="num py-0.5 pr-2">t{e.tick}</td>
+                              <td className="num py-0.5 pr-2 whitespace-nowrap">{whenOf(e, ticksPerCycle)}</td>
                               <td className="num py-0.5 pr-2 text-right">{credits(Number(tr.price ?? 0))}</td>
                               <td className="num py-0.5 pr-2 text-right">{String(tr.qty ?? "")}</td>
                               <td className="py-0.5 text-xs">
@@ -322,7 +317,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
           ) : null}
 
           <div>
-            <h4 className="text-muted text-xs uppercase tracking-wide">Last 3 cycles</h4>
+            <h4 className="text-muted text-xs uppercase tracking-wide">Last 3 days</h4>
             {ticks.length > 1 ? (
               <TimeSeries ticks={ticks} series={series} height={140} />
             ) : (
@@ -382,7 +377,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
                 />
                 <span className="text-muted text-xs">cr{last != null ? ` · last ${credits(last)}` : ""}</span>
               </label>
-              <p className="text-muted text-xs">Expires at the end of next cycle (tick {nextCycleEnd}) unless filled or cancelled.</p>
+              <p className="text-muted text-xs">Expires at {deadlineOfTick(nextCycleEnd, ticksPerCycle)} unless filled or cancelled.</p>
               <div className="bg-paper-2 rounded-sm p-2 text-xs" data-testid="escrow-preview">
                 {side === "bid" ? (
                   <>
@@ -411,7 +406,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
               {good === "food" ? (
                 <p className="text-muted text-xs">
                   Your {t("plan").toLowerCase()} keeps Food at least {String(plan.keep_food_at_least)} and bids for the shortfall at up to{" "}
-                  {plan.max_food_price == null ? "last price x 1.25" : `${credits(Number(plan.max_food_price))} cr`} each tick.
+                  {plan.max_food_price == null ? "last price x 1.25" : `${credits(Number(plan.max_food_price))} cr`} each hour.
                 </p>
               ) : null}
               {good === "wares" ? (

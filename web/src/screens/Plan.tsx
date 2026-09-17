@@ -136,7 +136,7 @@ export function PlanScreen({ id }: { id: number }) {
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-2xl">{t("plan")}</h2>
-        <p className="text-muted text-sm">Runs every tick, here or not. Sent whole when you save.</p>
+        <p className="text-muted text-sm">Runs every hour, here or not. Sent whole when you save.</p>
       </header>
 
       <section className="flex flex-col gap-3" data-testid="plan-labor">
@@ -180,7 +180,7 @@ export function PlanScreen({ id }: { id: number }) {
                 value={d.keep_food_at_least}
                 onChange={(e) => set({ keep_food_at_least: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
               />
-              <span className="text-muted text-xs">units; the plan {c.money ? "bids for" : "draws"} the shortfall each tick</span>
+              <span className="text-muted text-xs">units; the plan {c.money ? "bids for" : "draws"} the shortfall each hour</span>
             </span>
           </label>
           {c.money ? (
@@ -267,7 +267,7 @@ export function PlanScreen({ id }: { id: number }) {
         <section className="flex flex-col gap-3" data-testid="plan-orders">
           <h3 className="text-lg">Standing orders</h3>
           {d.standing_orders.length === 0 ? (
-            <p className="text-muted text-sm">None. A standing order is placed again every tick or every cycle at your limit.</p>
+            <p className="text-muted text-sm">None. A standing order is placed again every hour or every day at your limit.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-muted text-left text-xs uppercase tracking-wide">
@@ -363,8 +363,8 @@ export function PlanScreen({ id }: { id: number }) {
                           value={o.refresh}
                           onChange={(e) => patch({ refresh: e.target.value as Refresh })}
                         >
-                          <option value="each_tick">each tick</option>
-                          <option value="each_cycle">each cycle</option>
+                          <option value="each_tick">each hour</option>
+                          <option value="each_cycle">each day</option>
                         </select>
                       </td>
                       <td className="py-2">
@@ -457,7 +457,7 @@ export function PlanScreen({ id }: { id: number }) {
         >
           Discard changes
         </button>
-        {saved && draft === null ? <span className="text-muted">Saved. It acts from the next tick.</span> : null}
+        {saved && draft === null ? <span className="text-muted">Saved. It acts from the next hour.</span> : null}
         {error ? (
           <span className="text-bad" role="alert">
             {error}

@@ -2,6 +2,7 @@
 // one line each, in the society's words, newest last.
 
 import { credits, type EventRef } from "../api/client";
+import { whenOf } from "../lib/when";
 import { Ledger, type LedgerRow } from "./Ledger";
 
 type T = (key: string) => string;
@@ -19,7 +20,7 @@ function money(v: unknown): number | undefined {
 /** One ledger row per event kind we know how to narrate; others by name. */
 export function describe(e: EventRef, t: T, me?: number): LedgerRow {
   const p = payload(e);
-  const when = `c${e.cycle + 1} t${(e.tick % 24) + 1}`;
+  const when = whenOf(e);
   const base = { key: `${e.seq}`, when, explain: (p.explain as LedgerRow["explain"]) ?? null };
   switch (e.kind) {
     case "Paid":

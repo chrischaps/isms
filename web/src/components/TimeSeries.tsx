@@ -1,8 +1,13 @@
-// A time series on uPlot (TDD 11): ticks along x, one or more series along y.
+// A time series on uPlot (TDD 11): ticks along x, read as days and hours
+// (lib/when), one or more series along y.
 
 import { useEffect, useRef } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+import { hourName } from "../lib/when";
+
+/** Axis steps in ticks: quarter days up to weeks, so a gridline is always a day or a round hour. */
+const STEPS = [6, 12, 24, 48, 120, 240, 480, 1200];
 
 export type Series = { label: string; values: (number | null)[] };
 
@@ -29,7 +34,12 @@ export function TimeSeries({
         height,
         scales: { x: { time: false } },
         axes: [
-          { label: "tick", stroke: "#7a746a", grid: { stroke: "#d9d3c7" } },
+          {
+            stroke: "#7a746a",
+            grid: { stroke: "#d9d3c7" },
+            incrs: STEPS,
+            values: (_u, vals) => vals.map((v) => (v % 24 === 0 ? `Day ${v / 24 + 1}` : hourName(v % 24))),
+          },
           { stroke: "#7a746a", grid: { stroke: "#d9d3c7" }, values: (_u, vals) => vals.map(format) },
         ],
         series: [

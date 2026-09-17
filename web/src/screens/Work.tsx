@@ -10,7 +10,8 @@ import { useHome, useLexicon } from "../api/hooks";
 import { usePayslips, useSetLabor, type Allocation, type Effort, type LaborView } from "../api/society";
 import { Ledger } from "../components/Ledger";
 import { Num } from "../components/Num";
-import { orgNamer, payslipRows } from "../lib/payslips";
+import { useNames } from "../lib/names";
+import { payslipRows } from "../lib/payslips";
 
 const EFFORTS: Effort[] = ["low", "normal", "high"];
 
@@ -53,7 +54,7 @@ function effortNote(l: LaborView, effort: Effort): string {
   const decay = l.effort.food_decay_mult[i];
   const base = `output x${out.toFixed(1)}, Food decay x${decay.toFixed(1)}`;
   if (effort !== "high") return base;
-  return `${base}; after ${l.effort.high_effort_debt_after_cycles} cycles in a row, ${l.effort.high_effort_debt_hours} h of fatigue debt each cycle`;
+  return `${base}; after ${l.effort.high_effort_debt_after_cycles} days in a row, ${l.effort.high_effort_debt_hours} h of fatigue debt each day`;
 }
 
 function initialRows(l: LaborView): Allocation[] {
@@ -67,6 +68,7 @@ export function Work({ id }: { id: number }) {
   const home = useHome(id);
   const slips = usePayslips(id);
   const { t } = useLexicon(id);
+  const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const setLabor = useSetLabor(id);
   const [rows, setRows] = useState<Allocation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function Work({ id }: { id: number }) {
   const h = home.data!;
   const l = h.labor;
   const held = positions(l);
-  const name = orgNamer(l.allocations, l.employment);
+  const name = names.org;
   const edit = rows ?? initialRows(l);
   const total = edit.reduce((n, r) => n + r.hours, 0);
   const over = total > l.budget;
@@ -107,7 +109,7 @@ export function Work({ id }: { id: number }) {
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-2xl">{t("work_screen")}</h2>
         <p className="num text-muted text-sm">
-          budget {l.budget} h a cycle
+          budget {l.budget} h a day
           {l.fatigue_debt > 0 ? ` (${l.fatigue_debt} h of fatigue debt)` : ""}
         </p>
       </header>
@@ -144,7 +146,7 @@ export function Work({ id }: { id: number }) {
                     <td className="py-2 pr-3">
                       {name(p.org)}
                       <span className="text-muted block text-xs">
-                        workplace {p.workplace} · up to {p.maxHours} h a cycle · contract #{p.contract}
+                        {names.workplaceTitle(p.workplace)} · up to {p.maxHours} h a day
                       </span>
                     </td>
                     <td className="num py-2 pr-3 whitespace-nowrap">{p.pay}</td>
@@ -154,7 +156,7 @@ export function Work({ id }: { id: number }) {
                         inputMode="numeric"
                         min={0}
                         step={1}
-                        aria-label={`Hours at workplace ${p.workplace}`}
+                        aria-label={`Hours at ${names.workplace(p.workplace)}`}
                         className="border-line num w-16 rounded-sm border px-1"
                         value={r.hours}
                         onChange={(e) => update(p.workplace, { hours: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
@@ -162,7 +164,7 @@ export function Work({ id }: { id: number }) {
                     </td>
                     <td className="py-2">
                       <select
-                        aria-label={`Effort at workplace ${p.workplace}`}
+                        aria-label={`Effort at ${names.workplace(p.workplace)}`}
                         className="border-line rounded-sm border px-1"
                         value={r.effort}
                         onChange={(e) => update(p.workplace, { effort: e.target.value as Effort })}
@@ -194,7 +196,7 @@ export function Work({ id }: { id: number }) {
             >
               Set my hours
             </button>
-            {saved ? <span className="text-muted">Set. It counts from the next tick.</span> : null}
+            {saved ? <span className="text-muted">Set. It counts from the next hour.</span> : null}
             {error ? (
               <span className="text-bad" role="alert">
                 {error}
@@ -203,7 +205,7 @@ export function Work({ id }: { id: number }) {
           </div>
         ) : null}
         <p className="text-muted mt-3 text-xs">
-          Hours go to at most {l.effort.max_workplaces} workplaces and never beyond the budget, which recovers each cycle and
+          Hours go to at most {l.effort.max_workplaces} workplaces and never beyond the budget, which recovers each day and
           shrinks with fatigue. Output per hour is the base rate times skill, effort, and the workplace&apos;s machines
           {l.output_mult !== 1 ? ` (your multiplier now: x${l.output_mult.toFixed(2)})` : ""}.
         </p>
@@ -215,7 +217,7 @@ export function Work({ id }: { id: number }) {
           <div className="mt-2" data-testid="payslips">
             <Ledger
               rows={slips.data ? payslipRows(slips.data.payslips as unknown as EventRef[], name) : []}
-              empty="No payslip yet. The first comes at the end of the cycle."
+              empty="No payslip yet. The first comes at the end of the day."
             />
           </div>
         </div>

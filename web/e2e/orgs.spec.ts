@@ -89,7 +89,7 @@ test("found a mine, hire, and see attributed output", async ({ page, context, br
 
   // The payroll line: 8 h at 8.50 due, an empty treasury, so short; a top-up covers it.
   const payroll = page.getByTestId("payroll");
-  await expect(payroll).toContainText("Payroll due at cycle end: 68.00 cr for 1 worker");
+  await expect(payroll).toContainText("Payroll due at the end of the day: 68.00 cr for 1 worker");
   await expect(payroll).toContainText("Short by 68.00 cr");
   await payroll.getByRole("button", { name: "cover the shortfall" }).click();
   await payroll.getByRole("button", { name: "Transfer" }).click();

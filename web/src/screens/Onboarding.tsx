@@ -7,6 +7,7 @@ import { ApiError, credits, type OfferView } from "../api/client";
 import { useBoard, useLexicon, useWelcome } from "../api/hooks";
 import { useAcceptOffer, useJoin, usePlan, useSetLabor, useSetPlan } from "../api/society";
 import { Markdown } from "../lib/markdown";
+import { useNames } from "../lib/names";
 
 const CONSENT_V1 =
   "Everything you do here is recorded: every trade, contract and message, direct messages " +
@@ -38,6 +39,7 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
   const { t } = useLexicon(id);
   const welcome = useWelcome(id);
   const board = useBoard(id);
+  const names = useNames(id, undefined, step !== "handle");
   const plan = usePlan(id);
   const join = useJoin(id);
   const accept = useAcceptOffer(id);
@@ -96,7 +98,6 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
 
   if (step === "job") {
     const offers = (board.data?.offers ?? []).filter((o) => o.kind === "employment");
-    const orgName = (oid: number) => `Org #${oid}`;
     return (
       <section>
         <h2 className="text-2xl">The job board</h2>
@@ -106,13 +107,12 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
         {board.isPending ? <p className="text-muted mt-4">Loading.</p> : null}
         <ul className="mt-4 flex flex-col gap-2" data-testid="job-board">
           {offers.map((o) => {
-            const line = offerLine(o, orgName);
+            const line = offerLine(o, names.org);
             if (!line) return null;
             return (
               <li key={o.id} className="rule flex flex-wrap items-baseline justify-between gap-2 pt-2">
                 <span>
-                  <span className="font-mono text-sm">#{o.id}</span> workplace {line.workplace},{" "}
-                  <span className="num">{line.pay}</span>, up to {line.hours} h a cycle, {line.places} open
+                  {names.workplace(line.workplace)}: <span className="num">{line.pay}</span>, up to {line.hours} h a day, {line.places} open
                 </span>
                 <button
                   type="button"
@@ -137,7 +137,7 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
           })}
         </ul>
         {offers.length === 0 && !board.isPending ? (
-          <p className="text-muted mt-4 text-sm">Nobody is hiring this tick. Check back after the next one.</p>
+          <p className="text-muted mt-4 text-sm">Nobody is hiring this hour. Check back after the next one.</p>
         ) : null}
         {error ? <p className="text-bad mt-3 text-sm">{error}</p> : null}
         <button type="button" onClick={() => setStep("plan")} className="text-muted mt-6 text-sm">
@@ -152,7 +152,7 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
     <section className="max-w-lg">
       <h2 className="text-2xl">Your {t("plan").toLowerCase()}</h2>
       <p className="text-muted mt-2 text-sm">
-        It runs every tick whether you are here or not. These are the defaults; change them on the {t("plan")} screen.
+        It runs every hour whether you are here or not. These are the defaults; change them on the {t("plan")} screen.
       </p>
       <dl className="mt-4 grid grid-cols-2 gap-y-1 text-sm">
         <dt className="text-muted">Keep Food at least</dt>

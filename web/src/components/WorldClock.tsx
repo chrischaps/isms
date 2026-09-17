@@ -53,7 +53,7 @@ export function WorldClock({
       <span
         className="bg-paper-2 border-line relative inline-block h-1.5 w-24 overflow-hidden rounded-sm border align-middle"
         role="progressbar"
-        aria-label="This tick"
+        aria-label="This hour"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round((progress ?? 0) * 100)}
@@ -61,7 +61,7 @@ export function WorldClock({
         <span className="bg-accent absolute inset-y-0 left-0" style={{ width: `${(progress ?? 0) * 100}%` }} />
       </span>
       <span className="num text-muted">
-        {held ? (tickSeconds === 0 ? "as fast as it can" : "clock held") : `next tick ${formatUntil(nextTickAt, now)}`}
+        {held ? (tickSeconds === 0 ? "as fast as it can" : "clock held") : `next hour ${formatUntil(nextTickAt, now)}`}
       </span>
     </span>
   );

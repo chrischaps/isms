@@ -27,7 +27,9 @@ import {
   type OrgView,
   type WorkplaceView,
 } from "../api/orgs";
+import { useNames, workplaceTitles, type Names } from "../lib/names";
 import { jobLine } from "../lib/offers";
+import { whenOf } from "../lib/when";
 
 const WORKPLACE_KINDS = ["farm", "mine", "foundry", "mill", "workshop", "machine_shop", "builder"];
 const GOODS = ["grain", "ore", "materials", "food", "wares", "machines"];
@@ -39,11 +41,9 @@ function sharesOf(o: OrgView): Shares | null {
   return (own.shares as Shares | undefined) ?? null;
 }
 
-function holderName(key: string, me: number, handles: Map<number, string>): string {
+function holderName(key: string, names: Names): string {
   if (key === "org_self") return "the firm itself";
-  const n = Number(key.replace("citizen:", ""));
-  if (n === me) return "you";
-  return handles.get(n) ?? `citizen ${n}`;
+  return names.citizen(Number(key.replace("citizen:", "")));
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -59,6 +59,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const { t } = useLexicon(id);
   const caps = useCapabilities(id);
   const home = useHome(id);
+  const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const org = useOrg(id, oid);
   const all = useOrgsView(id);
   const board = useBoard(id);
@@ -113,8 +114,8 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const o = org.data!;
   const c = caps.data!;
   const me = h.citizen.id;
-  const handles = new Map<number, string>();
-  for (const w of o.workplaces) for (const k of w.workers) handles.set(k.citizen, k.handle);
+  const titles = workplaceTitles(o.workplaces);
+  const title = (wid: number) => titles.get(wid) ?? names.workplaceTitle(wid);
   const shares = sharesOf(o);
   const myShare = shares && shares.issued > 0 ? o.my_shares / shares.issued : 0;
   const controlling = myShare > 0.5;
@@ -138,7 +139,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
         pay.hourly !== undefined
           ? (w?.hours ?? 0) * pay.hourly
           : Math.round((w?.attributed_this_cycle ?? 0) * (pay.piece_rate ?? 0));
-      return [{ contract: k.id, worker: w?.handle ?? `citizen ${String(worker)}`, due }];
+      return [{ contract: k.id, worker: w?.handle ?? names.citizen(Number(worker)), due }];
     });
   const payrollDue = payroll.reduce((n, p) => n + p.due, 0);
   const shortfall = Math.max(0, payrollDue - o.treasury);
@@ -166,7 +167,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
     .flatMap((e: EventRef): LedgerRow[] => {
       const p = (e.payload[e.kind] ?? {}) as Record<string, unknown>;
       const isOrg = (party: unknown) => (party as Record<string, unknown> | undefined)?.org === oid;
-      const when = `c${e.cycle + 1} t${e.tick}`;
+      const when = whenOf(e, h.clock.ticks_per_cycle);
       const base = { key: String(e.seq), when, explain: (p.explain as LedgerRow["explain"]) ?? null };
       switch (e.kind) {
         case "Trade": {
@@ -191,11 +192,11 @@ export function Org({ id, oid }: { id: number; oid: number }) {
           return [{ ...base, what, goods: g ? `${inbound ? "+" : "-"}${g[1]} ${g[0]}` : "" }];
         }
         case "Paid":
-          return [{ ...base, what: `Wages, citizen ${String(p.citizen)}`, cents: -Number(p.amount ?? 0) }];
+          return [{ ...base, what: `Wages, ${names.citizen(Number(p.citizen))}`, cents: -Number(p.amount ?? 0) }];
         case "PaymentMissed":
-          return [{ ...base, what: `Payday missed, citizen ${String(p.citizen)}: owed ${credits(Number(p.owed ?? 0))}, paid`, cents: -Number(p.paid ?? 0) }];
+          return [{ ...base, what: `Payday missed, ${names.citizen(Number(p.citizen))}: owed ${credits(Number(p.owed ?? 0))}, paid`, cents: -Number(p.paid ?? 0) }];
         case "DividendPaid":
-          return [{ ...base, what: `Dividend, citizen ${String(p.citizen)}`, cents: -Number(p.amount ?? 0) }];
+          return [{ ...base, what: `Dividend, ${names.citizen(Number(p.citizen))}`, cents: -Number(p.amount ?? 0) }];
         case "OrderPlaced": {
           const order = (p.order ?? {}) as Record<string, unknown>;
           if (!isOrg(order.owner)) return [];
@@ -217,8 +218,10 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const production = (w: WorkplaceView) => (
     <div key={w.id} className="mt-3" data-testid={`workplace-${w.id}`}>
       <h4 className="text-sm">
-        {w.kind.replace("_", " ")} <span className="text-muted">workplace {w.id}{w.slot != null ? `, slot ${w.slot}` : ""}</span>
-        <span className="num text-muted"> · {w.machines} machines · {w.cycle_output.toFixed(0)} units this cycle</span>
+        {title(w.id)}
+        <span className="num text-muted">
+          {w.slot != null ? ` · slot ${w.slot}` : ""} · {w.machines} machines · {w.cycle_output.toFixed(0)} units today
+        </span>
       </h4>
       {w.workers.length === 0 ? (
         <p className="text-muted mt-1 text-xs">Nobody works here yet.</p>
@@ -228,7 +231,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
             <tr>
               <th className="py-1 font-normal">Worker</th>
               <th className="py-1 text-right font-normal">Hours</th>
-              <th className="py-1 text-right font-normal">Attributed this cycle</th>
+              <th className="py-1 text-right font-normal">Attributed today</th>
             </tr>
           </thead>
           <tbody>
@@ -255,7 +258,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
           <h2 className="text-2xl">{o.name}</h2>
           <p className="text-muted text-sm">
             {o.kind.replace("_", " ")}
-            {o.manager != null ? ` · managed by ${o.manager === me ? "you" : (handles.get(o.manager) ?? `citizen ${o.manager}`)}` : " · no manager"}
+            {o.manager != null ? ` · managed by ${names.citizen(o.manager)}` : " · no manager"}
             {shares && o.my_shares > 0 ? ` · you hold ${(myShare * 100).toFixed(0)}%${controlling ? " (controlling)" : ""}` : ""}
             {o.payment_missed ? " · missed a payday" : ""}
           </p>
@@ -305,7 +308,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
                 .sort((a, b) => b[1] - a[1])
                 .map(([k, n]) => (
                   <li key={k} className="rule flex justify-between pt-1">
-                    <span>{holderName(k, me, handles)}</span>
+                    <span>{holderName(k, names)}</span>
                     <span className="num">
                       {n} ({((100 * n) / shares.issued).toFixed(0)}%)
                     </span>
@@ -326,9 +329,9 @@ export function Org({ id, oid }: { id: number; oid: number }) {
             const pay = e.pay as Record<string, number>;
             return (
               <p className="mt-1">
-                Contract #{myContract.id}: {pay.hourly !== undefined ? `${credits(pay.hourly)} cr an hour` : `${credits(pay.piece_rate ?? 0)} cr a unit`}, up to{" "}
-                {String(e.max_hours)} h a cycle, notice {String(e.notice_cycles)} cycle(s)
-                {myContract.term_cycles != null ? `, term ${myContract.term_cycles} cycles` : ""}. Status: {myContract.status}. Hours and effort are set on{" "}
+                {pay.hourly !== undefined ? `${credits(pay.hourly)} cr an hour` : `${credits(pay.piece_rate ?? 0)} cr a unit`}, up to{" "}
+                {String(e.max_hours)} h a day, notice {String(e.notice_cycles)} day(s)
+                {myContract.term_cycles != null ? `, term ${myContract.term_cycles} days` : ""}. Status: {myContract.status}. Hours and effort are set on{" "}
                 <Link to="/s/$id/work" params={{ id: String(id) }} className="underline">
                   {t("work_screen")}
                 </Link>
@@ -345,7 +348,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
         {manage && c.money ? (
           <div className="bg-paper-2 mt-3 rounded-sm p-3 text-sm" data-testid="payroll">
             <p>
-              Payroll due at cycle end: <span className="num">{credits(payrollDue)} cr</span>
+              Payroll due at the end of the day: <span className="num">{credits(payrollDue)} cr</span>
               {payroll.length > 0 ? ` for ${payroll.length} worker${payroll.length === 1 ? "" : "s"}` : ""}. Treasury:{" "}
               <span className="num">{credits(o.treasury)} cr</span>.{" "}
               {payroll.length === 0 ? (
@@ -426,7 +429,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
                 <li key={x.id} className="rule flex flex-wrap items-baseline justify-between gap-2 pt-1">
                   <span>
                     {j
-                      ? `${t("job")}: ${j.pay}, up to ${j.hours} h, ${j.term}, notice ${j.notice}, ${j.places} open (workplace ${j.workplace})`
+                      ? `${t("job")}: ${j.pay}, up to ${j.hours} h, ${j.term}, notice ${j.notice} day(s), ${j.places} open (${title(j.workplace)})`
                       : `${x.kind}: ${JSON.stringify(x.body)}`}
                   </span>
                   {manage && x.kind !== "employment" ? (
@@ -466,7 +469,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
               <select aria-label="Job workplace" className="border-line rounded-sm border px-1" value={jobWp} onChange={(e) => setJob({ ...job, workplace: Number(e.target.value) })}>
                 {o.workplaces.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.kind.replace("_", " ")} #{w.id}
+                    {title(w.id)}
                   </option>
                 ))}
               </select>
@@ -484,10 +487,10 @@ export function Org({ id, oid }: { id: number; oid: number }) {
             <Field label="Places">
               <input aria-label="Places" type="number" min={1} className="border-line num w-16 rounded-sm border px-1" value={job.places} onChange={(e) => setJob({ ...job, places: Number(e.target.value) })} />
             </Field>
-            <Field label="Term (cycles)">
+            <Field label="Term (days)">
               <input aria-label="Term" type="number" min={1} placeholder="open" className="border-line num w-16 rounded-sm border px-1" value={job.term} onChange={(e) => setJob({ ...job, term: e.target.value })} />
             </Field>
-            <Field label="Notice (cycles)">
+            <Field label="Notice (days)">
               <input aria-label="Notice" type="number" min={0} className="border-line num w-16 rounded-sm border px-1" value={job.notice} onChange={(e) => setJob({ ...job, notice: Number(e.target.value) })} />
             </Field>
             <button type="submit" disabled={offer.isPending || o.workplaces.length === 0} className="bg-ink text-paper self-start rounded-sm px-3 py-1 disabled:opacity-50">
@@ -543,13 +546,13 @@ export function Org({ id, oid }: { id: number; oid: number }) {
             <div className="flex flex-col gap-2 text-sm" data-testid="machines">
               <h3 className="text-lg">Machines</h3>
               <p className="text-muted text-xs">
-                Installed machines raise the workplace's capital multiplier; they wear a little each cycle. The firm holds {(o.inventory as Record<string, number>).machines ?? 0} uninstalled.
+                Installed machines raise the workplace's capital multiplier; they wear a little each day. The firm holds {(o.inventory as Record<string, number>).machines ?? 0} uninstalled.
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <select aria-label="Machines workplace" className="border-line rounded-sm border px-1" value={machWp} onChange={(e) => setMach({ ...mach, workplace: Number(e.target.value) })}>
                   {o.workplaces.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.kind.replace("_", " ")} #{w.id} ({w.machines} installed)
+                      {title(w.id)} ({w.machines} installed)
                     </option>
                   ))}
                 </select>
