@@ -43,7 +43,7 @@ poll "server up" 60 curl -fsS "$ISMS_URL/healthz"
 
 say "sign in and join (step 1: Situation)"
 TOKEN="$("$SERVER" session --email e2e@example.test)"
-"$ISMS" login --session "$TOKEN" >/dev/null
+"$ISMS" login --session="$TOKEN" >/dev/null
 "$ISMS" join "$SID" --handle marlow
 KEY="$("$ISMS" key create --label e2e)"
 "$ISMS" login --key "$KEY" >/dev/null           # the rest of the loop runs as an agent would
@@ -77,7 +77,7 @@ say "a second person takes the job; the Chronicle notices (step 6: Society)"
 # Householders are all employed in the first cycles (Q46), so the hire is another human.
 HAND_CONFIG="$(mktemp)"
 HAND_TOKEN="$("$SERVER" session --email hand@example.test)"
-ISMS_CONFIG="$HAND_CONFIG" "$ISMS" login --session "$HAND_TOKEN" >/dev/null
+ISMS_CONFIG="$HAND_CONFIG" "$ISMS" login --session="$HAND_TOKEN" >/dev/null
 ISMS_CONFIG="$HAND_CONFIG" "$ISMS" join "$SID" --handle hand
 ISMS_CONFIG="$HAND_CONFIG" "$ISMS" accept "$JOB"
 poll "an employee" 30 bash -c "\"$ISMS\" org list --json | jq -e --argjson o $ORG '.orgs[] | select(.id==\$o) | .employees >= 1'"

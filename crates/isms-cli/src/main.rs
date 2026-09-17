@@ -34,7 +34,8 @@ struct Cli {
 enum Cmd {
     /// Save credentials: a browser session token (from `isms-server session`) or an API key.
     Login {
-        #[arg(long)]
+        /// A session token is URL-safe base64, so one in 64 starts with a hyphen.
+        #[arg(long, allow_hyphen_values = true)]
         session: Option<String>,
         #[arg(long)]
         key: Option<String>,
@@ -784,6 +785,12 @@ async fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn login_takes_a_session_token_that_starts_with_a_hyphen() {
+        let cli = Cli::try_parse_from(["isms", "login", "--session", "-Ab_9"]).expect("parses");
+        assert!(matches!(cli.cmd, Cmd::Login { session: Some(ref s), .. } if s == "-Ab_9"));
+    }
 
     #[test]
     fn credits_round_trip() {
