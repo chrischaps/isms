@@ -513,6 +513,7 @@ async fn orgs(
         clock: clock_of(&world),
         orgs: views::orgs(&world, &viewer),
         former,
+        recipes: views::recipes(&world),
         founding: views::founding(&world),
         slots: views::slots(&world),
     }))

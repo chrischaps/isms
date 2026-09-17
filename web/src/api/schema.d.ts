@@ -1708,6 +1708,8 @@ export interface components {
             /** @description What founding costs here (the client previews it before the command). */
             founding: components["schemas"]["FoundingCosts"];
             orgs: components["schemas"]["OrgView"][];
+            /** @description What each workplace kind makes, and from what (the preset's recipes): where a good comes from. */
+            recipes: components["schemas"]["RecipeView"][];
             /** @description Slot scarcity per slot-limited workplace kind; an absent kind is unlimited. */
             slots: Record<string, never>;
         };
@@ -1785,6 +1787,23 @@ export interface components {
             burst: number;
             /** Format: int32 */
             per_second: number;
+        };
+        /**
+         * @description One workplace kind's recipe. Names are the wire's snake_case kinds and goods;
+         *     `produces` may be `dwelling`, which is an asset and not a good.
+         */
+        RecipeView: {
+            /**
+             * Format: double
+             * @description Units per worker-hour before skill, effort, needs and machines.
+             */
+            base_rate: number;
+            /** @description Inputs used up per unit made. */
+            consumes: {
+                [key: string]: number;
+            };
+            produces: string;
+            workplace_kind: string;
         };
         /**
          * @description `POST /s/{id}/offers/sale`. Asset and price are engine shapes:

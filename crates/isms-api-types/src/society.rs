@@ -353,11 +353,25 @@ pub struct OrgsView {
     /// Orgs the log remembers and the world no longer holds (an earlier epoch's, or dissolved):
     /// enough to name them where an old payslip or trade still points at one.
     pub former: Vec<FormerOrg>,
+    /// What each workplace kind makes, and from what (the preset's recipes): where a good comes from.
+    pub recipes: Vec<RecipeView>,
     /// What founding costs here (the client previews it before the command).
     pub founding: FoundingCosts,
     /// Slot scarcity per slot-limited workplace kind; an absent kind is unlimited.
     #[schema(value_type = Object)]
     pub slots: BTreeMap<WorkplaceKind, SlotSummary>,
+}
+
+/// One workplace kind's recipe. Names are the wire's snake_case kinds and goods;
+/// `produces` may be `dwelling`, which is an asset and not a good.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct RecipeView {
+    pub workplace_kind: String,
+    pub produces: String,
+    /// Inputs used up per unit made.
+    pub consumes: BTreeMap<String, u32>,
+    /// Units per worker-hour before skill, effort, needs and machines.
+    pub base_rate: f64,
 }
 
 /// An org that exists only in the log. `epoch` is 0-based, like `EventRef`'s.

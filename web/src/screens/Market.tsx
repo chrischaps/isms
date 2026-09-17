@@ -18,8 +18,10 @@ import {
   type BookSummary,
   type OrgView,
 } from "../api/market";
+import { useOrgsView } from "../api/orgs";
 import { EpochDivider } from "../components/Ledger";
 import { OrderBook } from "../components/OrderBook";
+import { Provenance } from "../components/Provenance";
 import { TimeSeries } from "../components/TimeSeries";
 import { useNames } from "../lib/names";
 import { deadlineOfTick, whenOf } from "../lib/when";
@@ -57,6 +59,8 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
   const books = useBooks(id);
   const book = useBook(id, instrument);
   const orgs = useOrgs(id);
+  // The same cache entry, whole: the recipes and every org's workplaces and stock.
+  const directory = useOrgsView(id);
   const ticksPerCycle = home.data?.clock.ticks_per_cycle ?? 24;
   const window = ticksPerCycle * 3;
   const prices = usePrices(id, window);
@@ -113,6 +117,14 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
   // The chart: this instrument's VWAP per tick over the window; gaps stay gaps.
   const mine = points.filter((p) => p.instrument === instrument);
   const ticks = mine.map((p) => p.tick);
+  // An empty ask side with a busy tape: the good is selling out as it is posted, not absent.
+  const tapeTrades = (b?.tape ?? []).map((e) => ({ epoch: e.epoch, tick: e.tick, ...(((e.payload as Record<string, unknown>).Trade ?? {}) as { qty?: number; price?: number }) }));
+  const newest = tapeTrades[tapeTrades.length - 1];
+  const lastHour = newest ? tapeTrades.filter((x) => x.epoch === newest.epoch && x.tick === newest.tick) : [];
+  const soldOut =
+    b && b.asks.length === 0 && newest && newest.epoch + 1 === h.clock.epoch && lastHour.length > 0
+      ? { qty: lastHour.reduce((n, x) => n + Number(x.qty ?? 0), 0), price: Number(newest.price ?? 0) }
+      : null;
   const series = [{ label: label(instrument, orgs.data), values: mine.map((p) => p.vwap / 100) }];
 
   const submit = () => {
@@ -331,6 +343,23 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
               <p className="text-muted mt-1 text-sm">Not enough trades to draw yet.</p>
             )}
           </div>
+
+          {soldOut ? (
+            <p className="text-sm" data-testid="sold-out-note">
+              Nothing is on offer, yet {soldOut.qty} changed hands in the last hour traded, at {credits(soldOut.price)} cr: what sellers post is
+              met at once by bids already waiting. A bid of yours at or above that price waits in the same line, best price first, then oldest.
+            </p>
+          ) : null}
+
+          {good && (directory.data?.recipes ?? []).length > 0 ? (
+            <Provenance
+              id={id}
+              good={good}
+              recipes={directory.data!.recipes}
+              orgs={directory.data!.orgs as unknown as Parameters<typeof Provenance>[0]["orgs"]}
+              foundingMaterials={good === "materials" ? directory.data!.founding.materials : undefined}
+            />
+          ) : null}
 
           <div className="grid gap-6 md:grid-cols-2">
             <form

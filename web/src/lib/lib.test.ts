@@ -5,6 +5,7 @@ import type { EventRef } from "../api/client";
 import { buildNames, workplaceTitles } from "./names";
 import { needHints } from "./needs";
 import { payslipRows } from "./payslips";
+import { inputsText, producerNote, supplyOf, type OrgLike as SupplyOrg, type Recipe } from "./supply";
 import { dayOf, deadlineOfTick, hourName, hourOfClock, whenOf, whenOfTick } from "./when";
 
 describe("when", () => {
@@ -141,5 +142,41 @@ describe("needHints", () => {
 
   it("says where a dwelling comes from", () => {
     expect(needHints(t, undefined).shelter).toContain("Rent or buy one on the Contracts screen");
+  });
+});
+
+describe("supplyOf", () => {
+  const recipes: Recipe[] = [
+    { workplace_kind: "mine", produces: "ore", consumes: {}, base_rate: 10 },
+    { workplace_kind: "foundry", produces: "materials", consumes: { ore: 1 }, base_rate: 10 },
+    { workplace_kind: "workshop", produces: "wares", consumes: { materials: 1 }, base_rate: 5 },
+    { workplace_kind: "builder", produces: "dwelling", consumes: { materials: 10 }, base_rate: 0.5 },
+  ];
+  const wp = (id: number, kind: string, made: number, workers: number) => ({ id, kind, cycle_output: made, workers: Array(workers).fill({}) });
+  const orgs: SupplyOrg[] = [
+    { id: 1, name: "Deep Mine", inventory: { ore: 40 }, workplaces: [wp(1, "mine", 80, 4)] },
+    { id: 2, name: "Idle Foundry", inventory: { ore: 0 }, workplaces: [wp(2, "foundry", 0, 3)] },
+    { id: 3, name: "Hot Foundry", inventory: { ore: 12, materials: 30 }, workplaces: [wp(3, "foundry", 25, 3), wp(4, "foundry", 5, 1)] },
+  ];
+
+  it("finds the recipe, the producers (best stocked first) and the users of a good", () => {
+    const s = supplyOf("materials", recipes, orgs);
+    expect(s.madeBy.map((r) => r.workplace_kind)).toEqual(["foundry"]);
+    expect(s.producers.map((p) => p.name)).toEqual(["Hot Foundry", "Idle Foundry"]);
+    expect(s.producers[0]).toMatchObject({ workplaces: 2, workers: 4, madeToday: 30, stock: 30, inputs: { ore: 12 } });
+    expect(s.usedBy.map((r) => r.workplace_kind)).toEqual(["workshop", "builder"]);
+  });
+
+  it("says why a producer is not producing", () => {
+    const s = supplyOf("materials", recipes, orgs);
+    expect(producerNote(s.producers[0]!)).toBe("running");
+    expect(producerNote(s.producers[1]!)).toBe("out of ore, so it cannot run");
+  });
+
+  it("knows a good nobody makes, and a raw one", () => {
+    expect(supplyOf("wares", recipes, orgs).producers).toEqual([]);
+    expect(supplyOf("grain", recipes, orgs).madeBy).toEqual([]);
+    expect(inputsText({})).toBe("nothing but labor");
+    expect(inputsText({ materials: 2, ore: 1 })).toBe("2 materials and 1 ore");
   });
 });

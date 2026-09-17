@@ -6,8 +6,8 @@ use crate::viewer::Viewer;
 use isms_api_types::society::{
     AllocationView, BookSummary, BookView, CitizenPublic, CitizenSelfView, ContractView,
     DwellingView, EffortCosts, FirmValuation, FoundingCosts, HouseholdView, LaborView, Level,
-    NeedsView, OfferView, OrderView, OrgView, ScoreRow, SkillView, SlotSummary, SocietyPulse,
-    WorkerView, WorkplaceView, cents, instrument_name,
+    NeedsView, OfferView, OrderView, OrgView, RecipeView, ScoreRow, SkillView, SlotSummary,
+    SocietyPulse, WorkerView, WorkplaceView, cents, instrument_name,
 };
 use isms_core::ids::{CitizenId, OrgId};
 use isms_core::kinds::{CitizenKind, Good, WorkplaceKind};
@@ -332,6 +332,27 @@ pub fn org(world: &World, viewer: &Viewer, id: OrgId) -> Option<OrgView> {
         my_shares,
         i_manage,
     })
+}
+
+/// The preset's recipes, by workplace kind, in the wire's names.
+pub fn recipes(world: &World) -> Vec<RecipeView> {
+    fn name<T: serde::Serialize>(v: T) -> String {
+        serde_json::to_value(v)
+            .ok()
+            .and_then(|j| j.as_str().map(str::to_owned))
+            .unwrap_or_default()
+    }
+    world
+        .params
+        .recipes
+        .iter()
+        .map(|(kind, r)| RecipeView {
+            workplace_kind: name(kind),
+            produces: name(r.produces),
+            consumes: r.consumes.iter().map(|(g, n)| (name(g), *n)).collect(),
+            base_rate: r.base_rate,
+        })
+        .collect()
 }
 
 pub fn founding(world: &World) -> FoundingCosts {
