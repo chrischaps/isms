@@ -66,7 +66,7 @@ fi
 
 targets=""
 [ "$rust" = 1 ] && targets="fmt-check clippy test"
-[ "$web" = 1 ] && targets="$targets web-check"
+[ "$web" = 1 ] && targets="${targets:+$targets }web-check"
 
 if ! mkdir "$lock" 2>/dev/null; then
   echo "check-and-push: a check is already running for $(cat "$lock/sha" 2>/dev/null || echo '?')." >&2
@@ -86,7 +86,7 @@ if [ -n "$targets" ]; then
   fi
   [ -f "$main_wt/.env" ] && cp "$main_wt/.env" "$check_wt/.env"
 
-  echo "check-and-push: $short: make$targets  (in $check_wt, log $log)"
+  echo "check-and-push: $short: make $targets  (in $check_wt, log $log)"
   if ! CARGO_TARGET_DIR="$target" make -C "$check_wt" $targets >"$log" 2>&1; then
     echo "check-and-push: $short is RED after ${SECONDS}s; nothing pushed. Last lines of $log:" >&2
     tail -n 25 "$log" >&2
