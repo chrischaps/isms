@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Countdown, formatUntil } from "./Countdown";
 import { formatWorldTime, tickProgress } from "./WorldClock";
+import { Ledger } from "./Ledger";
 import { Meter } from "./Meter";
 import { Num } from "./Num";
 
@@ -38,6 +39,21 @@ describe("Num", () => {
   it("has no affordance without an Explain", () => {
     render(<Num value={3} />);
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("Ledger", () => {
+  const row = (key: string, epoch: number, when: string) => ({ key, epoch, when, what: "Payslip, Greenfield", cents: 6800 });
+
+  it("draws a labelled line where a list crosses into an earlier epoch", () => {
+    render(<Ledger rows={[row("3", 1, "Day 1"), row("2", 0, "Day 42"), row("1", 0, "Day 41")]} />);
+    const lines = screen.getAllByTestId("epoch-divider").map((d) => d.textContent);
+    expect(lines).toEqual(["Epoch 2 · this epoch", "Epoch 1 · ended"]);
+  });
+
+  it("draws none while every row is from one epoch", () => {
+    render(<Ledger rows={[row("2", 1, "Day 2"), row("1", 1, "Day 1")]} />);
+    expect(screen.queryByTestId("epoch-divider")).toBeNull();
   });
 });
 

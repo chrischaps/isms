@@ -53,6 +53,7 @@ async fn frame(
                     seq: b.first_seq + i64::try_from(i).unwrap_or(0),
                     tick: b.tick,
                     cycle: b.cycle,
+                    epoch: world.meta.epoch,
                     kind: e.kind().to_owned(),
                     payload,
                 })

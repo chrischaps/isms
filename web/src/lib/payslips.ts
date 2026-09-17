@@ -15,6 +15,7 @@ export function payslipRows(slips: EventRef[], name: OrgNamer, limit?: number): 
     const p = (s.payload.Paid ?? {}) as Record<string, unknown>;
     return {
       key: String(s.seq),
+      epoch: s.epoch,
       when: dayOf(s.cycle),
       what: `Payslip, ${name(Number(p.org))}`,
       cents: Number(p.amount ?? 0),

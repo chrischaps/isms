@@ -113,10 +113,10 @@ describe("names.inText (engine rejections)", () => {
 
 describe("payslipRows", () => {
   it("dates a payslip by its day and names the org", () => {
-    const slip = { seq: 7, cycle: 41, tick: 1007, kind: "Paid", payload: { Paid: { org: 15, amount: 6800 } } } as unknown as EventRef;
+    const slip = { seq: 7, epoch: 0, cycle: 41, tick: 1007, kind: "Paid", payload: { Paid: { org: 15, amount: 6800 } } } as unknown as EventRef;
     const names = buildNames([{ id: 15, name: "Greenfield", workplaces: [] }], []);
     expect(payslipRows([slip], names.org)).toEqual([
-      { key: "7", when: "Day 42", what: "Payslip, Greenfield", cents: 6800, explain: null },
+      { key: "7", epoch: 0, when: "Day 42", what: "Payslip, Greenfield", cents: 6800, explain: null },
     ]);
   });
 });

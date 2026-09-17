@@ -168,7 +168,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
       const p = (e.payload[e.kind] ?? {}) as Record<string, unknown>;
       const isOrg = (party: unknown) => (party as Record<string, unknown> | undefined)?.org === oid;
       const when = whenOf(e, h.clock.ticks_per_cycle);
-      const base = { key: String(e.seq), when, explain: (p.explain as LedgerRow["explain"]) ?? null };
+      const base = { key: String(e.seq), epoch: e.epoch, when, explain: (p.explain as LedgerRow["explain"]) ?? null };
       switch (e.kind) {
         case "Trade": {
           const qty = Number(p.qty ?? 0);

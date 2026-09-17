@@ -21,7 +21,7 @@ function money(v: unknown): number | undefined {
 export function describe(e: EventRef, t: T, me?: number): LedgerRow {
   const p = payload(e);
   const when = whenOf(e);
-  const base = { key: `${e.seq}`, when, explain: (p.explain as LedgerRow["explain"]) ?? null };
+  const base = { key: `${e.seq}`, epoch: e.epoch, when, explain: (p.explain as LedgerRow["explain"]) ?? null };
   switch (e.kind) {
     case "Paid":
       return { ...base, what: t("compensation"), cents: money(p.amount) };

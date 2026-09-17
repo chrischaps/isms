@@ -28,12 +28,13 @@ const series = [
 ];
 
 const events: EventRef[] = [
-  { seq: 3448, tick: 23, cycle: 0, kind: "Paid", payload: { Paid: { amount: 6240, explain } } },
-  { seq: 3449, tick: 23, cycle: 0, kind: "RentPaid", payload: { RentPaid: { amount: 800 } } },
+  { seq: 3448, tick: 23, cycle: 0, epoch: 0, kind: "Paid", payload: { Paid: { amount: 6240, explain } } },
+  { seq: 3449, tick: 23, cycle: 0, epoch: 0, kind: "RentPaid", payload: { RentPaid: { amount: 800 } } },
   {
     seq: 3540,
     tick: 25,
     cycle: 1,
+    epoch: 1,
     kind: "Trade",
     payload: { Trade: { instrument: { good: "food" }, buyer: { citizen: 41 }, qty: 2, price: 131 } },
   },

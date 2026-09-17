@@ -62,6 +62,7 @@ fn event_ref(viewer: &Viewer, world: &World, e: &StoredEvent) -> Option<EventRef
         seq: e.seq,
         tick: e.meta.tick,
         cycle: e.meta.cycle,
+        epoch: e.meta.epoch,
         kind: e.event.kind().to_owned(),
         payload,
     })
@@ -106,6 +107,7 @@ async fn send(
                 seq: first_seq.map_or(0, |s| s + i64::try_from(i).unwrap_or(0)),
                 tick,
                 cycle,
+                epoch: world.meta.epoch,
                 kind: e.kind().to_owned(),
                 payload,
             })

@@ -4,7 +4,7 @@
 // Wares rules from the plan are surfaced where they bear on an order. This
 // screen mounts only where `order_books` is on.
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ApiError, credits } from "../api/client";
 import { useHome, useLexicon } from "../api/hooks";
@@ -18,6 +18,7 @@ import {
   type BookSummary,
   type OrgView,
 } from "../api/market";
+import { EpochDivider } from "../components/Ledger";
 import { OrderBook } from "../components/OrderBook";
 import { TimeSeries } from "../components/TimeSeries";
 import { useNames } from "../lib/names";
@@ -288,13 +289,18 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
                         .slice()
                         .reverse()
                         .slice(0, 10)
-                        .map((e) => {
+                        .map((e, i, shown) => {
                           const tr = ((e.payload as Record<string, unknown>).Trade ?? {}) as Record<string, unknown>;
                           const buyer = names.party(tr.buyer);
                           const seller = names.party(tr.seller);
                           const yours = buyer === "you" || seller === "you";
+                          // Last epoch's trades stay on the tape until this one's push them off; mark where they start.
+                          const spans = shown.some((x) => x.epoch !== e.epoch);
+                          const first = e.epoch !== shown[i - 1]?.epoch;
                           return (
-                            <tr key={e.seq} className={`rule ${yours ? "text-ink" : "text-muted"}`}>
+                            <Fragment key={e.seq}>
+                              {spans && first ? <EpochDivider epoch={e.epoch} current={e.epoch + 1 === h.clock.epoch} span={4} /> : null}
+                            <tr className={`rule ${yours ? "text-ink" : "text-muted"}`}>
                               <td className="num py-0.5 pr-2 whitespace-nowrap">{whenOf(e, ticksPerCycle)}</td>
                               <td className="num py-0.5 pr-2 text-right">{credits(Number(tr.price ?? 0))}</td>
                               <td className="num py-0.5 pr-2 text-right">{String(tr.qty ?? "")}</td>
@@ -302,6 +308,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
                                 {buyer} bought from {seller}
                               </td>
                             </tr>
+                            </Fragment>
                           );
                         })}
                       {b.tape.length === 0 ? (

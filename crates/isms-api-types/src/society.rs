@@ -21,8 +21,12 @@ pub type Cents = i64;
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct EventRef {
     pub seq: i64,
+    /// The engine's 0-based tick within the epoch.
     pub tick: u32,
     pub cycle: u32,
+    /// 0-based, like `tick` and `cycle` (the `Clock` view is 1-based). Ticks and cycles
+    /// restart with every epoch, so a list that spans epochs needs this to place an event.
+    pub epoch: u32,
     pub kind: String,
     #[schema(value_type = Object)]
     pub payload: serde_json::Value,

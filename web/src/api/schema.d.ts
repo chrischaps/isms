@@ -1423,11 +1423,20 @@ export interface components {
         EventRef: {
             /** Format: int32 */
             cycle: number;
+            /**
+             * Format: int32
+             * @description 0-based, like `tick` and `cycle` (the `Clock` view is 1-based). Ticks and cycles
+             *     restart with every epoch, so a list that spans epochs needs this to place an event.
+             */
+            epoch: number;
             kind: string;
             payload: Record<string, never>;
             /** Format: int64 */
             seq: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description The engine's 0-based tick within the epoch.
+             */
             tick: number;
         };
         ExplainView: {
