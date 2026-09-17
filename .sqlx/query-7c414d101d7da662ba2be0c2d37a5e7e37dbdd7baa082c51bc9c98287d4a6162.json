@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT seq, tick, cycle, epoch, actor, client_kind, payload, received_at\n             FROM events WHERE society_id = $1 AND tick >= $2 ORDER BY seq LIMIT $3",
+  "query": "SELECT seq, tick, cycle, epoch, actor, client_kind, payload, received_at\n             FROM events WHERE society_id = $1 AND epoch = $2 AND tick >= $3 ORDER BY seq LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -48,6 +48,7 @@
       "Left": [
         "Int8",
         "Int4",
+        "Int4",
         "Int8"
       ]
     },
@@ -62,5 +63,5 @@
       false
     ]
   },
-  "hash": "d45423ae767d7a999a71629703d7ea9f1a469369a33f646ec06985ef55f8a647"
+  "hash": "7c414d101d7da662ba2be0c2d37a5e7e37dbdd7baa082c51bc9c98287d4a6162"
 }

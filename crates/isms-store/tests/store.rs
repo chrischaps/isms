@@ -291,3 +291,53 @@ impl CreatedPreset for NewEvent {
         }
     }
 }
+
+/// Ticks restart at 0 with every epoch, so a since-tick read names its epoch:
+/// without it the second epoch's price history was the first epoch's opening days.
+#[sqlx::test]
+async fn since_tick_reads_stay_inside_their_epoch(pool: PgPool) {
+    let store = PgEventStore::from_pool(pool);
+    store.create_society(&society_row()).await.unwrap();
+    let (_, batches) = simulate(2);
+    let last = append_all(&store, &batches).await;
+    // The same ticks again as a second epoch (the payloads do not matter to the read).
+    let again: Vec<NewEvent> = batches[1..]
+        .iter()
+        .flatten()
+        .map(|e| NewEvent {
+            meta: EventMeta {
+                epoch: 1,
+                ..e.meta.clone()
+            },
+            event: e.event.clone(),
+        })
+        .collect();
+    store.append_batch(SOCIETY, last + 1, &again).await.unwrap();
+
+    for epoch in [0, 1] {
+        let ticks = store
+            .read_kind_since_tick(SOCIETY, epoch, "TickResolved", 24, 1_000)
+            .await
+            .unwrap();
+        assert_eq!(
+            ticks.len(),
+            24,
+            "one day of ticks from tick 24 on, epoch {epoch}"
+        );
+        assert!(
+            ticks
+                .iter()
+                .all(|e| e.meta.epoch == epoch && e.meta.tick >= 24)
+        );
+
+        let all = store
+            .read_since_tick(SOCIETY, epoch, 40, 100_000)
+            .await
+            .unwrap();
+        assert!(!all.is_empty());
+        assert!(
+            all.iter()
+                .all(|e| e.meta.epoch == epoch && e.meta.tick >= 40)
+        );
+    }
+}

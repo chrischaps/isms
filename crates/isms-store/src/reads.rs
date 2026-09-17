@@ -28,18 +28,22 @@ impl PgEventStore {
         .transpose()
     }
 
-    /// Events with `tick >= since`, in log order, at most `limit`.
+    /// Events of one epoch with `tick >= since`, in log order, at most `limit`.
+    /// Ticks restart at 0 with every epoch, so a tick alone does not place an event.
     pub async fn read_since_tick(
         &self,
         society: i64,
+        epoch: u32,
         since: u32,
         limit: i64,
     ) -> Result<Vec<StoredEvent>> {
         let since = i32::try_from(since)?;
+        let epoch = i32::try_from(epoch)?;
         let rows = sqlx::query!(
             "SELECT seq, tick, cycle, epoch, actor, client_kind, payload, received_at
-             FROM events WHERE society_id = $1 AND tick >= $2 ORDER BY seq LIMIT $3",
+             FROM events WHERE society_id = $1 AND epoch = $2 AND tick >= $3 ORDER BY seq LIMIT $4",
             society,
+            epoch,
             since,
             limit
         )
@@ -117,19 +121,22 @@ impl PgEventStore {
         Ok(events)
     }
 
-    /// Events of one kind with `tick >= since`, in log order, at most `limit`.
+    /// Events of one kind and one epoch with `tick >= since`, in log order, at most `limit`.
     pub async fn read_kind_since_tick(
         &self,
         society: i64,
+        epoch: u32,
         kind: &str,
         since: u32,
         limit: i64,
     ) -> Result<Vec<StoredEvent>> {
         let since = i32::try_from(since)?;
+        let epoch = i32::try_from(epoch)?;
         let rows = sqlx::query!(
             "SELECT seq, tick, cycle, epoch, actor, client_kind, payload, received_at
-             FROM events WHERE society_id = $1 AND kind = $2 AND tick >= $3 ORDER BY seq LIMIT $4",
+             FROM events WHERE society_id = $1 AND epoch = $2 AND kind = $3 AND tick >= $4 ORDER BY seq LIMIT $5",
             society,
+            epoch,
             kind,
             since,
             limit

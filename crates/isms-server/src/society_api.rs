@@ -152,16 +152,18 @@ async fn home(
         .ok_or_else(|| ApiError::Forbidden("join this society first".into()))?;
     let me = CitizenId(u32::try_from(row.citizen_id).unwrap_or(u32::MAX));
     // Read where the last session ended before this one counts as presence.
-    let since = entry
-        .handle
-        .world
-        .read()
-        .await
-        .citizens
-        .get(&me)
-        .map_or(0, |c| c.last_seen_tick);
+    let (since, epoch) = {
+        let world = entry.handle.world.read().await;
+        (
+            world.citizens.get(&me).map_or(0, |c| c.last_seen_tick),
+            world.meta.epoch,
+        )
+    };
     touch_presence(&state, &auth, &entry).await?;
-    let stored = state.store.read_since_tick(id, since, READ_CAP).await?;
+    let stored = state
+        .store
+        .read_since_tick(id, epoch, since, READ_CAP)
+        .await?;
     let headlines = crate::comms::latest_headlines(&state, id, 5)
         .await?
         .into_iter()
@@ -317,7 +319,11 @@ async fn digest(
             .get(&me)
             .map_or(0, |c| c.last_seen_tick),
     };
-    let stored = state.store.read_since_tick(id, since, READ_CAP).await?;
+    let epoch = entry.handle.world.read().await.meta.epoch;
+    let stored = state
+        .store
+        .read_since_tick(id, epoch, since, READ_CAP)
+        .await?;
     let world = entry.handle.world.read().await;
     let viewer = Viewer::new(&world, Some(me));
     let raw: Vec<Event> = stored.iter().map(|e| e.event.clone()).collect();
@@ -442,15 +448,15 @@ async fn prices(
     Query(q): Query<WindowQuery>,
 ) -> ApiResult<Json<PricesView>> {
     let (entry, _me) = me_in(&state, &auth, id).await?;
-    let (now, tpc) = {
+    let (now, tpc, epoch) = {
         let world = entry.handle.world.read().await;
-        (world.meta.tick, world.ticks_per_cycle())
+        (world.meta.tick, world.ticks_per_cycle(), world.meta.epoch)
     };
     let window = q.window.unwrap_or(tpc).clamp(1, 10 * tpc);
     let since = now.saturating_sub(window);
     let stored = state
         .store
-        .read_kind_since_tick(id, "TickResolved", since, i64::from(window) + 1)
+        .read_kind_since_tick(id, epoch, "TickResolved", since, i64::from(window) + 1)
         .await?;
     let mut points = Vec::new();
     for e in &stored {
