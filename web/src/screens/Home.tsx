@@ -101,7 +101,9 @@ export function Home({ id }: { id: number }) {
           <dt className="text-muted">{t("work_screen")}</dt>
           <dd>
             {h.labor.allocations.length === 0
-              ? "no position"
+              ? h.labor.employment.length > 0
+                ? "hired, but no hours set"
+                : "no position"
               : h.labor.allocations.map((a) => `${a.org_name}: ${a.hours} h, ${a.effort}`).join("; ")}
             <span className="text-muted"> · budget {h.labor.budget} h · </span>
             <Link to="/s/$id/work" params={{ id: String(id) }} className="text-muted underline">

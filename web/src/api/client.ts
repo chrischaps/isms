@@ -37,12 +37,18 @@ export const api = createClient<paths>({
 });
 api.use(csrf);
 
-/** A failed call, with the server's problem document when there is one. */
+/** Rewrites an engine message for a player (ids to names); the society shell installs it (lib/names). */
+let humanize = (text: string) => text;
+export function setHumanizer(f: ((text: string) => string) | null) {
+  humanize = f ?? ((text) => text);
+}
+
+/** A failed call, with the server's problem document when there is one; `problem.detail` keeps the raw text. */
 export class ApiError extends Error {
   status: number;
   problem?: Problem;
   constructor(status: number, problem?: Problem) {
-    super(problem?.detail ?? problem?.title ?? `HTTP ${status}`);
+    super(humanize(problem?.detail ?? problem?.title ?? `HTTP ${status}`));
     this.status = status;
     this.problem = problem;
   }

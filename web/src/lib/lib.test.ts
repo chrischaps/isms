@@ -78,6 +78,39 @@ describe("names", () => {
   });
 });
 
+describe("names.inText (engine rejections)", () => {
+  const orgs = [{ id: 19, name: "Hollow Mill", workplaces: [{ id: 19, kind: "mill" }] }];
+  const citizens = [
+    { id: 41, handle: "chris" },
+    { id: 5, handle: "otto" },
+  ];
+  const mine = buildNames(orgs, citizens, 41);
+  const theirs = buildNames(orgs, citizens, 5);
+
+  it("names the citizen and the workplace, and agrees the verb with you", () => {
+    expect(mine.inText("c41 already works at w19")).toBe("You already work at the mill at Hollow Mill");
+    expect(theirs.inText("c41 already works at w19")).toBe("chris already works at the mill at Hollow Mill");
+    expect(mine.inText("c41 already holds a position elsewhere")).toBe("You already hold a position elsewhere");
+  });
+
+  it("drops a noun the token already carries, and unwraps a debug-printed party", () => {
+    expect(mine.inText("contract k441 is not an open employment")).toBe("That contract is not an open employment");
+    expect(mine.inText("offer f30 is addressed to Citizen(c5)")).toBe("That offer is addressed to otto");
+    expect(mine.inText("Citizen(c5) holds 3 shares of o19")).toBe("otto holds 3 shares of Hollow Mill");
+  });
+
+  it("says a missing thing is missing instead of naming its number", () => {
+    expect(mine.inText("no workplace w77")).toBe("There is no such workplace");
+    expect(mine.inText("no org o3")).toBe("There is no such organization");
+  });
+
+  it("speaks of days and hours, and leaves ordinary words alone", () => {
+    expect(mine.inText("a loan runs 1..=12 cycles")).toBe("A loan runs 1..=12 days");
+    expect(mine.inText("exceeds this cycle's budget of 8 h")).toBe("Exceeds this day's budget of 8 h");
+    expect(mine.inText("a destitute citizen cannot sign a long contract")).toBe("A destitute citizen cannot sign a long contract");
+  });
+});
+
 describe("payslipRows", () => {
   it("dates a payslip by its day and names the org", () => {
     const slip = { seq: 7, cycle: 41, tick: 1007, kind: "Paid", payload: { Paid: { org: 15, amount: 6800 } } } as unknown as EventRef;

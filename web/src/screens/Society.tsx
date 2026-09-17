@@ -4,10 +4,12 @@
 // Sections with a screen are links (Work and the plan since S1.9); the rest
 // are labels until their card lands.
 
+import { useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
-import { credits } from "../api/client";
+import { credits, setHumanizer } from "../api/client";
 import { useCapabilities, useHome, useLexicon, useMe, useSociety, useStream } from "../api/hooks";
 import { WorldClock } from "../components/WorldClock";
+import { useNames } from "../lib/names";
 import { Home } from "./Home";
 
 const SCREENS: Record<
@@ -32,6 +34,12 @@ export function SocietyShell({ id }: { id: number }) {
   // (a non-citizen gets a 403 here and simply sees no balance).
   const home = useHome(id);
   const me = useMe();
+  // Every rejection shown inside this society names people and places instead of printing ids.
+  const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
+  useEffect(() => {
+    setHumanizer(names.inText);
+    return () => setHumanizer(null);
+  }, [names]);
   useStream(id);
   if (society.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
   if (society.error || caps.error) {

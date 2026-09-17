@@ -33,7 +33,7 @@ test("work and standing plan", async ({ page, context }) => {
   await expect(hours).toHaveValue("8");
   await hours.fill("9");
   await page.getByRole("button", { name: "Set my hours" }).click();
-  await expect(page.getByRole("alert")).toContainText(/exceeds this cycle's budget of 8 h|allows at most 8 h/);
+  await expect(page.getByRole("alert")).toContainText(/exceeds this day's budget of 8 h|allows at most 8 h/i);
   // Effort costs come from the preset, not the client.
   await expect(editor.getByText(/output x1\.0, Food decay x1\.0/)).toBeVisible();
   await hours.fill("6");

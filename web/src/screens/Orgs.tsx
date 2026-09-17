@@ -38,6 +38,8 @@ export function Orgs({ id }: { id: number }) {
   const [kind, setKind] = useState<string | null>(null);
   const [wpKind, setWpKind] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [taken, setTaken] = useState<string | null>(null);
+  const [jobError, setJobError] = useState<string | null>(null);
 
   if (home.isPending || orgs.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
   if (home.error instanceof ApiError && home.error.status === 403) {
@@ -58,6 +60,10 @@ export function Orgs({ id }: { id: number }) {
   const v = orgs.data!;
   const c = caps.data!;
   const me = h.citizen.id;
+  // A posting with places left stays on the board after you take one of them.
+  const myWorkplaces = new Set(
+    h.labor.employment.map((k) => Number(((k.body as Record<string, unknown>).employment as Record<string, unknown> | undefined)?.workplace)),
+  );
   const names = new Map(v.orgs.map((o) => [o.id, o.name]));
   const kinds = c.org_kinds;
   const chosenKind = kind ?? kinds[0] ?? "firm";
@@ -145,20 +151,45 @@ export function Orgs({ id }: { id: number }) {
                       up to {line!.hours} h a day · {line!.term} · notice {line!.notice} day(s) · {line!.places} open
                     </td>
                     <td className="py-1 text-right">
-                      <button
-                        type="button"
-                        disabled={accept.isPending}
-                        className="border-line rounded-sm border px-2 py-0.5 text-xs"
-                        onClick={() => accept.mutate(o.id, { onError: (e) => setError(e.message) })}
-                      >
-                        Take it
-                      </button>
+                      {myWorkplaces.has(line!.workplace) ? (
+                        <span className="text-muted text-xs">you work here</span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={accept.isPending}
+                          className="border-line rounded-sm border px-2 py-0.5 text-xs"
+                          onClick={() => {
+                            setJobError(null);
+                            setTaken(null);
+                            accept.mutate(o.id, {
+                              onSuccess: () => setTaken(who.workplace(line!.workplace)),
+                              onError: (e) => setJobError(e.message),
+                            });
+                          }}
+                        >
+                          Take it
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+          {taken ? (
+            <p className="mt-2 text-sm" role="status" data-testid="job-taken">
+              Taken: {taken}. Your hours there are 0 until you set them on{" "}
+              <Link to="/s/$id/work" params={{ id: String(id) }} className="underline">
+                {t("work_screen")}
+              </Link>
+              .
+            </p>
+          ) : null}
+          {jobError ? (
+            <p className="text-bad mt-2 text-sm" role="alert">
+              {jobError}
+            </p>
+          ) : null}
         </div>
 
         {kinds.length > 0 ? (
