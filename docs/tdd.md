@@ -710,7 +710,7 @@ Carried from GDD §20 with the engineering consequence, plus new items. Provisio
 
 ### 18.1 How sessions are sized and run
 
-A **session** is a unit of work a coding agent completes in one sitting with its full context intact: one concern, roughly 300–900 lines of net change, ending in a green `make check` and a squash-merged PR. Sessions are ordered; each card names the sessions it depends on. Sessions marked **∥** can run in parallel with the previous one (e.g. by a second agent in a worktree) because they touch different crates.
+A **session** is a unit of work a coding agent completes in one sitting with its full context intact: one concern, roughly 300–900 lines of net change, ending in a green `make check` and a squash-merged PR (since ADR-0008: a PR for engine changes only; everything else is committed to `main` and pushed through `make push`). Sessions are ordered; each card names the sessions it depends on. Sessions marked **∥** can run in parallel with the previous one (e.g. by a second agent in a worktree) because they touch different crates.
 
 Each card has the same fields:
 
@@ -938,15 +938,31 @@ These can interleave with Phase 1's server/web sessions. Each adds capability-ga
 - **Build.** Society stats dashboard (Freeport subset: price indices, wage distribution, unemployment, firm count, credit outstanding, need-fulfillment, hardship count), Chronicle reader with cycle navigation, scoreboard (net worth, firm valuation, self-made), citizens list with flags, Square/org/DM chat, Profile (biography, societies, API keys with the agent-use notice), the public householder script page, and the `/public/*` spectator routes (society list, stats, Chronicle) with their read-only screens that need no login.
 - **Done gate.** Playwright: a headline links to the event; API key creation and a CLI call with it (S1.6) appear as `ApiKey` in the profile's action share; a logged-out visitor can read the Chronicle.
 
-#### S1.14 — Deployment, backups, seeding
+#### S1.14 — Deployment, backups, seeding *(parked by ADR-0009)*
+- **Parked.** Nobody remote needs to reach a society yet. Take this card up when a second human player is real; nothing depends on it until then (S1.15 no longer does).
 - **Read.** TDD §17, D11.
 - **Build.** `Dockerfile` (multi-stage; embeds the web build), `docker-compose.yml`, `Caddyfile`, `.env.example`, `deploy.yml` (GHCR + SSH), `backup.sh` with restore instructions and a tested restore on a throwaway container, `/healthz` and `/metrics`, `isms-server seed --preset freeport --name freeport-1 --tick-seconds 3600 --cycle-boundary 04:00 --tz America/Chicago` creating the first society with householders (the boundary is stored in UTC), a `RUNBOOK.md` (deploy, rollback, restore, rotate a key, pause a society).
 - **Done gate.** A clean VPS reaches a working society over HTTPS from the runbook alone; restore drill passes; CI deploy is green.
 
-#### S1.15 — Hardening, load test, epoch end, playtest prep
-- **Read.** GDD §11.5, §18 Phase 1 exit; TDD §17 performance budget, T5.
-- **Build.** Epoch end sequence for a 1-week playtest epoch (`epoch_cycles` override; Chronicle announcement at cycle N−2; final resolution; the frozen aggregates snapshot written to `epoch_archives` — this is the "Observatory snapshot" of GDD §11.5, consumed by Phase 3; archive page; 48-hour closing-statements window; `start_epoch` invoked by the scheduler after the window with the roster invited back by email), load test script (100 householders + 20 CLI agents at `tick_seconds=5` for an epoch) with the budget assertions, measured `events` size (decide T5), a bug bash list from running the e2e and Playwright suites against production config, the interview guide stub in `docs/playtest/phase1.md` (from GDD §18/§19: "what did you feel", not "was it fun").
-- **Done gate.** **Phase 1 exit criteria met:** budget assertions pass; epoch end produces an archive; 10–20 invite codes issued.
+#### S1.16 — Synthetic players *(new, ADR-0009; runs before S1.15)*
+- **Goal.** A cohort of LLM-driven players that play a society through the public API the way strategic people would, and write down where the game confused or refused them.
+- **Read.** ADR-0009; GDD §9.1 (core loop), §11.4 (player agents); TDD §10 (API), §10.2 (one API); `docs/SCRIPT.md` (what householders already do, so personas do not repeat it); `scripts/e2e/core-loop.sh` (the loop as commands).
+- **Build.**
+  1. Society class `lab`: a migration widening `societies.class`, `isms-server seed --class lab`, and `/public/*` never listing a `lab` society. Synthetic accounts are `<persona>-<n>@agents.isms.test`, created by the harness with `isms-server session`, each with its own API key.
+  2. `agents/` (TypeScript, its own `package.json`; the typed client comes from the same `/openapi.json` as the web client, so an API change breaks the harness at compile time). The Anthropic SDK drives each player: the API's operations are exposed as tools (read: home, labor, books, a book, orgs with recipes, notice board, contracts, chronicle; act: take a job, set labor, place and cancel orders, set the plan, found an org, post an offer, accept an offer, transfer, move in). No tool reaches past the public API.
+  3. A turn loop: once per tick (from the SSE stream, with a poll fallback) each player gets its situation, its persona, its running notes and the last turn's results, and takes at most `max_actions_per_turn` actions. A cheap model plays turns; once per cycle a stronger model rewrites the player's notes and plan. Model ids, temperatures, the turn cap and the per-run token budget live in `agents/config.toml`; a run stops cleanly at its budget.
+  4. Personas as data (`agents/personas/*.md`): the founder, the wage-maximiser who switches jobs, the speculator, the saver, the slacker, the borrower who may default, the landlord, and the rule-prober who tries what should be refused. Each states goals and temperament, never a script.
+  5. Journals: `agents/runs/<run>/<player>.jsonl`, one line per turn (what it saw, what it meant to do, each call with its result, every rejection verbatim, and a free-text "what I did not understand"). `pnpm --dir agents report <run>` folds a run into `docs/playtest/runs/<run>.md`: rejections grouped by code and text, confusions grouped by screen or endpoint, each persona's arc in a paragraph, and the economy's headline numbers from `/stats`.
+  6. `make agents RUN=… PLAYERS=8 TICK_SECONDS=10 EPOCH_CYCLES=7`: seeds a `lab` Freeport, starts the server on a side port with its own database, runs the cohort to the epoch's end, writes the report.
+- **Out of scope.** Any engine change; any endpoint the web client could not also use; agents in `canonical` or `community` societies; judging "fun"; tuning presets from one run.
+- **Done gate.** Unit tests for the tool layer against a recorded API (no model calls in CI); a recorded-transcript test that replays one player's epoch without the network; a live run of 8 players through a 7-cycle epoch at `tick_seconds=10` that ends inside its token budget with a report in `docs/playtest/runs/`; conservation holds at the end of that run (`isms-server rebuild` replays it clean); the report's defects are filed in `docs/playtest/phase1-defects.md` with a severity each.
+- **Hand-off.** What the cohort did that householders never do, what broke, what a run costs, and which personas were worth their tokens.
+
+#### S1.15 — Hardening, load test, epoch end *(trimmed by ADR-0009)*
+- **Read.** GDD §11.5, §18 Phase 1 exit; TDD §17 performance budget, T5; ADR-0009; `docs/playtest/phase1-defects.md`.
+- **Build.** Epoch end sequence (`epoch_cycles` override; Chronicle announcement at cycle N−2; final resolution; the frozen aggregates snapshot written to `epoch_archives` — this is the "Observatory snapshot" of GDD §11.5, consumed by Phase 3; archive page; 48-hour closing-statements window; `start_epoch` invoked by the scheduler after the window), load test script (100 householders + 20 CLI agents at `tick_seconds=5` for an epoch) with the budget assertions, measured `events` size (decide T5), the blocking defects from S1.16's journals fixed and the rest triaged, the interview guide in `docs/playtest/phase1.md` (from GDD §18/§19: "what did you feel", not "was it fun") written for a cohort of one to three.
+- **Out of scope (until S1.14 is taken up).** Invite-code issuance for a cohort, the mailed invitation back to the roster, anything "against production config".
+- **Done gate.** **Phase 1 exit criteria met (as amended by ADR-0009):** budget assertions pass; epoch end produces an archive; an S1.16 cohort has played a full epoch on this build with no blocking defect open; Chris has played a Freeport epoch and filled in `docs/playtest/phase1.md`.
 
 ### 18.5 Phases 2–4 — milestones
 
@@ -969,7 +985,8 @@ flowchart LR
   S13 --> S17[S1.7] --> S18[S1.8] --> S19[S1.9] --> S110[S1.10] --> S111[S1.11] --> S112[S1.12] --> S113[S1.13]
   S15 --> S113
   S16 --> S113
-  S113 --> S114[S1.14] --> S115[S1.15]
+  S113 --> S116[S1.16] --> S115[S1.15]
+  S113 -.-> S114[S1.14 parked]
   S16 --> S115
   S018 -.-> P2[Phase 2]
   S115 --> P2

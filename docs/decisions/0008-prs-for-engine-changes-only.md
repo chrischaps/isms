@@ -1,0 +1,12 @@
+# 0008 - Pull requests for engine changes only; the rest is checked, then pushed
+
+**Status:** accepted . **Date:** 2026-09-17 . **Session:** none (workflow)
+
+## Context
+TDD 18.1 ends every session in "a green `make check` and a squash-merged PR". That rule was written for one card at a time and then carried two parallel tracks. With one track left and a day of small fixes driven by Chris playing the game, the ceremony cost more than it bought: a one-line copy change waited ten minutes for a card number, a branch and a CI run. What the PR really protected was cross-platform determinism: Linux CI is the only check that the engine agrees with itself bit for bit on two operating systems, and that must hold before a change reaches `main`. Nothing else in the repo has that property. The repository is private on GitHub's free plan, so no branch protection enforces either rule.
+
+## Decision
+Changes under `crates/isms-core`, `crates/isms-sim` or `presets/` (tunables move goldens as surely as code) still take a branch, one PR, green CI and a squash merge. Everything else (server, store, api-types, cli, web, docs, deploy, scripts) is committed straight to `main`, one commit per card or fix, with no check before the commit. The push is what is gated: `make push` (`scripts/check-and-push.sh`) checks the commit at `HEAD` in the sibling worktree `../Isms-check` with its own target directory, runs only what the diff against `origin/main` can break (web only: `web-check`; crates: `fmt-check clippy test`; docs only: nothing; unrecognised paths: everything), records the sha in `.git/checked-sha` and pushes exactly that sha. `scripts/hooks/pre-push` (enabled per clone with `make hooks`) refuses any other sha on `main`. The script refuses a diff that touches the engine paths and refuses when `origin/main` has moved. CI still runs on every push to `main`; a red `main` is fixed before anything else. A PR is still right when two agents work at once or when review is wanted.
+
+## Consequences
+The working tree is free while a check runs, so the next task starts at once; a red check costs a follow-up commit and leaves the mistake visible in local history (accepted for non-engine work). A web-only fix reaches `main` in about ten seconds of checking instead of ten minutes. The check also stopped colliding with a running dev server, which holds `target\debug\isms-server.exe` open. `docs/SESSIONS.md` entries remain per card; a day of small fixes gets one entry. The hook is the only enforcement there is, and `--no-verify` is the deliberate escape hatch.
