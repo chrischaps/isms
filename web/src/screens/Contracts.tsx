@@ -25,6 +25,7 @@ import {
 } from "../api/contracts";
 import { Meter } from "../components/Meter";
 import { useNames, type Names } from "../lib/names";
+import { needHints } from "../lib/needs";
 import { jobLine } from "../lib/offers";
 import { whenOfTick } from "../lib/when";
 
@@ -177,7 +178,7 @@ export function Contracts({ id }: { id: number }) {
       <section data-testid="housing">
         <h3 className="text-lg">{t("dwelling")}</h3>
         <div className="mt-2 max-w-md">
-          <Meter label="Shelter" value={h.needs.shelter} />
+          <Meter label="Shelter" value={h.needs.shelter} hint={needHints(t, c).shelter} />
         </div>
         {dwelling ? (
           <p className="mt-2 text-sm" data-testid="my-dwelling">

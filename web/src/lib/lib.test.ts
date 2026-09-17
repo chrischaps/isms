@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventRef } from "../api/client";
 import { buildNames, workplaceTitles } from "./names";
+import { needHints } from "./needs";
 import { payslipRows } from "./payslips";
 import { dayOf, deadlineOfTick, hourName, hourOfClock, whenOf, whenOfTick } from "./when";
 
@@ -124,5 +125,21 @@ describe("payslipRows", () => {
     expect(payslipRows([slip], names.org)).toEqual([
       { key: "7", epoch: 0, when: "Day 42", what: "Payslip, Greenfield", cents: 6800, explain: null },
     ]);
+  });
+});
+
+describe("needHints", () => {
+  const t = (k: string) => ({ plan: "Standing plan", pantry: "Pantry", store: "Market", dwelling: "Dwelling" })[k] ?? k;
+
+  it("sends a market society to the market and a commons to its plan", () => {
+    expect(needHints(t, { money: true, order_books: true, common_store: false }).food).toContain("Buy Food on the Market screen");
+    const commons = needHints(t, { money: false, order_books: false, common_store: true });
+    expect(commons.food).toContain("draws Food from the common store");
+    expect(commons.food).not.toContain("Buy");
+    expect(commons.comfort).not.toContain("Buy");
+  });
+
+  it("says where a dwelling comes from", () => {
+    expect(needHints(t, undefined).shelter).toContain("Rent or buy one on the Contracts screen");
   });
 });

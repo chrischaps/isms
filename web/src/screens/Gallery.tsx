@@ -53,7 +53,7 @@ export function Gallery() {
       <section>
         <h2 className="text-xl">Meter</h2>
         <div className="mt-2 flex max-w-md flex-col gap-2">
-          <Meter label="Food" value={76} />
+          <Meter label="Food" value={76} hint="Each hour you eat one Food from your pantry if there is any. Buy Food on the Market screen." />
           <Meter label="Shelter" value={100} />
           <Meter label="Comfort" value={14} />
         </div>

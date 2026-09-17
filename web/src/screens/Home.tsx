@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ApiError, credits, type EventRef } from "../api/client";
-import { useHome, useLexicon, useSociety } from "../api/hooks";
+import { useCapabilities, useHome, useLexicon, useSociety } from "../api/hooks";
 import { usePayslips, useSetPlan } from "../api/society";
 import { Countdown } from "../components/Countdown";
 import { DiffSinceLastSeen } from "../components/DiffSinceLastSeen";
@@ -13,6 +13,7 @@ import { Ledger } from "../components/Ledger";
 import { Meter } from "../components/Meter";
 import { Num } from "../components/Num";
 import { useNames } from "../lib/names";
+import { needHints } from "../lib/needs";
 import { payslipRows } from "../lib/payslips";
 import { whenOfTick } from "../lib/when";
 import { Onboarding } from "./Onboarding";
@@ -28,6 +29,7 @@ export function Home({ id }: { id: number }) {
   const society = useSociety(id);
   const slips = usePayslips(id);
   const { t } = useLexicon(id);
+  const caps = useCapabilities(id);
   const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const keep = useSetPlan(id);
   const [kept, setKept] = useState<number | null>(null);
@@ -58,6 +60,7 @@ export function Home({ id }: { id: number }) {
     ? nextCycleAt(s.next_tick_at, s.tick_seconds, h.clock.tick, h.clock.ticks_per_cycle)
     : null;
   const rent = h.household.dwelling?.rent_per_cycle;
+  const hints = needHints(t, caps.data);
 
   return (
     <div className="flex flex-col gap-8">
@@ -77,9 +80,9 @@ export function Home({ id }: { id: number }) {
 
       <section className="grid gap-8 md:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <Meter label="Food" value={h.needs.food} />
-          <Meter label="Shelter" value={h.needs.shelter} />
-          <Meter label="Comfort" value={h.needs.comfort} />
+          <Meter label="Food" value={h.needs.food} hint={hints.food} />
+          <Meter label="Shelter" value={h.needs.shelter} hint={hints.shelter} />
+          <Meter label="Comfort" value={h.needs.comfort} hint={hints.comfort} />
         </div>
         <dl className="grid grid-cols-2 gap-y-1 text-sm">
           <dt className="text-muted">{t("balance")}</dt>

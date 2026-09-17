@@ -66,6 +66,19 @@ describe("Meter", () => {
     expect(screen.getByText("76")).toBeTruthy();
   });
 
+  it("explains itself from the label: described for a screen reader, pinned open by a tap", () => {
+    render(<Meter label="Food" value={40} hint="Buy Food on the Market screen." />);
+    const label = screen.getByRole("button", { name: "Food" });
+    const tip = screen.getByRole("tooltip", { hidden: true });
+    expect(tip.textContent).toBe("Buy Food on the Market screen.");
+    expect(label.getAttribute("aria-describedby")).toBe(tip.id);
+    expect(tip.className).toContain("hidden");
+    fireEvent.click(label);
+    expect(tip.className).not.toContain("hidden");
+    // The meter keeps its own role and name beside the label.
+    expect(screen.getByRole("meter", { name: "Food" }).getAttribute("aria-valuenow")).toBe("40");
+  });
+
   it("clamps and turns bad below the threshold", () => {
     render(<Meter label="Shelter" value={12} />);
     expect(screen.getByTestId("meter-fill").className).toContain("bg-bad");
