@@ -116,11 +116,11 @@ export function Work({ id }: { id: number }) {
         <h3 className="text-lg">Your hours</h3>
         {held.length === 0 ? (
           <p className="text-muted mt-2 text-sm">
-            You hold no {t("job").toLowerCase()}. The job board is on the{" "}
-            <Link to="/s/$id" params={{ id: String(id) }} className="underline">
-              {t("home_title")}
+            You hold no {t("job").toLowerCase()}. The job board is always on the{" "}
+            <Link to="/s/$id/orgs" params={{ id: String(id) }} className="underline">
+              Organizations
             </Link>{" "}
-            screen until you take one.
+            screen.
           </p>
         ) : (
           <table className="mt-2 w-full text-sm" data-testid="allocation-editor">
