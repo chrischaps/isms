@@ -1789,7 +1789,7 @@ export interface components {
             per_second: number;
         };
         /**
-         * @description One workplace kind's recipe. Names are the wire's snake_case kinds and goods;
+         * @description One workplace kind's recipe. Names are the wire's `snake_case` kinds and goods;
          *     `produces` may be `dwelling`, which is an asset and not a good.
          */
         RecipeView: {

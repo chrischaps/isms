@@ -362,7 +362,7 @@ pub struct OrgsView {
     pub slots: BTreeMap<WorkplaceKind, SlotSummary>,
 }
 
-/// One workplace kind's recipe. Names are the wire's snake_case kinds and goods;
+/// One workplace kind's recipe. Names are the wire's `snake_case` kinds and goods;
 /// `produces` may be `dwelling`, which is an asset and not a good.
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct RecipeView {
