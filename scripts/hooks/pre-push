@@ -1,0 +1,15 @@
+#!/bin/sh
+# Only a commit that scripts/check-and-push.sh has seen green may be pushed to main.
+# Branch pushes (PRs) pass untouched. Enable once per clone with `make hooks`.
+common=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+checked=$(cat "$common/checked-sha" 2>/dev/null || true)
+
+while read -r _lref lsha rref _rsha; do
+  [ "$rref" = "refs/heads/main" ] || continue
+  if [ "$lsha" != "$checked" ]; then
+    echo "pre-push: $lsha has not passed scripts/check-and-push.sh (last green: ${checked:-none})." >&2
+    echo "pre-push: run \`make push\`; it checks HEAD in ../Isms-check and pushes on green." >&2
+    exit 1
+  fi
+done
+exit 0

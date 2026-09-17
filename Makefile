@@ -12,9 +12,17 @@ export DATABASE_URL ?= postgres://isms:isms@localhost:5433/isms
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check fmt fmt-check clippy test web-check db db-stop dev e2e e2e-web sim sim-check sim-all sqlx-prepare openapi-lint api-types
+.PHONY: check push hooks fmt fmt-check clippy test web-check db db-stop dev e2e e2e-web sim sim-check sim-all sqlx-prepare openapi-lint api-types
 
 check: fmt-check clippy test web-check
+
+# Non-engine work on main: check HEAD in ../Isms-check (only what its diff can break), push on green.
+push:
+	bash scripts/check-and-push.sh
+
+# Once per clone: the pre-push hook that lets only a checked sha reach main.
+hooks:
+	git config core.hooksPath scripts/hooks
 
 fmt:
 	cargo fmt --all
