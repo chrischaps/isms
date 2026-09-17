@@ -85,6 +85,14 @@ button, input, select {
   border-top: 1px solid var(--color-line);
 }
 
+/* Every table column keeps a gutter to its right. A right-aligned figure
+   followed by a left-aligned word otherwise touch ("2.00manual"). Unlayered on
+   purpose: it outranks the pr-* utilities scattered over the cells, so a header
+   and the figures under it always share one right edge. The chart legend is uPlot's. */
+table:not(.u-legend) :is(th, td):not(:last-child) {
+  padding-right: 1rem;
+}
+
 /* A footnote-style popover: the Explain reads like a ledger note. */
 .explain {
   border: 1px solid var(--color-line);
