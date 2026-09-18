@@ -1022,20 +1022,11 @@ async fn a_builders_dwellings_show_on_the_org_and_its_ledger(pool: PgPool) {
 }
 
 /// Q109 (D9): a manager withdraws a job offer through the one withdraw route,
-/// with no on_behalf_of needed; the worker cannot.
+/// with no `on_behalf_of` needed; the worker cannot.
 #[sqlx::test(migrator = "isms_store::MIGRATOR")]
 async fn a_manager_withdraws_a_job_offer_and_a_worker_cannot(pool: PgPool) {
     let f = fixture(pool, "freeport").await;
     let (manager, worker, wp) = firm_with_worker(&f).await;
-    let oid = manager
-        .get::<HomeView>(f.id, "/home")
-        .await
-        .labor
-        .employment
-        .first()
-        .map(|_| 0)
-        .unwrap_or(0);
-    let _ = oid;
     let orgs: OrgsView = manager.get(f.id, "/orgs").await;
     let org = orgs
         .orgs

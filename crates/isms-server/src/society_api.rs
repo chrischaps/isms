@@ -1009,9 +1009,10 @@ async fn withdraw_offer(
     else {
         return Err(unknown_offer(&entry, me, oid).await);
     };
-    let on_behalf_of = org_of(q.on_behalf_of).or(match by {
-        Party::Org(o) => Some(o),
-        _ => None,
+    let on_behalf_of = org_of(q.on_behalf_of).or(if let Party::Org(o) = by {
+        Some(o)
+    } else {
+        None
     });
     Ok(Json(
         send(
