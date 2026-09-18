@@ -28,6 +28,6 @@ export function needHints(t: T, caps: Caps | undefined): NeedHints {
       "Rent or buy one on the Contracts screen. Without one you also produce less, and Comfort drains faster.",
     comfort:
       `Each hour you use up one Wares from your ${pantry}, when the meter has room for it, and the meter rises; it falls a little every hour, faster without a ${t("dwelling").toLowerCase()}. ` +
-      `${wares} and keep a few on hand. Comfort does not change what you produce.`,
+      `${wares} and keep a few on hand. Comfort does not change what you produce or earn: it is a third of your wellbeing, the number this society is judged by, and the one meter that shows whether people here have more than enough.`,
   };
 }

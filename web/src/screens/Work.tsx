@@ -155,11 +155,12 @@ export function Work({ id }: { id: number }) {
                         type="number"
                         inputMode="numeric"
                         min={0}
+                        max={p.maxHours}
                         step={1}
                         aria-label={`Hours at ${names.workplace(p.workplace)}`}
                         className="border-line num w-16 rounded-sm border px-1"
                         value={r.hours}
-                        onChange={(e) => update(p.workplace, { hours: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+                        onChange={(e) => update(p.workplace, { hours: Math.min(p.maxHours, Math.max(0, Math.trunc(Number(e.target.value) || 0))) })}
                       />
                     </td>
                     <td className="py-2">
@@ -186,11 +187,11 @@ export function Work({ id }: { id: number }) {
         {held.length > 0 ? (
           <div className="mt-3 flex flex-wrap items-baseline gap-3 text-sm">
             <span className={`num ${over ? "text-bad" : ""}`}>
-              {total} of {l.budget} h
+              {total} of {l.budget} h{over ? ": the day has no more hours than that" : ""}
             </span>
             <button
               type="button"
-              disabled={setLabor.isPending}
+              disabled={setLabor.isPending || over}
               className="bg-ink text-paper rounded-sm px-3 py-1 disabled:opacity-50"
               onClick={save}
             >
