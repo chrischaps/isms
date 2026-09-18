@@ -46,6 +46,7 @@ async fn fixture(pool: PgPool) -> Fixture {
         &SeedSpec {
             name: "freeport-1".into(),
             preset: "freeport".into(),
+            class: "canonical".into(),
             seed: 1,
             tick_seconds: 3600,
             cycle_boundary_hour: 4,

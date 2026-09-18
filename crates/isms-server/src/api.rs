@@ -46,6 +46,22 @@ pub(crate) fn society(state: &AppState, id: i64) -> ApiResult<SocietyEntry> {
         .ok_or_else(|| ApiError::NotFound(format!("no society {id}")))
 }
 
+/// A `lab` society (ADR-0009) is for synthetic players: it is never listed or
+/// served on `/public/*`, so to a visitor it does not exist.
+pub(crate) fn is_public(entry: &SocietyEntry) -> bool {
+    entry.row.class != "lab"
+}
+
+/// The society a spectator route may show, or 404.
+pub(crate) fn public_society(state: &AppState, id: i64) -> ApiResult<SocietyEntry> {
+    let entry = society(state, id)?;
+    if is_public(&entry) {
+        Ok(entry)
+    } else {
+        Err(ApiError::NotFound(format!("no society {id}")))
+    }
+}
+
 async fn clock(handle: &SocietyHandle) -> Clock {
     clock_of(&*handle.world.read().await)
 }
@@ -135,6 +151,7 @@ async fn summary(entry: &SocietyEntry) -> SocietySummary {
         id: entry.row.id,
         name: entry.row.name.clone(),
         preset: entry.row.preset.clone(),
+        class: entry.row.class.clone(),
         display: world.meta.display.clone(),
         status: entry.row.status.clone(),
         clock,
@@ -545,13 +562,14 @@ async fn admin_new_epoch(
 
 // -- spectator routes: no citizenship, no session (TDD 10.2) --------------------
 
-#[utoipa::path(get, path = "/public/societies", summary = "Every society on this server, for anyone", security(()), responses((status = 200, body = SocietyList)))]
+#[utoipa::path(get, path = "/public/societies", summary = "Every public society on this server, for anyone", security(()), responses((status = 200, body = SocietyList)))]
 async fn public_societies(State(state): State<AppState>) -> ApiResult<Json<SocietyList>> {
     let entries: Vec<SocietyEntry> = state
         .societies
         .read()
         .expect("societies lock")
         .values()
+        .filter(|e| is_public(e))
         .cloned()
         .collect();
     let mut societies = Vec::with_capacity(entries.len());
@@ -567,7 +585,7 @@ async fn public_stats(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> ApiResult<Json<PublicStatsView>> {
-    let entry = society(&state, id)?;
+    let entry = public_society(&state, id)?;
     let numbers = crate::society_api::stats_of(&state, &entry, id).await?;
     let world = entry.handle.world.read().await;
     let c = &world.constitution;

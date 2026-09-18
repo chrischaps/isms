@@ -40,6 +40,8 @@ pub enum RuntimeError {
 pub struct SeedSpec {
     pub name: String,
     pub preset: String,
+    /// `canonical`, `community` or `lab` (ADR-0009).
+    pub class: String,
     pub seed: u64,
     pub tick_seconds: u32,
     pub cycle_boundary_hour: u32,
@@ -59,7 +61,7 @@ pub async fn seed_society(
         id,
         name: spec.name.clone(),
         preset: spec.preset.clone(),
-        class: "canonical".into(),
+        class: spec.class.clone(),
         status: "active".into(),
         seed: i64::try_from(spec.seed).map_err(StoreError::from)?,
         epoch: 0,

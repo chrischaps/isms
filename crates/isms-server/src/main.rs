@@ -41,6 +41,9 @@ enum Cmd {
         preset: String,
         #[arg(long)]
         name: String,
+        /// `canonical`, `community`, or `lab` (a lab society never appears on /public).
+        #[arg(long, default_value = "canonical", value_parser = ["canonical", "community", "lab"])]
+        class: String,
         #[arg(long, default_value_t = 1)]
         seed: u64,
         /// Wall-clock seconds per tick (0 = as fast as possible).
@@ -168,6 +171,7 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
         Cmd::Seed {
             preset,
             name,
+            class,
             seed,
             tick_seconds,
             cycle_boundary_hour,
@@ -181,6 +185,7 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
             let spec = SeedSpec {
                 name,
                 preset,
+                class,
                 seed,
                 tick_seconds,
                 cycle_boundary_hour,

@@ -284,7 +284,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every society on this server, for anyone */
+        /** Every public society on this server, for anyone */
         get: operations["public_societies"];
         put?: never;
         post?: never;
@@ -1863,6 +1863,8 @@ export interface components {
         SocietySummary: {
             /** Format: int32 */
             active_humans: number;
+            /** @description `canonical`, `community`, or `lab` (ADR-0009: a lab society is for synthetic players and is never public). */
+            class: string;
             clock: components["schemas"]["Clock"];
             display: string;
             /** Format: int32 */

@@ -25,6 +25,7 @@ const BASE: &str = "http://test";
 
 struct Fixture {
     server: TestServer,
+    state: AppState,
     handle: isms_server::actor::SocietyHandle,
     mail: Arc<MemorySender>,
     store: PgEventStore,
@@ -39,6 +40,7 @@ async fn fixture(pool: PgPool) -> Fixture {
         &SeedSpec {
             name: "freeport-1".into(),
             preset: "freeport".into(),
+            class: "canonical".into(),
             seed: 1,
             tick_seconds: 3600,
             cycle_boundary_hour: 4,
@@ -75,10 +77,11 @@ async fn fixture(pool: PgPool) -> Fixture {
     );
     let server = TestServer::builder()
         .save_cookies()
-        .build(isms_server::api::router(state))
+        .build(isms_server::api::router(state.clone()))
         .unwrap();
     Fixture {
         server,
+        state,
         handle,
         mail,
         store,
@@ -360,4 +363,83 @@ async fn join_is_idempotent_and_api_keys_stamp_their_kind(pool: PgPool) {
         .add_header("x-requested-with", "isms")
         .await;
     assert_eq!(r.status_code(), 404);
+}
+
+/// ADR-0009: a `lab` society is for synthetic players. Anyone signed in on the
+/// server can see and join it; a visitor on `/public/*` cannot tell it exists.
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn a_lab_society_is_never_public(pool: PgPool) {
+    let f = fixture(pool).await;
+    let lab = seed_society(
+        &f.store,
+        Path::new(WORKSPACE_PRESETS_DIR),
+        &SeedSpec {
+            name: "lab-1".into(),
+            preset: "freeport".into(),
+            class: "lab".into(),
+            seed: 2,
+            tick_seconds: 3600,
+            cycle_boundary_hour: 4,
+            overrides: vec![],
+        },
+    )
+    .await
+    .unwrap();
+    let loaded = load_world(&f.store, lab.id).await.unwrap();
+    let (handle, _task) = spawn(lab.id, f.store.clone(), loaded);
+    f.state.societies.write().unwrap().insert(
+        lab.id,
+        SocietyEntry {
+            row: lab.clone(),
+            handle,
+            control: Arc::new(Control::new(
+                Schedule {
+                    tick_seconds: 3600,
+                    tick_origin: lab.tick_origin,
+                },
+                false,
+            )),
+        },
+    );
+
+    // The spectator routes: absent, and 404 by id.
+    let public: SocietyList = f.server.get("/public/societies").await.json();
+    assert_eq!(public.societies.len(), 1);
+    assert_eq!(public.societies[0].class, "canonical");
+    assert_eq!(
+        f.server
+            .get(&format!("/public/s/{}/stats", lab.id))
+            .await
+            .status_code(),
+        404
+    );
+    assert_eq!(
+        f.server
+            .get(&format!("/public/s/{}/chronicle", lab.id))
+            .await
+            .status_code(),
+        404
+    );
+    // The canonical society still answers.
+    assert_eq!(
+        f.server
+            .get(&format!("/public/s/{}/stats", f.society))
+            .await
+            .status_code(),
+        200
+    );
+
+    // Signed in: listed, with its class, and joinable.
+    sign_in(&f, "lab-tester@example.test").await;
+    let list: SocietyList = f.server.get("/societies").await.json();
+    let mine: Vec<&SocietySummary> = list.societies.iter().filter(|s| s.id == lab.id).collect();
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].class, "lab");
+    let r = f
+        .server
+        .post(&format!("/societies/{}/join", lab.id))
+        .add_header("x-requested-with", "isms")
+        .json(&json!({ "handle": "probe" }))
+        .await;
+    assert_eq!(r.status_code(), 201, "{}", r.text());
 }

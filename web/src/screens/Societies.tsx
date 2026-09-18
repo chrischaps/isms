@@ -51,6 +51,11 @@ export function Societies() {
                   {s.display}
                 </Link>
                 <span className="text-muted ml-2 text-sm">{s.name}</span>
+                {s.class === "lab" && (
+                  <span className="text-muted ml-2 text-xs uppercase" title="A lab society: synthetic players may play here; it is not public.">
+                    lab
+                  </span>
+                )}
                 <div className="text-muted text-sm">
                   Epoch {s.clock.epoch}, Day {s.clock.cycle}, {hourOfClock(s.clock)};{" "}
                   {s.population} citizens, {s.active_humans} people

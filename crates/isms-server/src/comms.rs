@@ -97,7 +97,7 @@ async fn public_chronicle(
     Path(id): Path<i64>,
     Query(q): Query<CycleQuery>,
 ) -> ApiResult<Json<ChronicleView>> {
-    let entry = society(&state, id)?;
+    let entry = crate::api::public_society(&state, id)?;
     Ok(Json(chronicle_view(&state, &entry, id, q.cycle).await?))
 }
 

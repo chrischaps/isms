@@ -23,6 +23,7 @@ fn spec(tick_seconds: u32) -> SeedSpec {
     SeedSpec {
         name: "freeport-test".into(),
         preset: "freeport".into(),
+        class: "canonical".into(),
         seed: 1,
         tick_seconds,
         cycle_boundary_hour: 4,

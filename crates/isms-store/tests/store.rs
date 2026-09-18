@@ -341,3 +341,17 @@ async fn since_tick_reads_stay_inside_their_epoch(pool: PgPool) {
         );
     }
 }
+
+/// ADR-0009: `class` is one of three words; the database refuses a fourth.
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn society_class_is_checked(pool: PgPool) {
+    let store = PgEventStore::from_pool(pool);
+    let mut row = society_row();
+    row.class = "lab".into();
+    store.create_society(&row).await.unwrap();
+    let mut bad = society_row();
+    bad.id = SOCIETY + 1;
+    bad.name = "freeport-bad".into();
+    bad.class = "sandbox".into();
+    assert!(store.create_society(&bad).await.is_err());
+}

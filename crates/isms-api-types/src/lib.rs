@@ -149,6 +149,8 @@ pub struct SocietySummary {
     pub id: i64,
     pub name: String,
     pub preset: String,
+    /// `canonical`, `community`, or `lab` (ADR-0009: a lab society is for synthetic players and is never public).
+    pub class: String,
     pub display: String,
     pub status: String,
     pub clock: Clock,
