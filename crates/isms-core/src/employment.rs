@@ -355,13 +355,15 @@ pub fn cycle_end_8a_payroll(b: &mut TickBuilder) {
             // day, so a changed allocation or an absent hour shows in the inputs;
             // a short treasury shows as the pro-rata factor.
             let explain = match (pay, short) {
-                (Pay::Hourly(w), false) => {
-                    Explain::new(RuleId::PayHourly, "tick_hours / ticks_per_cycle x rate", paid)
-                        .input("tick_hours", hours)
-                        .input("ticks_per_cycle", tpc)
-                        .input("hours", f64::from(hours) / f64::from(tpc))
-                        .input("rate", w)
-                }
+                (Pay::Hourly(w), false) => Explain::new(
+                    RuleId::PayHourly,
+                    "tick_hours / ticks_per_cycle x rate",
+                    paid,
+                )
+                .input("tick_hours", hours)
+                .input("ticks_per_cycle", tpc)
+                .input("hours", f64::from(hours) / f64::from(tpc))
+                .input("rate", w),
                 (Pay::Hourly(w), true) => Explain::new(
                     RuleId::PayHourly,
                     "tick_hours / ticks_per_cycle x rate x treasury / owed",

@@ -681,7 +681,10 @@ fn a_payslip_names_its_tick_hours_when_the_allocation_changed_mid_day() {
         amount, explain, ..
     }) = events.iter().find(|e| matches!(e, Event::Paid { .. }))
     else {
-        panic!("no payslip in {:?}", events.iter().map(Event::kind).collect::<Vec<_>>())
+        panic!(
+            "no payslip in {:?}",
+            events.iter().map(Event::kind).collect::<Vec<_>>()
+        )
     };
     let input = |name: &str| {
         explain
@@ -693,9 +696,16 @@ fn a_payslip_names_its_tick_hours_when_the_allocation_changed_mid_day() {
     };
     let half = tpc / 2;
     assert_eq!(explain.formula, "tick_hours / ticks_per_cycle x rate");
-    assert_eq!(input("tick_hours"), Num::Int(i64::from(2 * half + 4 * half)));
+    assert_eq!(
+        input("tick_hours"),
+        Num::Int(i64::from(2 * half + 4 * half))
+    );
     assert_eq!(input("ticks_per_cycle"), Num::Int(i64::from(tpc)));
-    assert_eq!(input("hours"), Num::Float(3.0), "half a day at 2 h, half at 4 h");
+    assert_eq!(
+        input("hours"),
+        Num::Float(3.0),
+        "half a day at 2 h, half at 4 h"
+    );
     assert_eq!(input("rate"), Num::Money(Money::cents(100)));
     assert_eq!(*amount, Money::cents(300));
     h.check();
