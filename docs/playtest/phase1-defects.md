@@ -30,3 +30,37 @@ Eight players, five on Sonnet 5 with Opus 5 reflections, six days and seventeen 
 - The wage-maximiser was refused 120 times with `not_assigned: c45 has no position at w20`: its script kept working a contract in its notice period. A harness bug, fixed (contracts must be `active`); the game was right, and the text names ids (D2).
 - The slacker reported the situation header listing `defaulted, destitute, in_hardship, options_narrowed` while `home` showed them false. A harness bug (the header printed every flag key), fixed. It found the harness's bug the same way it would find the game's.
 - The Anthropic account ran out of credit at the end of day 2 and every model turn failed for a day until it was topped up; the harness now stops a player on a billing or key error instead of retrying every hour.
+
+## Follow-ups from the playtests, in order
+
+Everything the playtests so far have left to do, gathered from this file, the run report (`docs/playtest/runs/live-20260917-2136.md`), `docs/QUESTIONS.md` Q105–Q110, the S1.16 entry in `docs/SESSIONS.md`, and the day Chris played by hand (2026-09-17, ADR-0009). The order is the order S1.15 should take them. Each line says where it came from and where the fix lives; engine work goes through a PR.
+
+**Engine, one PR each**
+1. D5 — money transferred into an org is not there for the org's next order. Verify first against society 1's event log in database `isms_agents_live_20260917_2136` (the landlord's transfers on day 3 hour 14 and day 5 hour 13), then fix the transfer or the escrow read. Source: live run, landlord.
+2. D6 — a Builder's dwellings never surface. Decide Q110 (when a dwelling completes and where it is listed), add the dwelling to `OrgView` and the `DwellingBuilt` event to the org ledger, and write the rule into the GDD's housing section. Source: live run, landlord (three days).
+3. D1 — `SetStandingPlan` accepts a standing order for shares in an org that does not exist; refuse it like `PlaceOrder` refuses an unknown instrument (Q108). Remove the line from `agents/known-defects.txt` when fixed. Source: fuzzer.
+4. D8 — a payslip's `hours` are not the hours the player set and the Explain does not say why; name the rule (tick-hours over the day, absent hours). Source: live run, slacker.
+5. D2 — refusals name things by raw id (twelve texts catalogued in the run report under "Refusals that name things by raw id"); either the engine's reject text names things, or the server applies a naming pass like `web/src/lib/names.ts` so the CLI and agents read what the web reads. Source: fuzzer; the same finding Chris made by hand.
+6. D9 — a manager cannot withdraw an employment offer; decide Q109 first. Source: live run, founder.
+
+**Server and web, straight to main**
+7. D3 and D10 — an unknown or already-taken offer answers 404 with no code; answer 422 with an engine code, and say "taken" when it was (Q107). Source: fuzzer, speculator, borrower, slacker.
+8. D7 — `OrgView.payment_missed` should carry the missed payment's seq and party. Source: live run, landlord.
+9. D11 — say what Comfort governs, in the Welcome Brief and the need tooltips. Source: live run, slacker.
+10. "A dividend is already declared this cycle" surprised a founder who had declared it earlier that day; the org view should show the declared dividend so the refusal is no surprise. Source: run report, founder, day 4 hour 21; not yet a defect row.
+11. D4 — a labor allocation past the day's budget is refused for the contract's hours first; fine, but the budget rule is never shown from this path. Note only. Source: fuzzer.
+
+**Harness (`agents/`)**
+12. A second `make agents` run with the raised token cap, to get a report that reaches the epoch's end; about $15. Source: SESSIONS hand-off.
+13. Record a model-driven player for the replay fixture (`AGENTS_CMD=record` with a key); today's fixture is a scripted player. Source: `agents/README.md`.
+14. A Makefile guard so `make` from PowerShell fails with a message instead of hanging in WSL's bash. Source: the first attempt to run `make agents` on 2026-09-17.
+15. An OpenAI-compatible provider behind the `LlmProvider` seam for local models; designed, not built (ADR-0010). Only if a free run becomes worth its noise.
+
+**S1.15 proper (the card in `docs/tdd.md` §18.4)**
+16. The epoch-end sequence, the archive that Phase 3 consumes, the load test with the TDD §17 budget assertions, and the `events` size measurement (T5).
+17. The interview guide, `docs/playtest/phase1.md`, written for a cohort of one to three, from GDD §18/§19 ("what did you feel", not "was it fun").
+18. Chris plays a Freeport epoch and writes down what it was like in the guide's terms. This is the exit criterion nothing else can stand in for (ADR-0009).
+
+**Already fixed, for the record**
+- From Chris's day of play (S1.13f, web): rejections printed with raw ids on screen (now named on the way in), a price history drawn from the previous epoch, a job taken with no confirmation, an ask side that looked empty because it sold out each hour.
+- From the live run (S1.16, harness): the situation header listed every flag as set; the wage-maximiser worked a contract in its notice period; a billing refusal from the model API now stops the player; the token budget's default counts cache reads.
