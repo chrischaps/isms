@@ -13,6 +13,7 @@ use isms_core::world::World;
 use std::collections::BTreeMap;
 
 /// What a refusal may name, keyed by id.
+#[derive(Debug)]
 pub struct Directory {
     /// Handles by citizen id.
     pub citizens: BTreeMap<u32, String>,
@@ -107,7 +108,7 @@ impl Directory {
     /// The refusal with its ids named, its nouns and verbs agreed, and the
     /// engine's cycles and ticks called days and hours.
     #[must_use]
-    pub fn reject(&self, r: Reject) -> Reject {
+    pub fn reject(&self, r: &Reject) -> Reject {
         Reject::new(r.code, self.text(&r.message))
     }
 
@@ -255,7 +256,7 @@ fn unwrap_debug(text: &str) -> String {
             };
             let token = s[inner..inner + close].to_owned();
             if parse_token(&token).is_some() {
-                s.replace_range(start..inner + close + 1, &token);
+                s.replace_range(start..=inner + close, &token);
             } else {
                 break;
             }

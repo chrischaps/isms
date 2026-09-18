@@ -130,7 +130,7 @@ async fn send(
 /// Hollow Mill`. The `code` is untouched.
 async fn named(entry: &SocietyEntry, me: CitizenId, reject: Reject) -> ApiError {
     let world = entry.handle.world.read().await;
-    ApiError::Reject(Directory::from_world(&world, Some(me)).reject(reject))
+    ApiError::Reject(Directory::from_world(&world, Some(me)).reject(&reject))
 }
 
 /// A command named an offer that is not on the board (Q107): 422 with the
@@ -144,7 +144,8 @@ async fn unknown_offer(entry: &SocietyEntry, me: CitizenId, oid: u32) -> ApiErro
         format!("no offer {offer}")
     };
     ApiError::Reject(
-        Directory::from_world(&world, Some(me)).reject(Reject::new(RejectCode::UnknownOffer, text)),
+        Directory::from_world(&world, Some(me))
+            .reject(&Reject::new(RejectCode::UnknownOffer, text)),
     )
 }
 
