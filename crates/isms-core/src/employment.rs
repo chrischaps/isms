@@ -350,15 +350,45 @@ pub fn cycle_end_8a_payroll(b: &mut TickBuilder) {
             } else {
                 amount
             };
-            let explain = match pay {
-                Pay::Hourly(w) => Explain::new(RuleId::PayHourly, "hours x rate", paid)
-                    .input("hours", f64::from(hours) / f64::from(tpc))
-                    .input("rate", w),
-                Pay::PieceRate(r) => {
+            // D8: the payslip names its rule. `hours` is the day's tick-hours
+            // (the allocation at each hour worked, summed) over the hours in a
+            // day, so a changed allocation or an absent hour shows in the inputs;
+            // a short treasury shows as the pro-rata factor.
+            let explain = match (pay, short) {
+                (Pay::Hourly(w), false) => Explain::new(
+                    RuleId::PayHourly,
+                    "tick_hours / ticks_per_cycle x rate",
+                    paid,
+                )
+                .input("tick_hours", hours)
+                .input("ticks_per_cycle", tpc)
+                .input("hours", f64::from(hours) / f64::from(tpc))
+                .input("rate", w),
+                (Pay::Hourly(w), true) => Explain::new(
+                    RuleId::PayHourly,
+                    "tick_hours / ticks_per_cycle x rate x treasury / owed",
+                    paid,
+                )
+                .input("tick_hours", hours)
+                .input("ticks_per_cycle", tpc)
+                .input("hours", f64::from(hours) / f64::from(tpc))
+                .input("rate", w)
+                .input("treasury", treasury)
+                .input("owed", total),
+                (Pay::PieceRate(r), false) => {
                     Explain::new(RuleId::PayPieceRate, "attributed_output x rate", paid)
                         .input("attributed_output", attributed)
                         .input("rate", r)
                 }
+                (Pay::PieceRate(r), true) => Explain::new(
+                    RuleId::PayPieceRate,
+                    "attributed_output x rate x treasury / owed",
+                    paid,
+                )
+                .input("attributed_output", attributed)
+                .input("rate", r)
+                .input("treasury", treasury)
+                .input("owed", total),
             };
             if paid > Money::ZERO {
                 b.emit(Event::Paid {

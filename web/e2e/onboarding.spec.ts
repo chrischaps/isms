@@ -43,5 +43,5 @@ test("a new citizen is working within eight interactions", async ({ page, contex
   await expect(dialog).toContainText("pay_hourly");
   await expect(dialog).toContainText("hours");
   await expect(dialog).toContainText("rate");
-  await expect(dialog).toContainText("hours x rate");
+  await expect(dialog).toContainText("tick_hours / ticks_per_cycle x rate");
 });

@@ -7,6 +7,7 @@ use isms_core::command::{Command, Envelope, RejectCode};
 use isms_core::constitution::Monitoring;
 use isms_core::employment::employed;
 use isms_core::event::Event;
+use isms_core::explain::Num;
 use isms_core::ids::{ContractId, OfferId, OrgId, WorkplaceId};
 use isms_core::kinds::{Effort, Good, OrgKind, WorkplaceKind};
 use isms_core::ledger::{Asset, Holder, Party};
@@ -644,4 +645,66 @@ fn three_firms_and_twelve_workers_conserve_over_a_cycle() {
     );
     h.check();
     let _ = Party::Citizen(mgr);
+}
+
+/// D8: a payslip's `hours` is the day's tick-hours over the hours in a day,
+/// and the Explain says so, so a worker who changed their allocation mid-day
+/// can see where 2.625 came from.
+#[test]
+fn a_payslip_names_its_tick_hours_when_the_allocation_changed_mid_day() {
+    let mut h = firm(1, 1000);
+    let (mgr, w) = (nth(&h, 0), nth(&h, 1));
+    h.cmd(Envelope::citizen(
+        mgr,
+        offer(Pay::Hourly(Money::cents(100)), 1),
+        0,
+    ))
+    .unwrap();
+    h.cmd(Envelope::citizen(
+        w,
+        Command::AcceptEmployment { offer: OfferId(0) },
+        0,
+    ))
+    .unwrap();
+    let tpc = h.world.params.time.ticks_per_cycle;
+    work(&mut h, 1, 2);
+    h.check_every_step = false;
+    for _ in 0..tpc / 2 {
+        h.tick();
+    }
+    work(&mut h, 1, 4);
+    let mut events = Vec::new();
+    for _ in 0..tpc / 2 {
+        events.extend(h.tick());
+    }
+    let Some(Event::Paid {
+        amount, explain, ..
+    }) = events.iter().find(|e| matches!(e, Event::Paid { .. }))
+    else {
+        panic!(
+            "no payslip in {:?}",
+            events.iter().map(Event::kind).collect::<Vec<_>>()
+        )
+    };
+    let input = |name: &str| {
+        explain.inputs.iter().find(|(n, _)| n == name).map_or_else(
+            || panic!("no input {name} in {:?}", explain.inputs),
+            |(_, v)| *v,
+        )
+    };
+    let half = tpc / 2;
+    assert_eq!(explain.formula, "tick_hours / ticks_per_cycle x rate");
+    assert_eq!(
+        input("tick_hours"),
+        Num::Int(i64::from(2 * half + 4 * half))
+    );
+    assert_eq!(input("ticks_per_cycle"), Num::Int(i64::from(tpc)));
+    assert_eq!(
+        input("hours"),
+        Num::Float(3.0),
+        "half a day at 2 h, half at 4 h"
+    );
+    assert_eq!(input("rate"), Num::Money(Money::cents(100)));
+    assert_eq!(*amount, Money::cents(300));
+    h.check();
 }
