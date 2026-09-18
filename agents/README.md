@@ -23,6 +23,8 @@ Against a server you are already running: set `ISMS_URL`, `ISMS_SOCIETY` (a lab 
 
 `config.toml` holds the models, the per-turn action cap, the concurrency, the budget and the persona list; CLI flags override it; a persona's frontmatter may override the models for itself. Models are chosen from a small table in `src/config.ts` that carries each one's price and thinking parameters (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`). The budget is enforced per run in tokens and dollars; a run that reaches it stops cleanly and still writes its report.
 
+`models.cycle_provider` chooses where the once-a-day reflection runs: `api` (the SDK, on API credit) or `claude_code`, which hands that one call to the Claude Code CLI in headless mode (`claude -p --output-format json --json-schema ...`, no tools, no session) so it runs on the account's Claude subscription. The CLI must be installed and signed in; its tokens are counted in the budget under `<model> via claude-code` at no dollar cost. The hourly turns always use the SDK, which is where the tool runner is. `--cycle-provider` overrides it per run.
+
 ## Personas
 
 `personas/*.md`: frontmatter (`name`, `slug`, `brain`, `goals`, `temperament`, `risk`, optional `model`, optional `max_actions_per_turn`) and a body the LLM brain reads as "who you are". They state goals, never a script. The scripted brain's strategies live in `src/brain/scripted/strategies.ts`, keyed by slug, with a householder-like floor for slugs without one; the rule-prober is the fuzzer in `src/brain/scripted/fuzz.ts`.
