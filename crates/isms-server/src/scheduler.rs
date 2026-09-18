@@ -128,6 +128,7 @@ pub async fn run(
     control: std::sync::Arc<Control>,
     cancel: CancellationToken,
 ) -> Result<(), ActorError> {
+    let mut failures: u32 = 0;
     loop {
         if cancel.is_cancelled() {
             return Ok(());
@@ -156,9 +157,37 @@ pub async fn run(
         let schedule = control.schedule();
         let now = Utc::now();
         if schedule.is_due(next_tick, now) {
-            if let Err(e) = handle.tick().await {
-                tracing::error!(society = handle.id, tick = next_tick, "tick failed: {e}");
-                return Err(e);
+            match handle.tick().await {
+                Ok(_) => failures = 0,
+                Err(ActorError::Closed) => {
+                    tracing::error!(
+                        society = handle.id,
+                        tick = next_tick,
+                        "tick failed: the actor is gone"
+                    );
+                    return Err(ActorError::Closed);
+                }
+                // D13: a failed tick (a database pool timed out after the host slept, a
+                // transient store error) is retried with backoff, never the end of the
+                // society's clock. The actor survives every error but a seq collision,
+                // which closes it and lands in the arm above on the next attempt.
+                Err(e) => {
+                    failures += 1;
+                    let wait = retry_delay(failures, schedule.tick_seconds);
+                    tracing::error!(
+                        society = handle.id,
+                        tick = next_tick,
+                        attempt = failures,
+                        retry_in_secs = wait.as_secs(),
+                        "tick failed: {e}; retrying"
+                    );
+                    metrics::counter!("isms_tick_failures_total", "society" => handle.id.to_string()).increment(1);
+                    tokio::select! {
+                        () = cancel.cancelled() => return Ok(()),
+                        () = tokio::time::sleep(wait) => {}
+                    }
+                    continue;
+                }
             }
             // Let commands interleave between back-to-back ticks.
             tokio::task::yield_now().await;
@@ -173,9 +202,39 @@ pub async fn run(
     }
 }
 
+/// How long to wait before trying a failed tick again: doubling from one
+/// second, never longer than a tick or thirty seconds, whichever is less
+/// (but at least one second).
+#[must_use]
+pub fn retry_delay(attempt: u32, tick_seconds: u32) -> std::time::Duration {
+    let cap = u64::from(tick_seconds.clamp(1, 30));
+    let secs = 1u64 << attempt.saturating_sub(1).min(5);
+    std::time::Duration::from_secs(secs.min(cap))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_tick_is_retried_with_a_backoff_that_never_outlasts_a_tick() {
+        // D13: one second, two, four ..., capped by the tick length.
+        assert_eq!(retry_delay(1, 3600).as_secs(), 1);
+        assert_eq!(retry_delay(2, 3600).as_secs(), 2);
+        assert_eq!(retry_delay(3, 3600).as_secs(), 4);
+        assert_eq!(retry_delay(9, 3600).as_secs(), 30, "thirty seconds at most");
+        assert_eq!(retry_delay(4, 10).as_secs(), 8);
+        assert_eq!(
+            retry_delay(5, 10).as_secs(),
+            10,
+            "a ten-second tick caps at ten"
+        );
+        assert_eq!(
+            retry_delay(3, 0).as_secs(),
+            1,
+            "as-fast-as-possible ticks still wait a second"
+        );
+    }
 
     #[test]
     fn resume_re_anchors_so_nothing_is_caught_up() {
