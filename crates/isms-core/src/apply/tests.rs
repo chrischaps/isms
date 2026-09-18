@@ -213,6 +213,7 @@ fn unimplemented_registry_matches_the_enum() {
         "CitizenSeen",
         "CycleClosed",
         "EpochEnded",
+        "EpochEnding",
         "CitizenDormant",
         "CitizenReturned",
         "HardshipBegan",
@@ -317,15 +318,7 @@ fn unimplemented_registry_matches_the_enum() {
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
     // Phase 0b variants are appended after `CycleClosed` (Q64).
-    let last = Event::OfferWithdrawn {
-        offer: crate::ids::OfferId(0),
-        by: crate::ledger::Party::Citizen(crate::ids::CitizenId(0)),
-        body: crate::world::OfferBody::Wanted {
-            good: crate::kinds::Good::Food,
-            qty: 1,
-            max_price: crate::money::Money::ZERO,
-        },
-    };
+    let last = Event::EpochEnding { final_cycle: 0 };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {
         society_id: 0,

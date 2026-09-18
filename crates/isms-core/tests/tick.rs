@@ -119,7 +119,8 @@ fn scheduled_epoch_end_at_tick_1007_and_no_tick_1008() {
         last.iter().find(|e| matches!(e, Event::EpochEnded { .. })),
         Some(Event::EpochEnded {
             reason: EpochEndReason::Scheduled,
-            cycle: 41
+            cycle: 41,
+            ..
         })
     ));
     assert_eq!(h.world.meta.epoch_ended, Some(EpochEndReason::Scheduled));
@@ -229,4 +230,112 @@ fn join_and_seen_are_real_commands() {
     // throttled: a second Seen in the same tick emits nothing
     let again = h.cmd(Envelope::citizen(ada, Command::Seen, 1)).unwrap();
     assert!(again.is_empty());
+}
+
+#[test]
+fn the_epoch_announces_two_cycles_before_its_end() {
+    // A five-cycle epoch: the close of cycle 2 leaves two days (S1.15, GDD 11.5).
+    let mut h = WorldBuilder::new("freeport")
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.time.epoch_cycles = 5;
+        })
+        .humans(1)
+        .build();
+    h.check_every_step = false;
+    for cycle in 0..2 {
+        let events = h.run_cycle();
+        assert!(
+            !kinds(&events).contains(&"EpochEnding"),
+            "cycle {cycle} announced too early"
+        );
+        assert_eq!(h.world.meta.epoch_ending, None);
+    }
+    let events = h.run_cycle();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::EpochEnding { final_cycle: 4 })),
+        "{:?}",
+        kinds(&events)
+    );
+    assert_eq!(h.world.meta.epoch_ending, Some(4));
+    let events = h.run_cycles(2);
+    assert_eq!(
+        kinds(&events)
+            .iter()
+            .filter(|k| **k == "EpochEnding")
+            .count(),
+        0,
+        "announced once"
+    );
+    assert_eq!(h.world.meta.epoch_ended, Some(EpochEndReason::Scheduled));
+    h.check();
+    // A new epoch forgets the announcement.
+    let rules = h.rules();
+    let next = isms_core::tick::start_epoch(&h.world, &rules, 1);
+    h.apply_all(next);
+    assert_eq!(h.world.meta.epoch_ending, None);
+}
+
+#[test]
+fn a_short_epoch_does_not_announce() {
+    // Two cycles have no cycle two before the last (Q115): the end comes unannounced.
+    let mut h = WorldBuilder::new("freeport")
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.time.epoch_cycles = 2;
+        })
+        .humans(1)
+        .build();
+    h.check_every_step = false;
+    let events = h.run_cycles(2);
+    assert!(!kinds(&events).contains(&"EpochEnding"));
+    assert_eq!(h.world.meta.epoch_ending, None);
+    assert_eq!(h.world.meta.epoch_ended, Some(EpochEndReason::Scheduled));
+}
+
+#[test]
+fn an_epoch_ended_carries_the_frozen_summary() {
+    use isms_core::shares::{net_worth, self_made};
+    let mut h = WorldBuilder::new("freeport")
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.time.epoch_cycles = 1;
+        })
+        .humans(3)
+        .householders(2)
+        .build();
+    h.check_every_step = false;
+    let events = h.run_cycle();
+    let closed = events
+        .iter()
+        .find_map(|e| match e {
+            Event::CycleClosed { aggregates, .. } => Some(aggregates),
+            _ => None,
+        })
+        .expect("CycleClosed");
+    let summary = events
+        .iter()
+        .find_map(|e| match e {
+            Event::EpochEnded { summary, .. } => Some(summary),
+            _ => None,
+        })
+        .expect("EpochEnded");
+    assert_eq!(&summary.aggregates, closed, "the last cycle, as closed");
+    assert_eq!(summary.standings.len(), 5, "every citizen");
+    for w in summary.standings.windows(2) {
+        assert!(
+            w[0].net_worth > w[1].net_worth
+                || (w[0].net_worth == w[1].net_worth && w[0].citizen < w[1].citizen),
+            "ranked highest first, ties by id"
+        );
+    }
+    for s in &summary.standings {
+        assert_eq!(s.net_worth, net_worth(&h.world, s.citizen));
+        assert_eq!(s.self_made, self_made(&h.world, s.citizen));
+        assert_eq!(s.handle, h.citizen(s.citizen).handle);
+    }
+    // The fold reproduces the live world, summary and all.
+    isms_core::test_support::assert_fold_equals_live(&h.log, &h.world);
 }

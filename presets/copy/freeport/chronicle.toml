@@ -20,6 +20,7 @@ HouseholderEmigrated = "{{citizen:citizen}} has left Freeport."
 CitizenJoined = "{{handle}} arrives with {{credits:endowment}} credits and nothing else."
 EpochStarted = "Epoch {{epoch}} opens. Everything is for sale again."
 EpochEnded = "The epoch ends after cycle {{cycle}}. The ledgers close."
+EpochEnding = "Two days remain in the epoch. Settle what you can."
 
 # Cycle-end headlines, evaluated against CycleClosed.aggregates.
 [cycle]

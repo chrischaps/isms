@@ -311,9 +311,10 @@ fn phase_9_epoch_checks(b: &mut TickBuilder) {
         return;
     }
     let p = &b.world.params;
+    let epoch_cycles = p.time.epoch_cycles;
     let collapse = p.population.collapse_enabled
         && b.world.meta.low_population_cycles >= p.population.collapse_cycles;
-    let scheduled = b.cycle + 1 >= p.time.epoch_cycles;
+    let scheduled = b.cycle + 1 >= epoch_cycles;
     let reason = if collapse {
         Some(EpochEndReason::Collapse)
     } else if scheduled {
@@ -322,9 +323,28 @@ fn phase_9_epoch_checks(b: &mut TickBuilder) {
         None
     };
     if let Some(reason) = reason {
+        // The summary is frozen here, from the aggregates 8m just took and the
+        // scratch world as it stands, so the archive replays byte for byte.
+        let aggregates = b
+            .events
+            .iter()
+            .rev()
+            .find_map(|e| match e {
+                Event::CycleClosed { aggregates, .. } => Some(aggregates.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let summary = crate::metrics::epoch_summary(&b.world, aggregates);
         b.emit(Event::EpochEnded {
             reason,
             cycle: b.cycle,
+            summary,
+        });
+    } else if b.cycle + 3 == epoch_cycles {
+        // Two cycles remain (GDD 11.5). An epoch of two cycles or fewer never
+        // announces (Q115): it has no cycle two before its last.
+        b.emit(Event::EpochEnding {
+            final_cycle: epoch_cycles - 1,
         });
     }
 }

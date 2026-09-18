@@ -46,6 +46,9 @@ pub enum Event {
     EpochEnded {
         reason: EpochEndReason,
         cycle: Cycle,
+        /// The frozen summary the archive keeps (S1.15, GDD 11.5), computed
+        /// in the same tick so replay reproduces it byte for byte.
+        summary: EpochSummary,
     },
 
     // --- citizens -----------------------------------------------------------
@@ -595,6 +598,11 @@ pub enum Event {
         by: Party,
         body: OfferBody,
     },
+    /// Two cycles remain (S1.15, GDD 11.5): emitted at the close of the cycle
+    /// two before the last. Collapse and an operator end give no warning.
+    EpochEnding {
+        final_cycle: Cycle,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -652,6 +660,27 @@ pub struct WorkplaceDelta {
 pub struct WorkerCycle {
     pub tick_hours: u32,
     pub attributed: f64,
+}
+
+/// What an epoch leaves behind (S1.15, GDD 11.5): the last cycle's aggregates
+/// and every citizen's standing, computed in the tick that ends the epoch so
+/// the archive is a fact of the log, never a query over it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EpochSummary {
+    pub aggregates: CycleAggregates,
+    /// Every citizen, ranked by net worth, highest first, ties by id.
+    pub standings: Vec<Standing>,
+}
+
+/// One citizen's line in the epoch summary.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Standing {
+    pub citizen: CitizenId,
+    pub handle: String,
+    pub kind: CitizenKind,
+    pub dormant: bool,
+    pub net_worth: Money,
+    pub self_made: Money,
 }
 
 /// Per-cycle metrics snapshot (TDD §13), computed in the engine at step 8m.
@@ -715,6 +744,7 @@ pub struct CycleAggregates {
 impl Event {
     /// The variant name, for registries and logs.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub const fn kind(&self) -> &'static str {
         match self {
             Event::SocietyCreated { .. } => "SocietyCreated",
@@ -815,6 +845,7 @@ impl Event {
             Event::StrikePaid { .. } => "StrikePaid",
             Event::StrikeEnded { .. } => "StrikeEnded",
             Event::OfferWithdrawn { .. } => "OfferWithdrawn",
+            Event::EpochEnding { .. } => "EpochEnding",
         }
     }
 
@@ -918,5 +949,6 @@ impl Event {
         "StrikePaid",
         "StrikeEnded",
         "OfferWithdrawn",
+        "EpochEnding",
     ];
 }

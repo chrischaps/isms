@@ -91,6 +91,10 @@ pub struct TimeParams {
     pub ticks_per_cycle: u32,
     pub epoch_cycles: u32,
     pub tick_seconds: u64,
+    /// Minutes the closing-statements window stays open after the epoch ends
+    /// (S1.15, GDD 11.5: 48 hours). The server keeps the window; the engine
+    /// never reads it. Overridable per society at seed, like `tick_seconds`.
+    pub closing_window_minutes: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
