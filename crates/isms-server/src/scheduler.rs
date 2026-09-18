@@ -160,7 +160,11 @@ pub async fn run(
                 }
                 // The operator started it first: nothing to do.
                 Ok(Err(reject)) => {
-                    tracing::info!(society = handle.id, "rollover not needed: {}", reject.message);
+                    tracing::info!(
+                        society = handle.id,
+                        "rollover not needed: {}",
+                        reject.message
+                    );
                 }
                 Err(ActorError::Closed) => return Err(ActorError::Closed),
                 Err(e) => {
@@ -258,7 +262,10 @@ async fn wait_out_the_window(
     let archive = match store.latest_archive(handle.id).await {
         Ok(row) => row.filter(|r| i32::try_from(epoch).is_ok_and(|e| e == r.epoch)),
         Err(e) => {
-            tracing::error!(society = handle.id, "reading the epoch archive: {e}; retrying");
+            tracing::error!(
+                society = handle.id,
+                "reading the epoch archive: {e}; retrying"
+            );
             tokio::select! {
                 () = cancel.cancelled() => return Wait::Cancelled,
                 () = tokio::time::sleep(MAX_SLEEP) => {}
@@ -267,7 +274,10 @@ async fn wait_out_the_window(
         }
     };
     let Some(archive) = archive else {
-        tracing::info!(society = handle.id, "epoch ended with no archive; waiting for an operator");
+        tracing::info!(
+            society = handle.id,
+            "epoch ended with no archive; waiting for an operator"
+        );
         tokio::select! {
             () = cancel.cancelled() => return Wait::Cancelled,
             () = control.notify.notified() => {}

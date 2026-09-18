@@ -331,8 +331,15 @@ async fn the_epoch_ends_archives_and_rolls_over_after_the_window(pool: PgPool) {
         .await
         .unwrap()
         .expect("the archive row is written with EpochEnded");
-    assert_eq!((archive.epoch, archive.reason.as_str(), archive.final_cycle), (0, "scheduled", 1));
-    let ended = store.read_one(row.id, archive.ended_seq).await.unwrap().unwrap();
+    assert_eq!(
+        (archive.epoch, archive.reason.as_str(), archive.final_cycle),
+        (0, "scheduled", 1)
+    );
+    let ended = store
+        .read_one(row.id, archive.ended_seq)
+        .await
+        .unwrap()
+        .unwrap();
     let Event::EpochEnded { summary, .. } = &ended.event else {
         panic!("ended_seq {} is {}", archive.ended_seq, ended.event.kind());
     };

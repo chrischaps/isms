@@ -546,10 +546,9 @@ async fn admin_new_epoch(
     require_operator(&state, &auth).await?;
     let entry = society(&state, id)?;
     // "Start now": the rollover, which also closes the statements window early (S1.15).
-    let epoch =
-        crate::runtime::start_next_epoch(&state.store, id, &entry.handle, &entry.control)
-            .await?
-            .map_err(ApiError::Reject)?;
+    let epoch = crate::runtime::start_next_epoch(&state.store, id, &entry.handle, &entry.control)
+        .await?
+        .map_err(ApiError::Reject)?;
     tracing::warn!(
         society = id,
         epoch,

@@ -6,9 +6,8 @@
 use axum_test::TestServer;
 use isms_api_types::society::{
     ArchiveView, ArchivesView, BookView, BooksView, CitizensView, Committed, ContractsView,
-    DigestView, ExplainView, HomeView,
-    HouseholdersView, NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlanView,
-    PricesView, ScoreboardView, StatsView, StreamFrame,
+    DigestView, ExplainView, HomeView, HouseholdersView, NoticeBoardView, OrgLedgerView, OrgView,
+    OrgsView, PayslipsView, PlanView, PricesView, ScoreboardView, StatsView, StreamFrame,
 };
 use isms_api_types::{Joined, Problem, RejectCode};
 use isms_core::WORKSPACE_PRESETS_DIR;
@@ -1088,15 +1087,18 @@ async fn a_closing_statement_is_kept_until_the_window_closes(pool: PgPool) {
         .await
         .unwrap()
         .unwrap();
-    let v: ArchivesView = a
-        .server
-        .get(&format!("/s/{}/archives", f.id))
-        .await
-        .json();
+    let v: ArchivesView = a.server.get(&format!("/s/{}/archives", f.id)).await.json();
     assert_eq!(v.archives.len(), 1);
     let ar = &v.archives[0];
-    assert_eq!((ar.epoch, ar.reason.as_str(), ar.final_cycle, ar.open), (1, "operator", 1, true));
-    assert!(ar.summary["standings"].as_array().is_some_and(|s| !s.is_empty()));
+    assert_eq!(
+        (ar.epoch, ar.reason.as_str(), ar.final_cycle, ar.open),
+        (1, "operator", 1, true)
+    );
+    assert!(
+        ar.summary["standings"]
+            .as_array()
+            .is_some_and(|s| !s.is_empty())
+    );
     assert!(ar.summary["aggregates"]["population"].is_number());
     assert!(ar.closing_statements.is_empty());
     assert_eq!(ar.mine, None);
@@ -1109,7 +1111,11 @@ async fn a_closing_statement_is_kept_until_the_window_closes(pool: PgPool) {
     assert_eq!(r.status_code(), 200, "{}", r.text());
     let ar: ArchiveView = r.json();
     assert_eq!(ar.mine.as_deref(), Some("We did more than we could."));
-    let texts: Vec<&str> = ar.closing_statements.iter().map(|s| s.text.as_str()).collect();
+    let texts: Vec<&str> = ar
+        .closing_statements
+        .iter()
+        .map(|s| s.text.as_str())
+        .collect();
     assert_eq!(texts, ["We did more than we could.", "Bo was here."]);
     assert_eq!(ar.closing_statements[0].citizen, a.citizen);
     assert_eq!(ar.closing_statements[0].handle, "ada");

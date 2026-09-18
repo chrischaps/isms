@@ -17,14 +17,13 @@ use isms_api_types::Problem;
 use isms_api_types::society::{
     AcceptRequest, AddWorkplaceRequest, AppointRequest, ArchiveView, ArchivesView, BookView,
     BooksView, CLOSING_STATEMENT_MAX_CHARS, CitizensView, ClosingStatementRequest,
-    ClosingStatementView,
-    Committed, ContractsView, CreditOfferRequest, DigestView, DividendRequest,
-    EmploymentOfferRequest, EventRef, ExplainView, FormerOrg, FoundOrgRequest, Headline, HomeView,
-    HouseholdersView, IssueSharesRequest, LeaseOfferRequest, MachinesRequest, MemberRequest,
-    NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PaymentMissedView, PayslipsView,
-    PlaceOrderRequest, PlanView, PricePoint, PricesView, SaleOfferRequest, ScoreboardView,
-    SetLaborRequest, SetPlanRequest, StatsView, TransferRequest, WantedRequest, cents,
-    instrument_name, parse_instrument,
+    ClosingStatementView, Committed, ContractsView, CreditOfferRequest, DigestView,
+    DividendRequest, EmploymentOfferRequest, EventRef, ExplainView, FormerOrg, FoundOrgRequest,
+    Headline, HomeView, HouseholdersView, IssueSharesRequest, LeaseOfferRequest, MachinesRequest,
+    MemberRequest, NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PaymentMissedView,
+    PayslipsView, PlaceOrderRequest, PlanView, PricePoint, PricesView, SaleOfferRequest,
+    ScoreboardView, SetLaborRequest, SetPlanRequest, StatsView, TransferRequest, WantedRequest,
+    cents, instrument_name, parse_instrument,
 };
 use isms_core::command::{Command, Reject, RejectCode};
 use isms_core::event::{Actor, Event};
