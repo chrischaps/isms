@@ -93,7 +93,10 @@ impl RuleId {
                 "GDD §4.4",
                 "Machines per worker raise output with diminishing returns.",
             ),
-            RuleId::PayHourly => ("GDD §7.2", "Hourly wages pay for hours worked, not output."),
+            RuleId::PayHourly => (
+                "GDD §7.2",
+                "Hourly wages pay for the hours actually worked in the day: the hours set at each hour, summed and divided by the hours in a day. An hour not worked is not paid; when the treasury cannot cover payday everyone is paid pro rata.",
+            ),
             RuleId::PayPieceRate => (
                 "GDD §7.2",
                 "Piece rates pay for attributed output, not hours.",
