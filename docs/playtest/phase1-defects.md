@@ -14,7 +14,7 @@ What the cohort's journals and the fuzzer turned up, one row per distinct defect
 | D8 | minor | A payslip's `hours` (2.625, then 2.208, then 2.0) is not the hours the player set (2 or 3 a day at low effort), and the Explain does not say how one became the other; the slacker watched it shrink for four days without an answer. | slacker (llm), days 2–4 | labor, payslips | `Paid.explain` copy (engine, PR): name the rule (tick-hours over the cycle, absent hours) | fixed 2026-09-18 (PR): the formula is `tick_hours / ticks_per_cycle x rate` with all three as inputs, `x treasury / owed` when payday was short; the rule text says an hour not worked is not paid. The slacker's 2.625 was 63 tick-hours over 24: it changed its allocation from 2 to 3 mid-day |
 | D9 | minor | An employment offer cannot be withdrawn: `only sale offers and wanted ads can be withdrawn` (HTTP 400). A manager who posted a job at the wrong wage has no way back but to let it be taken. Design gap; Q109. | founder (llm), day 1 h 14 | offers | engine `WithdrawOffer` (PR) once Q109 is decided | fixed 2026-09-18 (PR): `Command::WithdrawOffer` and `Event::OfferWithdrawn`; the server's `DELETE /offers/{oid}` sends it for every kind and infers `on_behalf_of` from the poster |
 | D10 | minor | An offer on the board vanishes between reading and accepting (`no offer 81`, twice in one hour, by two players): a householder took it in between. Expected in a live market, but the refusal should say "taken", not "does not exist"; see D3. | borrower and slacker (llm), day 1 h 24 | offers | with D3 | fixed 2026-09-18 (main): "That offer was taken or withdrawn" when the id was once issued |
-| D11 | minor | Comfort sat at 0 for days with no visible consequence; nothing the player can read says what Comfort governs. | slacker (llm), day 4 h 20 | needs | Welcome Brief / need tooltips copy (main) | open |
+| D11 | minor | Comfort sat at 0 for days with no visible consequence; nothing the player can read says what Comfort governs. | slacker (llm), day 4 h 20 | needs | Welcome Brief / need tooltips copy (main) | fixed 2026-09-18: the Comfort tooltip says it is a third of wellbeing and changes neither output nor pay (main); the Freeport Welcome Brief says Food and Shelter keep you working and Comfort is what the Chronicle counts as living well (PR #61) |
 | D12 | minor | `DeclareDividend` refused `already_exists` ("a dividend is already declared this cycle") and nothing on the org view showed the one declared earlier that day, so the refusal read as a bug. | founder (llm), run live-20260917-2136, day 4 h 21 | orgs | `OrgView` (main) | fixed 2026-09-18 (main): `OrgView.declared_dividend`; the org page shows it and hides the form until the day ends; the cost preview now uses citizen-held shares, as the engine does |
 
 ## Not defects, but worth knowing
@@ -47,7 +47,7 @@ Everything the playtests so far have left to do, gathered from this file, the ru
 **Server and web, straight to main**
 7. ~~D3 and D10~~ done 2026-09-18 on main (Q107 decided).
 8. ~~D7~~ done 2026-09-18 on main.
-9. D11 — say what Comfort governs: the need tooltip says it on main (2026-09-18); the Welcome Brief sentence rides the D8 PR (preset copy is engine-path).
+9. ~~D11~~ done 2026-09-18: the need tooltip (main) and the Freeport Welcome Brief (PR #61).
 10. ~~D12~~ done 2026-09-18 on main: the declared dividend shows on the org view (row D12).
 11. ~~D4~~ note closed 2026-09-18: the labor editor caps rows and blocks an over-budget save.
 

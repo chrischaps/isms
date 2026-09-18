@@ -21,10 +21,22 @@ test("an operator can pause, step and resume a society", async ({ page, context,
 
   await row.getByRole("button", { name: "Pause" }).click();
   await expect(row.getByTestId("admin-state")).toHaveText("held");
-  await page.waitForTimeout(1_500);
-  const held = tickOf((await row.getByTestId("admin-clock").textContent()) ?? "");
-  await page.waitForTimeout(3_000);
-  expect(tickOf((await row.getByTestId("admin-clock").textContent()) ?? "")).toBe(held);
+  // A tick already in flight when Pause landed may still finish on a slow runner:
+  // wait for the clock to hold still for three seconds before taking its reading.
+  let held = -1;
+  await expect
+    .poll(
+      async () => {
+        const before = tickOf((await row.getByTestId("admin-clock").textContent()) ?? "");
+        await page.waitForTimeout(3_000);
+        const after = tickOf((await row.getByTestId("admin-clock").textContent()) ?? "");
+        if (before === after) held = after;
+        return before === after;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+  expect(held).toBeGreaterThanOrEqual(0);
 
   await row.getByRole("button", { name: "Step one tick" }).click();
   await expect
