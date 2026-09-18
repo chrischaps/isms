@@ -372,8 +372,16 @@ impl SocietyActor {
         };
         metrics::counter!("isms_commands_total", "society" => self.id.to_string(), "kind" => kind)
             .increment(1);
+        let elapsed = started.elapsed();
         metrics::histogram!("isms_command_seconds", "society" => self.id.to_string())
-            .record(started.elapsed().as_secs_f64());
+            .record(elapsed.as_secs_f64());
+        // The load test (scripts/load) reads this line for the command budget (TDD 17).
+        tracing::debug!(
+            society = self.id,
+            kind,
+            ms = elapsed.as_millis(),
+            "command resolved"
+        );
         result
     }
 

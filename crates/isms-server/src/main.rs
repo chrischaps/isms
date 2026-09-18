@@ -165,6 +165,7 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
                 society,
                 seq = loaded.last_seq,
                 tick = loaded.world.meta.tick,
+                world_bytes = loaded.world.canonical_bytes().len(),
                 "snapshot written"
             );
         }

@@ -520,7 +520,7 @@ Core tables:
 
 Write path: the society actor appends a batch of events in one transaction (`INSERT … SELECT unnest(...)`) with `seq` assigned by the actor (not a DB sequence) so the in-memory and stored orders can't diverge; the transaction fails on a `seq` collision, which is the guard against two actors for one society ever running (e.g. during a botched deploy).
 
-Payload encoding is JSONB for queryability (research SQL over `payload->>'good'`). `TickResolved` payloads are the large ones (~20–40 KB for 500 citizens); if measured epoch storage exceeds the 3 GB budget in §17, the fallback is `bytea` postcard for `TickResolved` only, with the export job expanding to JSON. **[TDD decision]**, measured in S1.15.
+Payload encoding is JSONB for queryability (research SQL over `payload->>'good'`). `TickResolved` payloads are the large ones (~20–40 KB for 500 citizens); if measured epoch storage exceeds the 3 GB budget in §17, the fallback is `bytea` postcard for `TickResolved` only, with the export job expanding to JSON. **[TDD decision]** Measured in S1.15 (`docs/playtest/load/load-20260918-epoch.md`, 120 citizens, a full epoch): 128 MB of table per epoch, `TickResolved` 7.4 kB each and 8% of payload bytes, `OrderPlaced` and `Trade` 78%. JSONB stays; at 500 citizens the table would be a few hundred MB, well inside the budget, and the fallback is not needed.
 
 Projections (chronicle, notice board, stats) are rebuilt from events by `isms-server rebuild-projections` and must have no other source of truth.
 
@@ -674,7 +674,7 @@ Carried from GDD §20 with the engineering consequence, plus new items. Provisio
 | T2 | Recipe ratios and base rates (§5.7) | Starting values in `_base.toml`; Phase 0 tuning owns them. |
 | T3 | Hours per tick (D6) | Even spread. |
 | T4 | Second identity signal (GDD Q2) | OAuth + phone OTP, Phase 3; see §14. |
-| T5 | `TickResolved` payload encoding | JSONB; measure in S1.15; bytea fallback. |
+| T5 | `TickResolved` payload encoding | JSONB, decided in S1.15: 7.4 kB per tick and 8% of an epoch's payload bytes at 120 citizens (`docs/playtest/load/`); no fallback needed. |
 | T6 | Endowment at start (GDD Q1) | Equal money, as GDD proposes; the sim exposes `endowment` as a param so Phase 1 interviews can test alternatives cheaply. |
 | T7 | Comfort feedback into capacity (GDD Q3) | No, per GDD; `params.comfort_affects_output = false` exists so it's a config flip. |
 | T8 | Commune ration rule (GDD Q4) | Ship `need_first` as policy default; `equal_shortfall` and `lottery` implemented in Phase 0b so the assembly vote is real in Phase 2. |

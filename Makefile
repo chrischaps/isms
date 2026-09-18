@@ -17,7 +17,7 @@ export DATABASE_URL ?= postgres://isms:isms@localhost:5433/isms
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check push hooks fmt fmt-check clippy test web-check agents-check agents e2e-agents db db-stop dev e2e e2e-web sim sim-check sim-all sqlx-prepare openapi-lint api-types
+.PHONY: check push hooks fmt fmt-check clippy test web-check agents-check agents e2e-agents load db db-stop dev e2e e2e-web sim sim-check sim-all sqlx-prepare openapi-lint api-types
 
 check: fmt-check clippy test web-check agents-check
 
@@ -111,6 +111,10 @@ EPOCH_CYCLES ?= 7
 BRAIN ?= mixed
 agents:
 	set -a; [ -f .env ] && . ./.env; set +a; RUN=$(RUN) PLAYERS=$(PLAYERS) TICK_SECONDS=$(TICK_SECONDS) EPOCH_CYCLES=$(EPOCH_CYCLES) BRAIN=$(BRAIN) bash scripts/agents/run.sh
+
+# The S1.15 load test (TDD 17): 100 householders and 20 scripted players at 5 s an hour for an epoch; report in docs/playtest/load/.
+load:
+	set -a; [ -f .env ] && . ./.env; set +a; bash scripts/load/run.sh
 
 # The scripted cohort as a regression: two fast days, every probe refused, no 5xx, no turn in error (CI).
 e2e-agents:
