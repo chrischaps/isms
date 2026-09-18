@@ -334,3 +334,41 @@ pub fn remove_wanted(
     }
     Ok(vec![Event::WantedRemoved { offer: id }])
 }
+
+/// `WithdrawOffer` (Q109): the poster takes an open offer off the board. A
+/// sale or a wanted ad goes through its own command so the log keeps their
+/// vocabulary; an employment, credit or lease offer is `OfferWithdrawn`, and
+/// a credit offer's escrowed principal returns to the lender on apply.
+pub fn withdraw_offer(
+    world: &World,
+    envelope: &Envelope<Command>,
+    id: OfferId,
+) -> Result<Vec<Event>, Reject> {
+    let offer = world
+        .offers
+        .get(&id)
+        .ok_or_else(|| Reject::new(RejectCode::UnknownOffer, format!("no offer {id}")))?;
+    match offer.body {
+        OfferBody::Sale { .. } => return cancel_sale(world, envelope, id),
+        OfferBody::Wanted { .. } => return remove_wanted(world, envelope, id),
+        OfferBody::Employment { .. } | OfferBody::Credit { .. } | OfferBody::Lease { .. } => {}
+        _ => {
+            return Err(Reject::new(
+                RejectCode::NotImplemented,
+                format!("offer {id} is not one that can be withdrawn yet (Q111)"),
+            ));
+        }
+    }
+    let party = acting_party(world, envelope)?;
+    if offer.by != party && envelope.actor != crate::event::Actor::System {
+        return Err(Reject::new(
+            RejectCode::NotParty,
+            "only the poster withdraws",
+        ));
+    }
+    Ok(vec![Event::OfferWithdrawn {
+        offer: id,
+        by: offer.by,
+        body: offer.body.clone(),
+    }])
+}

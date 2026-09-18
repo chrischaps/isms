@@ -357,3 +357,68 @@ proptest! {
         h.check();
     }
 }
+
+/// Q109 (D9): `WithdrawOffer` on a sale or a wanted ad is their own cancel, so
+/// the log keeps `SaleCancelled` and `WantedRemoved`; the goods come back.
+#[test]
+fn withdraw_offer_routes_sale_and_wanted_to_their_own_events() {
+    let mut h = freeport(2);
+    let (s, b) = (nth(&h, 0), nth(&h, 1));
+    h.cmd(Envelope::citizen(
+        s,
+        Command::OfferSale {
+            asset: SaleAsset::Good(Good::Wares, 1),
+            price: Price::Money(Money::cents(100)),
+            to: None,
+        },
+        0,
+    ))
+    .unwrap();
+    let held = h.citizen(s).household.pantry[&Good::Wares];
+    assert_eq!(h.world.escrow.len(), 1);
+    let r = h.cmd_dry(Envelope::citizen(
+        b,
+        Command::WithdrawOffer { offer: OfferId(0) },
+        0,
+    ));
+    assert_eq!(r.unwrap_err().code, RejectCode::NotParty);
+    let ev = h
+        .cmd(Envelope::citizen(
+            s,
+            Command::WithdrawOffer { offer: OfferId(0) },
+            0,
+        ))
+        .unwrap();
+    assert_eq!(
+        ev.iter().map(Event::kind).collect::<Vec<_>>(),
+        ["SaleCancelled"]
+    );
+    assert!(h.world.escrow.is_empty());
+    assert!(
+        h.citizen(s).household.pantry[&Good::Wares] > held,
+        "the goods came back"
+    );
+    h.cmd(Envelope::citizen(
+        b,
+        Command::PostWanted {
+            good: Good::Machines,
+            qty: 1,
+            max_price: Money::credits(5),
+        },
+        0,
+    ))
+    .unwrap();
+    let ev = h
+        .cmd(Envelope::citizen(
+            b,
+            Command::WithdrawOffer { offer: OfferId(1) },
+            0,
+        ))
+        .unwrap();
+    assert_eq!(
+        ev.iter().map(Event::kind).collect::<Vec<_>>(),
+        ["WantedRemoved"]
+    );
+    assert!(h.world.offers.is_empty());
+    h.check();
+}

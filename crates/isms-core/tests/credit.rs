@@ -397,3 +397,54 @@ fn associations_admit_members_who_can_fund_the_pantry() {
     let _ = Holder::Org(org);
     h.check();
 }
+
+/// Q109 (D9): a withdrawn loan offer returns the escrowed principal to the lender.
+#[test]
+fn a_withdrawn_loan_offer_returns_the_principal() {
+    let mut h = quiet(2);
+    let (lender, borrower) = (nth(&h, 0), nth(&h, 1));
+    let before = h.citizen(lender).household.balance;
+    let ev = h
+        .cmd(Envelope::citizen(lender, loan(None, 100, 100, 4, None), 0))
+        .unwrap();
+    let Event::CreditOffered { offer, .. } = &ev[0] else {
+        panic!("{:?}", ev[0].kind())
+    };
+    let offer = *offer;
+    assert_eq!(
+        h.citizen(lender).household.balance,
+        before - Money::credits(100)
+    );
+    assert_eq!(h.world.escrow.len(), 1);
+    let r = h.cmd_dry(Envelope::citizen(
+        borrower,
+        Command::WithdrawOffer { offer },
+        0,
+    ));
+    assert_eq!(r.unwrap_err().code, RejectCode::NotParty);
+    let ev = h
+        .cmd(Envelope::citizen(
+            lender,
+            Command::WithdrawOffer { offer },
+            0,
+        ))
+        .unwrap();
+    assert_eq!(
+        ev.iter().map(Event::kind).collect::<Vec<_>>(),
+        ["OfferWithdrawn"]
+    );
+    assert_eq!(
+        h.citizen(lender).household.balance,
+        before,
+        "the principal came back"
+    );
+    assert!(h.world.escrow.is_empty());
+    assert!(h.world.offers.is_empty());
+    let r = h.cmd_dry(Envelope::citizen(
+        borrower,
+        Command::AcceptCredit { offer },
+        0,
+    ));
+    assert_eq!(r.unwrap_err().code, RejectCode::UnknownOffer);
+    h.check();
+}
