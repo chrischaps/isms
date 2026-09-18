@@ -445,3 +445,38 @@ fn away_digest_lists_the_events_that_touch_the_citizen() {
         "only my own plan change"
     );
 }
+
+#[test]
+fn a_standing_order_names_an_instrument_that_exists() {
+    // Q108 (D1): a share order on an org that does not exist is refused when
+    // the plan is set, as PlaceOrder refuses it, not silently every cycle.
+    let h = shop(1, 132);
+    let me = nth(&h, 0);
+    let order = |org: u32| StandingOrder {
+        instrument: Instrument::Share(OrgId(org)),
+        side: Side::Bid,
+        qty: 1,
+        limit_price: Money::cents(100),
+        refresh: Refresh::EachCycle,
+    };
+    let mut p = plan(0, 0);
+    p.standing_orders = vec![order(999_999)];
+    let r = h.cmd_dry(Envelope::citizen(
+        me,
+        Command::SetStandingPlan {
+            plan: Box::new(p.clone()),
+        },
+        0,
+    ));
+    assert_eq!(r.unwrap_err().code, RejectCode::UnknownOrg);
+    p.standing_orders = vec![order(0)];
+    assert!(
+        h.cmd_dry(Envelope::citizen(
+            me,
+            Command::SetStandingPlan { plan: Box::new(p) },
+            0
+        ))
+        .is_ok(),
+        "the Legacy Mill exists and keeps a share registry"
+    );
+}

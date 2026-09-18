@@ -76,6 +76,36 @@ pub fn open_bid_qty(world: &World, party: Party, good: Good) -> u32 {
     })
 }
 
+/// An instrument an order may name: a good, or shares in an org that exists,
+/// keeps a share registry, and trades shares here. Shared by `PlaceOrder` and
+/// `SetStandingPlan` (Q108), so a standing order cannot carry an instrument
+/// the executor would be refused every cycle.
+pub fn check_instrument(world: &World, instrument: Instrument) -> Result<(), Reject> {
+    if let Instrument::Share(org) = instrument {
+        let o = world
+            .orgs
+            .get(&org)
+            .ok_or_else(|| Reject::new(RejectCode::UnknownOrg, format!("no org {org}")))?;
+        if !matches!(o.ownership, crate::world::Ownership::Shares { .. }) {
+            return Err(Reject::new(
+                RejectCode::NotInThisSociety,
+                "no share registry",
+            ));
+        }
+        if !world
+            .constitution
+            .contracts
+            .contains(&crate::kinds::ContractKind::Share)
+        {
+            return Err(Reject::new(
+                RejectCode::NotInThisSociety,
+                "shares do not trade here",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// `PlaceOrder`: escrow, then match against the opposite side.
 pub fn place_order(
     world: &World,
@@ -99,28 +129,7 @@ pub fn place_order(
             "limit price must be positive",
         ));
     }
-    if let Instrument::Share(org) = instrument {
-        let o = world
-            .orgs
-            .get(&org)
-            .ok_or_else(|| Reject::new(RejectCode::UnknownOrg, format!("no org {org}")))?;
-        if !matches!(o.ownership, crate::world::Ownership::Shares { .. }) {
-            return Err(Reject::new(
-                RejectCode::NotInThisSociety,
-                "no share registry",
-            ));
-        }
-        if !world
-            .constitution
-            .contracts
-            .contains(&crate::kinds::ContractKind::Share)
-        {
-            return Err(Reject::new(
-                RejectCode::NotInThisSociety,
-                "shares do not trade here",
-            ));
-        }
-    }
+    check_instrument(world, instrument)?;
     let tick = world.meta.tick;
     let expires_tick = expires_tick.unwrap_or_else(|| default_expiry(world));
     if expires_tick < tick {
