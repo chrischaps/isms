@@ -81,10 +81,13 @@ export function buildNames(orgs: OrgLike[], citizens: CitizenLike[], me?: number
     }
   };
   const NOUNS = "citizen|org|workplace|dwelling|contract|offer|order|slot";
-  // A handle or an org's name keeps its own spelling even at the start of a sentence.
+  // A handle or an org's name keeps its own spelling even at the start of a sentence,
+  // whether the engine wrote the id or the server already named it (S1.15, D2).
   const startsWithName = (text: string) => {
     const m = /^(?:(?:Citizen|Org)\()?([co])(\d+)\b/.exec(text);
-    return m != null && !(m[1] === "c" && Number(m[2]) === me);
+    if (m != null) return !(m[1] === "c" && Number(m[2]) === me);
+    const first = text.split(" ")[0] ?? "";
+    return [...handles.values()].includes(first) || [...orgNames.values()].some((n) => text.startsWith(n));
   };
   const inText = (text: string) => {
     const out = text

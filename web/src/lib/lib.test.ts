@@ -112,6 +112,14 @@ describe("names.inText (engine rejections)", () => {
     expect(mine.inText("no org o3")).toBe("There is no such organization");
   });
 
+  it("leaves a sentence the server already named as it is, handle and all", () => {
+    const named = mine.inText("c41 already works at w19");
+    expect(mine.inText(named)).toBe(named);
+    expect(theirs.inText("chris already works at the mill at Hollow Mill")).toBe("chris already works at the mill at Hollow Mill");
+    expect(mine.inText("Hollow Mill has 0.00")).toBe("Hollow Mill has 0.00");
+    expect(mine.inText("There is no such workplace")).toBe("There is no such workplace");
+  });
+
   it("speaks of days and hours, and leaves ordinary words alone", () => {
     expect(mine.inText("a loan runs 1..=12 cycles")).toBe("A loan runs 1..=12 days");
     expect(mine.inText("exceeds this cycle's budget of 8 h")).toBe("Exceeds this day's budget of 8 h");
@@ -142,6 +150,12 @@ describe("needHints", () => {
 
   it("says where a dwelling comes from", () => {
     expect(needHints(t, undefined).shelter).toContain("Rent or buy one on the Contracts screen");
+  });
+
+  it("says what Comfort governs: wellbeing, not output", () => {
+    const comfort = needHints(t, { money: true, order_books: true, common_store: false }).comfort;
+    expect(comfort).toContain("does not change what you produce or earn");
+    expect(comfort).toContain("a third of your wellbeing");
   });
 });
 

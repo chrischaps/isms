@@ -9,6 +9,7 @@ pub mod comms;
 pub mod error;
 pub mod limiter;
 pub mod mail;
+pub mod names;
 pub mod runtime;
 pub mod scheduler;
 pub mod society_api;

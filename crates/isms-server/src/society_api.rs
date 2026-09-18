@@ -6,6 +6,7 @@ use crate::actor::{CommandOk, envelope};
 use crate::api::{citizen_in, society, touch_presence};
 use crate::auth::Auth;
 use crate::error::{ApiError, ApiResult};
+use crate::names::Directory;
 use crate::state::{AppState, SocietyEntry, clock_of};
 use crate::viewer::{Viewer, explains_in};
 use crate::views;
@@ -23,7 +24,7 @@ use isms_api_types::society::{
     SetLaborRequest, SetPlanRequest, StatsView, TransferRequest, WantedRequest, cents,
     instrument_name, parse_instrument,
 };
-use isms_core::command::Command;
+use isms_core::command::{Command, Reject, RejectCode};
 use isms_core::event::{Actor, Event};
 use isms_core::ids::{
     CitizenId, ContractId, DwellingId, OfferId, OrderId, OrgId, SlotId, WorkplaceId,
@@ -96,7 +97,10 @@ async fn send(
         tick,
         cycle,
         events,
-    } = entry.handle.command(env).await?.map_err(ApiError::Reject)?;
+    } = match entry.handle.command(env).await? {
+        Ok(ok) => ok,
+        Err(reject) => return Err(named(entry, citizen, reject).await),
+    };
     let world = entry.handle.world.read().await;
     let viewer = Viewer::new(&world, Some(citizen));
     let refs = events
@@ -119,6 +123,29 @@ async fn send(
         first_seq,
         events: refs,
     })
+}
+
+/// An engine refusal with its ids named for the reader (D2): `c41 already
+/// works at w19` reaches every client as `You already work at the mill at
+/// Hollow Mill`. The `code` is untouched.
+async fn named(entry: &SocietyEntry, me: CitizenId, reject: Reject) -> ApiError {
+    let world = entry.handle.world.read().await;
+    ApiError::Reject(Directory::from_world(&world, Some(me)).reject(reject))
+}
+
+/// A command named an offer that is not on the board (Q107): 422 with the
+/// engine's own `unknown_offer`, saying "taken" when the id was once issued.
+async fn unknown_offer(entry: &SocietyEntry, me: CitizenId, oid: u32) -> ApiError {
+    let world = entry.handle.world.read().await;
+    let offer = OfferId(oid);
+    let text = if oid < world.next.offer.0 {
+        format!("offer {offer} was taken or withdrawn")
+    } else {
+        format!("no offer {offer}")
+    };
+    ApiError::Reject(
+        Directory::from_world(&world, Some(me)).reject(Reject::new(RejectCode::UnknownOffer, text)),
+    )
 }
 
 fn side(s: &str) -> ApiResult<Side> {
@@ -948,7 +975,7 @@ async fn accept_offer(
                 "this offer kind is not accepted here".into(),
             ));
         }
-        None => return Err(ApiError::NotFound(format!("no offer {oid}"))),
+        None => return Err(unknown_offer(&entry, me, oid).await),
     };
     Ok(Json(
         send(&state, &entry, &auth, me, org_of(req.on_behalf_of), cmd).await?,
@@ -982,7 +1009,7 @@ async fn withdraw_offer(
                 "only sale offers and wanted ads can be withdrawn".into(),
             ));
         }
-        None => return Err(ApiError::NotFound(format!("no offer {oid}"))),
+        None => return Err(unknown_offer(&entry, me, oid).await),
     };
     Ok(Json(
         send(&state, &entry, &auth, me, org_of(q.on_behalf_of), cmd).await?,

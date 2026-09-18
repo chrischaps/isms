@@ -574,8 +574,60 @@ async fn offers_contracts_transfers_dwellings(pool: PgPool) {
         )
         .await;
     assert!(kinds(&c).contains(&"LeaseEnded"));
+    // Q107 (D3, D10): an offer that is not on the board is the engine's own
+    // unknown_offer, and one that was on it once is said to be taken.
     let r = a.post(f.id, "/offers/424242/accept", json!({})).await;
-    assert_eq!(r.status_code(), 404);
+    assert_eq!(r.status_code(), 422, "{}", r.text());
+    let p: Problem = r.json();
+    assert_eq!(p.code, Some(RejectCode::UnknownOffer));
+    assert_eq!(p.detail.as_deref(), Some("There is no such offer"));
+    f.grant(Good::Food, 1, a.citizen).await;
+    let c = a
+        .ok(
+            f.id,
+            "/offers/sale",
+            json!({ "asset": { "good": ["food", 1] }, "price": { "money": 100 } }),
+        )
+        .await;
+    let sale = c.events[0].payload["SaleOffered"]["offer"]
+        .as_u64()
+        .unwrap();
+    b.ok(f.id, &format!("/offers/{sale}/accept"), json!({}))
+        .await;
+    let r = b
+        .post(f.id, &format!("/offers/{sale}/accept"), json!({}))
+        .await;
+    assert_eq!(r.status_code(), 422, "{}", r.text());
+    let p: Problem = r.json();
+    assert_eq!(p.code, Some(RejectCode::UnknownOffer));
+    assert_eq!(
+        p.detail.as_deref(),
+        Some("That offer was taken or withdrawn")
+    );
+    // D2: every refusal names things for its reader.
+    let r = a
+        .put(
+            f.id,
+            "/labor",
+            json!({ "allocations": [{ "workplace": 999_999, "hours": 1, "effort": "normal" }] }),
+        )
+        .await;
+    assert_eq!(r.status_code(), 422, "{}", r.text());
+    let p: Problem = r.json();
+    assert_eq!(p.code, Some(RejectCode::UnknownWorkplace));
+    assert_eq!(p.detail.as_deref(), Some("There is no such workplace"));
+    let r = a
+        .post(
+            f.id,
+            "/transfers",
+            json!({ "to": { "citizen": a.citizen }, "asset": { "money": 1 }, "memo": "" }),
+        )
+        .await;
+    assert_eq!(r.status_code(), 422, "{}", r.text());
+    assert_eq!(
+        r.json::<Problem>().detail.as_deref(),
+        Some("Cannot transfer to yourself")
+    );
 }
 
 #[sqlx::test(migrator = "isms_store::MIGRATOR")]
