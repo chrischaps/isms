@@ -33,6 +33,8 @@ export const ConfigSchema = z.object({
     .object({
       turn: modelId.default("claude-sonnet-5"),
       cycle: modelId.default("claude-opus-5"),
+      /** `api`: the SDK on API credit. `claude_code`: `claude -p` on the account's subscription. */
+      cycle_provider: z.enum(["api", "claude_code"]).default("api"),
       turn_effort: z.enum(["low", "medium", "high"]).default("low"),
       haiku_thinking_budget: z.number().int().min(1024).default(2048),
     })
@@ -70,6 +72,7 @@ export type Overrides = {
   brain?: Config["run"]["brain"];
   turnModel?: string;
   cycleModel?: string;
+  cycleProvider?: Config["models"]["cycle_provider"];
   maxUsd?: number;
 };
 
@@ -83,6 +86,7 @@ export function applyOverrides(cfg: Config, overrides: Overrides): Config {
   if (overrides.brain !== undefined) cfg.run.brain = overrides.brain;
   if (overrides.turnModel !== undefined) cfg.models.turn = modelId.parse(overrides.turnModel);
   if (overrides.cycleModel !== undefined) cfg.models.cycle = modelId.parse(overrides.cycleModel);
+  if (overrides.cycleProvider !== undefined) cfg.models.cycle_provider = overrides.cycleProvider;
   if (overrides.maxUsd !== undefined) cfg.budget.max_usd = overrides.maxUsd;
   return cfg;
 }

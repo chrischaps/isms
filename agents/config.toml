@@ -6,6 +6,9 @@
 turn = "claude-sonnet-5"
 # Rewrites a player's notes and plan once a day.
 cycle = "claude-opus-5"
+# Where the daily rewrite runs: "api" (the SDK, on API credit) or "claude_code" (`claude -p` on the
+# account's Claude subscription; the CLI must be installed and signed in). Turns always use the API.
+cycle_provider = "claude_code"
 # Effort for turn models with adaptive thinking (Sonnet 5, Opus 5): low | medium | high.
 turn_effort = "low"
 # Thinking budget for Haiku 4.5, which takes a token budget instead.

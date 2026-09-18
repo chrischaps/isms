@@ -20,6 +20,7 @@ import { invoke, type AnyTool, type ToolContext } from "../../tools/context.ts";
 import { endTurn } from "../../tools/end_turn.ts";
 import { READ_TOOLS } from "../../tools/read.ts";
 import type { Brain, Persona, ReflectionInput, ReflectionOutcome, TurnInput, TurnOutcome } from "../brain.ts";
+import { callClaudeCode } from "./claude_code.ts";
 import { REFLECT_PROMPT, RULES, TURN_TEMPLATE } from "./prompts.ts";
 
 export type LlmOpts = {
@@ -155,6 +156,21 @@ export class AnthropicBrain implements Brain {
   async reflect(input: ReflectionInput): Promise<ReflectionOutcome> {
     const { budget, player } = this.opts;
     if (this.dead) return { notes: input.notes, plan: "", usage: { ...ZERO_USAGE } };
+    if (this.opts.cfg.models.cycle_provider === "claude_code") {
+      // On the subscription, through the CLI: same rules, persona and schema; tokens counted, no dollars.
+      const r = await callClaudeCode({
+        model: this.cycleModel,
+        system: `${RULES}
+
+${personaText(this.opts.persona)}`,
+        prompt: REFLECT_PROMPT(input.digest, input.notes),
+        schema: z.toJSONSchema(Reflection),
+      });
+      const usage = budget.charge(this.cycleModel, player, r.usage, false);
+      const parsed = Reflection.safeParse(r.structured);
+      if (!parsed.success) return { notes: input.notes, plan: "", usage };
+      return { notes: parsed.data.notes, plan: parsed.data.plan, usage };
+    }
     const response = await this.opts.client.messages.parse({
       model: this.cycleModel,
       max_tokens: 4096,

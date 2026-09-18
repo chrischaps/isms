@@ -81,6 +81,7 @@ async function main(argv: string[]) {
       brain: { type: "string" },
       model: { type: "string" },
       "cycle-model": { type: "string" },
+      "cycle-provider": { type: "string" },
       "max-usd": { type: "string" },
       record: { type: "string" },
     },
@@ -92,6 +93,7 @@ async function main(argv: string[]) {
     brain: brainArg,
     turnModel: values.model,
     cycleModel: values["cycle-model"],
+    cycleProvider: values["cycle-provider"] as Config["models"]["cycle_provider"] | undefined,
     maxUsd: values["max-usd"] ? Number(values["max-usd"]) : undefined,
   });
   const env = readEnv();
@@ -100,7 +102,7 @@ async function main(argv: string[]) {
   const personas = personasFor(cfg);
   const recording = cmd === "record" ? (values.record ?? `${personas[0]!.slug}-1`) : values.record;
 
-  log(`run ${run}: ${cfg.run.players} players, brain ${cfg.run.brain}, turn model ${cfg.models.turn}, cycle model ${cfg.models.cycle}, society ${env.society} at ${env.ismsUrl}`);
+  log(`run ${run}: ${cfg.run.players} players, brain ${cfg.run.brain}, turn model ${cfg.models.turn}, cycle model ${cfg.models.cycle} via ${cfg.models.cycle_provider === "claude_code" ? "claude -p (subscription)" : "the API"}, society ${env.society} at ${env.ismsUrl}`);
   const accounts = await ensurePlayers(
     personas.map((p) => p.slug),
     { baseUrl: env.ismsUrl, society: env.society, serverBin: env.serverBin, databaseUrl: env.databaseUrl, runLabel: run },

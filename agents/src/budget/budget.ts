@@ -45,10 +45,12 @@ export class Budget {
     this.maxTokens = maxTokens;
     this.maxUsd = maxUsd;
   }
-  charge(model: string, player: string, raw: RawUsage): Usage {
-    const u = priceOf(model, raw);
+  /** `priced: false` records the tokens at no dollar cost: a call that ran on the subscription (Claude Code). */
+  charge(model: string, player: string, raw: RawUsage, priced = true): Usage {
+    const u = priced ? priceOf(model, raw) : { ...priceOf(model, raw), usd: 0 };
+    const key = priced ? model : `${model} via claude-code`;
     this.total = addUsage(this.total, u);
-    this.byModel.set(model, addUsage(this.byModel.get(model) ?? ZERO_USAGE, u));
+    this.byModel.set(key, addUsage(this.byModel.get(key) ?? ZERO_USAGE, u));
     this.byPlayer.set(player, addUsage(this.byPlayer.get(player) ?? ZERO_USAGE, u));
     return u;
   }
