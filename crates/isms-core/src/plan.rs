@@ -9,7 +9,7 @@ use crate::constitution::{Governance, LaborMode};
 use crate::event::{Actor, Event};
 use crate::ids::{CitizenId, Tick};
 use crate::kinds::{CitizenKind, ClientKind, Good};
-use crate::market::{last_price, open_bid_qty};
+use crate::market::{check_instrument, last_price, open_bid_qty};
 use crate::money::Money;
 use crate::needs::TENTHS;
 use crate::tick::TickBuilder;
@@ -65,6 +65,9 @@ pub fn set_standing_plan(
             RejectCode::InvalidQuantity,
             "standing orders need a positive quantity and price",
         ));
+    }
+    for o in &plan.standing_orders {
+        check_instrument(world, o.instrument)?;
     }
     if matches!(plan.vote_default, VoteDefault::Follow(_)) && c.governance == Governance::None {
         return bad("a vote default");

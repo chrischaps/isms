@@ -1,3 +1,2 @@
 # Fuzzer findings that are known and filed (docs/playtest/phase1-defects.md), one probe name per line.
 # `make e2e-agents` fails on any accepted probe or server error NOT listed here. Remove a line when its defect is fixed.
-a standing order for shares in a firm that does not exist
