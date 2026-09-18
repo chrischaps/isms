@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO epoch_archives (society_id, epoch, reason, final_cycle, ended_seq, summary, closes_at)\n                         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Text",
+        "Int4",
+        "Int8",
+        "Jsonb",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "69881d965b92d4e7bbaecf5561bc4903643f2d609134cfc939ac6ff23bb2b414"
+}

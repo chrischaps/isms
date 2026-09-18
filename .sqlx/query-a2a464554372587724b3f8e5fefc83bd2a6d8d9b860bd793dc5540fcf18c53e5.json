@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE epoch_archives SET closes_at = LEAST(closes_at, $3)\n             WHERE society_id = $1 AND epoch = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a2a464554372587724b3f8e5fefc83bd2a6d8d9b860bd793dc5540fcf18c53e5"
+}

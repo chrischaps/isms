@@ -6,6 +6,7 @@
 use crate::actor::{ActorError, SocietyHandle};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use isms_core::ids::Tick;
+use isms_store::PgEventStore;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -122,10 +123,12 @@ impl Control {
     }
 }
 
-/// Drive one society's ticks until cancelled, the epoch ends, or the actor fails.
+/// Drive one society's ticks until cancelled or the actor fails. An ended
+/// epoch waits out its closing-statements window, then rolls over (S1.15).
 pub async fn run(
     handle: SocietyHandle,
     control: std::sync::Arc<Control>,
+    store: PgEventStore,
     cancel: CancellationToken,
 ) -> Result<(), ActorError> {
     let mut failures: u32 = 0;
@@ -133,17 +136,41 @@ pub async fn run(
         if cancel.is_cancelled() {
             return Ok(());
         }
-        let (next_tick, ended) = {
+        let (next_tick, ended, epoch) = {
             let world = handle.world.read().await;
-            (world.meta.tick, world.meta.epoch_ended.is_some())
+            (
+                world.meta.tick,
+                world.meta.epoch_ended.is_some(),
+                world.meta.epoch,
+            )
         };
         if ended {
-            // An ended society waits for an operator to start the next epoch
-            // (S1.13d) or for S1.15's rollover sequence; either wakes the loop.
-            tracing::info!(society = handle.id, "epoch ended; scheduler idle");
-            tokio::select! {
-                () = cancel.cancelled() => return Ok(()),
-                () = control.notify.notified() => {}
+            match wait_out_the_window(&handle, &control, &store, epoch, &cancel).await {
+                Wait::Cancelled => return Ok(()),
+                Wait::Again => continue,
+                Wait::Closed => {}
+            }
+            match crate::runtime::start_next_epoch(&store, handle.id, &handle, &control).await {
+                Ok(Ok(epoch)) => {
+                    tracing::warn!(
+                        society = handle.id,
+                        epoch,
+                        "closing statements closed; the next epoch starts"
+                    );
+                }
+                // The operator started it first: nothing to do.
+                Ok(Err(reject)) => {
+                    tracing::info!(society = handle.id, "rollover not needed: {}", reject.message);
+                }
+                Err(ActorError::Closed) => return Err(ActorError::Closed),
+                Err(e) => {
+                    tracing::error!(society = handle.id, "rollover failed: {e}; retrying");
+                    metrics::counter!("isms_rollover_failures_total", "society" => handle.id.to_string()).increment(1);
+                    tokio::select! {
+                        () = cancel.cancelled() => return Ok(()),
+                        () = tokio::time::sleep(MAX_SLEEP) => {}
+                    }
+                }
             }
             continue;
         }
@@ -200,6 +227,67 @@ pub async fn run(
             () = tokio::time::sleep(wait) => {}
         }
     }
+}
+
+enum Wait {
+    Cancelled,
+    /// Look at the world again (a wake-up, a held clock, a sleep that ended).
+    Again,
+    /// The window has closed: roll over.
+    Closed,
+}
+
+/// An ended society sleeps until its closing-statements window closes
+/// (S1.15). A held clock holds the rollover too; an ended epoch with no
+/// archive row (one that ended before S1.15) waits for an operator, as before.
+async fn wait_out_the_window(
+    handle: &SocietyHandle,
+    control: &Control,
+    store: &PgEventStore,
+    epoch: u32,
+    cancel: &CancellationToken,
+) -> Wait {
+    if control.is_paused() {
+        tracing::info!(society = handle.id, "epoch ended and the clock is held");
+        tokio::select! {
+            () = cancel.cancelled() => return Wait::Cancelled,
+            () = control.notify.notified() => {}
+        }
+        return Wait::Again;
+    }
+    let archive = match store.latest_archive(handle.id).await {
+        Ok(row) => row.filter(|r| i32::try_from(epoch).is_ok_and(|e| e == r.epoch)),
+        Err(e) => {
+            tracing::error!(society = handle.id, "reading the epoch archive: {e}; retrying");
+            tokio::select! {
+                () = cancel.cancelled() => return Wait::Cancelled,
+                () = tokio::time::sleep(MAX_SLEEP) => {}
+            }
+            return Wait::Again;
+        }
+    };
+    let Some(archive) = archive else {
+        tracing::info!(society = handle.id, "epoch ended with no archive; waiting for an operator");
+        tokio::select! {
+            () = cancel.cancelled() => return Wait::Cancelled,
+            () = control.notify.notified() => {}
+        }
+        return Wait::Again;
+    };
+    let now = Utc::now();
+    if now >= archive.closes_at {
+        return Wait::Closed;
+    }
+    let wait = (archive.closes_at - now)
+        .to_std()
+        .unwrap_or(Duration::ZERO)
+        .min(MAX_SLEEP);
+    tokio::select! {
+        () = cancel.cancelled() => return Wait::Cancelled,
+        () = control.notify.notified() => {}
+        () = tokio::time::sleep(wait) => {}
+    }
+    Wait::Again
 }
 
 /// How long to wait before trying a failed tick again: doubling from one

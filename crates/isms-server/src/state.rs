@@ -135,5 +135,6 @@ pub fn clock_of(world: &World) -> Clock {
         ticks_per_cycle: tpc,
         engine_tick: tick,
         epoch_ended: world.meta.epoch_ended.is_some(),
+        epoch_ending: world.meta.epoch_ending.map(|c| c + 1),
     }
 }

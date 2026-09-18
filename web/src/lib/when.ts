@@ -41,3 +41,16 @@ export function whenOfTick(tick: number, perDay = 24): string {
 export function deadlineOfTick(tick: number, perDay = 24): string {
   return (tick + 1) % perDay === 0 ? `the end of ${dayOf(Math.floor(tick / perDay))}` : whenOfTick(tick, perDay);
 }
+
+/** The epoch's end, once announced two days before it (S1.15): what the
+ *  clock says between the announcement and the last day. `null` before the
+ *  announcement and once the next epoch has started. */
+export function epochEndingText(clock: { cycle: number; epoch_ending?: number | null }): string | null {
+  const last = clock.epoch_ending;
+  if (last == null) return null;
+  const left = last - clock.cycle;
+  if (left < 0) return null;
+  if (left === 0) return "This is the last day of the epoch. The ledgers close tonight.";
+  if (left === 1) return `The epoch ends after Day ${last}: today and tomorrow remain.`;
+  return `The epoch ends after Day ${last}: ${left + 1} days remain, counting today.`;
+}

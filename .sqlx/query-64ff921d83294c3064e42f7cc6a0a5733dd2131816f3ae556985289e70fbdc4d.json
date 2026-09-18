@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT society_id, epoch, ended_at, reason, final_cycle, ended_seq, summary,\n                    closes_at, closing_statements\n             FROM epoch_archives WHERE society_id = $1 ORDER BY epoch",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "society_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "epoch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "final_cycle",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "ended_seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "summary",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "closes_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "closing_statements",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "64ff921d83294c3064e42f7cc6a0a5733dd2131816f3ae556985289e70fbdc4d"
+}

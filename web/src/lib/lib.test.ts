@@ -6,7 +6,7 @@ import { buildNames, workplaceTitles } from "./names";
 import { needHints } from "./needs";
 import { payslipRows } from "./payslips";
 import { inputsText, producerNote, supplyOf, type OrgLike as SupplyOrg, type Recipe } from "./supply";
-import { dayOf, deadlineOfTick, hourName, hourOfClock, whenOf, whenOfTick } from "./when";
+import { dayOf, deadlineOfTick, epochEndingText, hourName, hourOfClock, whenOf, whenOfTick } from "./when";
 
 describe("when", () => {
   it("names hours as the header clock does", () => {
@@ -21,6 +21,17 @@ describe("when", () => {
     expect(whenOf({ cycle: 2, tick: 62 })).toBe("Day 3, 2 PM");
     expect(whenOfTick(62)).toBe("Day 3, 2 PM");
     expect(whenOfTick(0)).toBe("Day 1, 12 AM");
+  });
+
+  it("counts the days to the announced end of the epoch", () => {
+    // Announced at the close of Day 40 of 42: the clock is on Day 41 when anyone reads it.
+    expect(epochEndingText({ cycle: 41, epoch_ending: 42 })).toBe("The epoch ends after Day 42: today and tomorrow remain.");
+    expect(epochEndingText({ cycle: 42, epoch_ending: 42 })).toBe("This is the last day of the epoch. The ledgers close tonight.");
+    // A short lab epoch announced at the close of Day 1 of 3.
+    expect(epochEndingText({ cycle: 2, epoch_ending: 3 })).toBe("The epoch ends after Day 3: today and tomorrow remain.");
+    expect(epochEndingText({ cycle: 1, epoch_ending: 4 })).toBe("The epoch ends after Day 4: 4 days remain, counting today.");
+    expect(epochEndingText({ cycle: 5, epoch_ending: null })).toBeNull();
+    expect(epochEndingText({ cycle: 5 })).toBeNull();
   });
 
   it("agrees with the 1-based clock view", () => {

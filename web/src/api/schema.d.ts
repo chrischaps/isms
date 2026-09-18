@@ -243,6 +243,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/s/{id}/archives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Past epochs of a society, for anyone: each one's frozen summary and closing statements */
+        get: operations["public_archives"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/s/{id}/archives/{epoch}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One past epoch of a society, for anyone */
+        get: operations["public_archive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/s/{id}/chronicle": {
         parameters: {
             query?: never;
@@ -286,6 +320,40 @@ export interface paths {
         };
         /** Every public society on this server, for anyone */
         get: operations["public_societies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/archives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Past epochs of this society: each one's frozen summary and closing statements, with your own marked */
+        get: operations["archives"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/archives/{epoch}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One past epoch of this society */
+        get: operations["archive"];
         put?: never;
         post?: never;
         delete?: never;
@@ -390,6 +458,23 @@ export interface paths {
         /** Public profiles and flags of every citizen */
         get: operations["citizens"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/closing-statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Leave your closing statement on the epoch that just ended: one per citizen, replaced on every write, accepted until the window closes */
+        put: operations["closing_statement"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1166,6 +1251,12 @@ export interface components {
         /** @description A society as the operator sees it (S1.13c): the summary plus the clock's hold. */
         AdminSocietyView: {
             paused: boolean;
+            /**
+             * Format: date-time
+             * @description While an ended epoch's closing statements are still accepted: when they
+             *     close and the scheduler starts the next epoch on its own (S1.15).
+             */
+            statements_close_at?: string | null;
             summary: components["schemas"]["SocietySummary"];
             /** Format: date-time */
             tick_origin: string;
@@ -1211,6 +1302,53 @@ export interface components {
         AppointRequest: {
             /** Format: int32 */
             citizen?: number | null;
+        };
+        /**
+         * @description What an ended epoch left behind (GDD §11.5): the engine's frozen summary
+         *     and the citizens' closing statements, readable by anyone once written.
+         */
+        ArchiveView: {
+            /**
+             * Format: date-time
+             * @description Closing statements are accepted until this moment; the next epoch starts then.
+             */
+            closes_at: string;
+            /** @description In the order citizens first spoke. */
+            closing_statements: components["schemas"]["ClosingStatementView"][];
+            /** Format: date-time */
+            ended_at: string;
+            /**
+             * Format: int64
+             * @description The `EpochEnded` event.
+             */
+            ended_seq: number;
+            /**
+             * Format: int32
+             * @description 1-based, as the clock shows it.
+             */
+            epoch: number;
+            /**
+             * Format: int32
+             * @description The epoch's last day, 1-based.
+             */
+            final_cycle: number;
+            /** @description The caller's own statement, on the citizen routes. */
+            mine?: string | null;
+            /** @description Whether a statement written now would be accepted. */
+            open: boolean;
+            /** @description `scheduled`, `collapse` or `operator`. */
+            reason: string;
+            /**
+             * @description The engine's `EpochSummary`: `aggregates` (the last day's `CycleAggregates`)
+             *     and `standings` (every citizen ranked by net worth: `citizen`, `handle`,
+             *     `kind`, `dormant`, `net_worth`, `self_made`, in cents).
+             */
+            summary: Record<string, never>;
+        };
+        ArchivesView: {
+            /** @description Oldest first. */
+            archives: components["schemas"]["ArchiveView"][];
+            clock: components["schemas"]["Clock"];
         };
         BookSummary: {
             /** Format: int32 */
@@ -1324,11 +1462,29 @@ export interface components {
             epoch_ended: boolean;
             /**
              * Format: int32
+             * @description The epoch's last day (1-based), once the end has been announced two
+             *     days before it (S1.15); `None` until then, and after a rollover.
+             */
+            epoch_ending?: number | null;
+            /**
+             * Format: int32
              * @description From 1 to `ticks_per_cycle`.
              */
             tick: number;
             /** Format: int32 */
             ticks_per_cycle: number;
+        };
+        /** @description One per citizen, replaced on every write, until the window closes. */
+        ClosingStatementRequest: {
+            text: string;
+        };
+        ClosingStatementView: {
+            /** Format: int32 */
+            citizen: number;
+            handle: string;
+            text: string;
+            /** Format: date-time */
+            written_at: string;
         };
         /** @description What a command did: the events it produced, in log order. */
         Committed: {
@@ -2511,6 +2667,68 @@ export interface operations {
             };
         };
     };
+    public_archives: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchivesView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description The epoch as the clock shows it (1-based) */
+                epoch: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     public_chronicle: {
         parameters: {
             query?: {
@@ -2589,6 +2807,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SocietyList"];
+                };
+            };
+        };
+    };
+    archives: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchivesView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description The epoch as the clock shows it (1-based) */
+                epoch: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -2786,6 +3074,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CitizensView"];
+                };
+            };
+        };
+    };
+    closing_statement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClosingStatementRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveView"];
+                };
+            };
+            /** @description Empty, or over the length limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No epoch has ended here yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The window has closed (code epoch_ended) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

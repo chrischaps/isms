@@ -29,6 +29,10 @@ pub struct Clock {
     pub ticks_per_cycle: u32,
     pub engine_tick: u32,
     pub epoch_ended: bool,
+    /// The epoch's last day (1-based), once the end has been announced two
+    /// days before it (S1.15); `None` until then, and after a rollover.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epoch_ending: Option<u32>,
 }
 
 /// RFC 9457 problem details; `code` carries the engine's `RejectCode` when
@@ -80,6 +84,10 @@ pub struct AdminSocietyView {
     pub summary: SocietySummary,
     pub paused: bool,
     pub tick_origin: DateTime<Utc>,
+    /// While an ended epoch's closing statements are still accepted: when they
+    /// close and the scheduler starts the next epoch on its own (S1.15).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub statements_close_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]

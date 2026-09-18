@@ -515,7 +515,7 @@ Core tables:
 | `messages` | society_id, channel, sender citizen, body, tick, created | Square / org / DM / assembly (D12) |
 | `chronicle` | society_id, cycle, tick, headline, body, source_event_seq | projection, regenerable from events |
 | `notice_board` | projection of live offers (regenerable) | |
-| `epoch_archives` | society_id, epoch, summary jsonb, snapshot ref, closing statements | read-only public |
+| `epoch_archives` | society_id, epoch, ended_at, reason, final_cycle, ended_seq (the `EpochEnded` event, in place of a snapshot ref), summary jsonb (the engine's `EpochSummary`), closes_at, closing_statements jsonb | written in the same transaction as `EpochEnded` (S1.15); statements editable until `closes_at`; read-only public |
 | `exports` | epoch export manifests (§13) | |
 
 Write path: the society actor appends a batch of events in one transaction (`INSERT … SELECT unnest(...)`) with `seq` assigned by the actor (not a DB sequence) so the in-memory and stored orders can't diverge; the transaction fails on a `seq` collision, which is the guard against two actors for one society ever running (e.g. during a botched deploy).
@@ -581,7 +581,7 @@ REST for commands and queries, WebSocket for the live event stream, OpenAPI 3.1 
 | Comms | `GET/POST /s/{id}/channels/{channel}/messages`, `GET/POST /s/{id}/dm/{citizen}` |
 | Stream | `GET /s/{id}/stream` (WebSocket: events filtered to what the citizen may see, plus `TickResolved` deltas for self and public aggregates) |
 | Explain | `GET /s/{id}/explain/{event_seq}` (returns the `Explain` payloads of an event; the UI usually already has them inline) |
-| Public / spectator | `GET /public/societies`, `GET /public/s/{id}/stats`, `GET /public/s/{id}/chronicle`, `GET /public/archives/{society}/{epoch}` — no citizenship needed |
+| Public / spectator | `GET /public/societies`, `GET /public/s/{id}/stats`, `GET /public/s/{id}/chronicle`, `GET /public/s/{id}/archives`, `GET /public/s/{id}/archives/{epoch}` — no citizenship needed |
 
 Visibility rules are enforced server-side once, in a `Viewer` type: your own true output vs. others' noisy attribution; DMs; org channels; managers' per-worker views. The engine records everything; the API decides who sees what, per the constitution.
 

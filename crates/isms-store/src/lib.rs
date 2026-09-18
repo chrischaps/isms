@@ -16,6 +16,7 @@ use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
 pub mod accounts;
+pub mod archives;
 pub mod projections;
 pub mod reads;
 
@@ -152,6 +153,15 @@ pub trait EventStore {
     async fn next_society_id(&self) -> Result<i64>;
     /// Append `batch` as `first_seq..first_seq + batch.len()` in one transaction.
     async fn append_batch(&self, society: i64, first_seq: i64, batch: &[NewEvent]) -> Result<()>;
+    /// `append_batch`, plus the epoch archive row when the batch ends an epoch
+    /// (S1.15), in the same transaction: a crash leaves neither or both.
+    async fn append_batch_archiving(
+        &self,
+        society: i64,
+        first_seq: i64,
+        batch: &[NewEvent],
+        archive: Option<&archives::NewArchive>,
+    ) -> Result<()>;
     /// Events with `seq > after`, in order, at most `limit`.
     async fn read_from(&self, society: i64, after: i64, limit: i64) -> Result<Vec<StoredEvent>>;
     async fn latest_snapshot(&self, society: i64) -> Result<Option<Snapshot>>;
@@ -297,6 +307,17 @@ impl EventStore for PgEventStore {
     }
 
     async fn append_batch(&self, society: i64, first_seq: i64, batch: &[NewEvent]) -> Result<()> {
+        self.append_batch_archiving(society, first_seq, batch, None)
+            .await
+    }
+
+    async fn append_batch_archiving(
+        &self,
+        society: i64,
+        first_seq: i64,
+        batch: &[NewEvent],
+        archive: Option<&archives::NewArchive>,
+    ) -> Result<()> {
         if batch.is_empty() {
             return Ok(());
         }
@@ -338,6 +359,21 @@ impl EventStore for PgEventStore {
         .await;
         match result {
             Ok(_) => {
+                if let Some(a) = archive {
+                    sqlx::query!(
+                        "INSERT INTO epoch_archives (society_id, epoch, reason, final_cycle, ended_seq, summary, closes_at)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                        society,
+                        a.epoch,
+                        a.reason,
+                        a.final_cycle,
+                        a.ended_seq,
+                        a.summary,
+                        a.closes_at
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                }
                 tx.commit().await?;
                 Ok(())
             }

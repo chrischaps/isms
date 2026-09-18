@@ -63,6 +63,9 @@ export function PublicSociety({ id }: { id: number }) {
           </Link>
           <h1 className="text-2xl">{s.name}</h1>
           <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>
+          <Link to="/public/s/$id/archives" params={{ id: String(id) }} className="text-muted text-sm underline decoration-dotted">
+            Past epochs
+          </Link>
         </div>
         <span className="num text-muted text-sm">
           Epoch {s.clock.epoch} · Day {s.clock.cycle} · {hourOfClock(s.clock)}

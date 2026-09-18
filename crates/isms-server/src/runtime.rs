@@ -5,8 +5,10 @@ use crate::actor::{self, ActorError, SocietyHandle};
 use crate::chronicle::{Templates, spawn_projector};
 use crate::scheduler::{self, Control, Schedule};
 use chrono::Utc;
+use isms_core::command::Reject;
 use isms_core::config::ConfigError;
 use isms_core::event::{Actor, Event};
+use isms_core::ids::Epoch;
 use isms_core::kinds::ClientKind;
 use isms_core::rules::Rules;
 use isms_core::tick::start_epoch;
@@ -155,6 +157,7 @@ pub async fn start_society(
     let scheduler_task = tokio::spawn(scheduler::run(
         handle.clone(),
         control.clone(),
+        store.clone(),
         cancel.child_token(),
     ));
     let projector_task =
@@ -167,6 +170,44 @@ pub async fn start_society(
         projector_task,
         scheduler_task,
     })
+}
+
+/// Start the next epoch of an ended society (S1.13d, S1.15): the actor's
+/// rollover, then the clock re-anchored so tick 0 is due one tick length from
+/// now, the society row brought up to date, and the closing-statements window
+/// shut. The scheduler calls this when the window ends; an operator's "start
+/// now" calls the same and so closes the statements early. `Ok(Err(reject))`
+/// is the actor saying the epoch has not ended (or someone else rolled it
+/// over first).
+pub async fn start_next_epoch(
+    store: &PgEventStore,
+    id: i64,
+    handle: &SocietyHandle,
+    control: &Control,
+) -> Result<Result<Epoch, Reject>, ActorError> {
+    let epoch = match handle.new_epoch().await? {
+        Ok(e) => e,
+        Err(reject) => return Ok(Err(reject)),
+    };
+    let now = Utc::now();
+    let s = control.resume(0, now);
+    store
+        .set_society_schedule(
+            id,
+            i32::try_from(s.tick_seconds).unwrap_or(i32::MAX),
+            s.tick_origin,
+        )
+        .await?;
+    store.set_society_status(id, "active").await?;
+    store
+        .set_society_epoch(id, i32::try_from(epoch).unwrap_or(i32::MAX))
+        .await?;
+    if let Some(ended) = epoch.checked_sub(1) {
+        store
+            .close_statements(id, i32::try_from(ended).unwrap_or(i32::MAX), now)
+            .await?;
+    }
+    Ok(Ok(epoch))
 }
 
 impl Running {

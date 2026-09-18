@@ -13,6 +13,7 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { Admin } from "./screens/Admin";
+import { PublicArchives, SocietyArchives } from "./screens/Archives";
 import { Contracts } from "./screens/Contracts";
 import { EventScreen } from "./screens/Event";
 import { Gallery } from "./screens/Gallery";
@@ -134,6 +135,16 @@ function PublicSocietyRoute() {
   return <PublicSociety id={Number(id)} />;
 }
 
+function PublicArchivesRoute() {
+  const { id } = useParams({ from: "/public/s/$id/archives" });
+  return <PublicArchives id={Number(id)} />;
+}
+
+function SocietyArchivesRoute() {
+  const { id } = useParams({ from: "/s/$id/archives" });
+  return <SocietyArchives id={Number(id)} />;
+}
+
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin",
@@ -156,6 +167,12 @@ const publicSocietyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/public/s/$id",
   component: PublicSocietyRoute,
+});
+
+const publicArchivesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/public/s/$id/archives",
+  component: PublicArchivesRoute,
 });
 
 const societyRoute = createRoute({
@@ -236,6 +253,12 @@ const societyEventRoute = createRoute({
   component: SocietyEventRoute,
 });
 
+const societyArchivesRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/archives",
+  component: SocietyArchivesRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -244,6 +267,7 @@ const routeTree = rootRoute.addChildren([
   adminRoute,
   publicRoute,
   publicSocietyRoute,
+  publicArchivesRoute,
   societyRoute.addChildren([
     societyHomeRoute,
     societyWorkRoute,
@@ -257,6 +281,7 @@ const routeTree = rootRoute.addChildren([
     societyTalkRoute,
     societyChannelRoute,
     societyEventRoute,
+    societyArchivesRoute,
   ]),
 ]);
 

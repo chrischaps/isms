@@ -14,6 +14,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use isms_api_types::society::{ArchiveView, ArchivesView};
 use isms_api_types::{
     Account, AdminSocietiesView, AdminSocietyView, ApiKeyCreated, ApiKeySummary, CapabilitiesView,
     Citizenship, Clock, Health, JoinRequest, Joined, Lexicon, MagicLinkRequest, MagicLinkSent, Me,
@@ -351,11 +352,20 @@ async fn require_operator(state: &AppState, auth: &Auth) -> ApiResult<()> {
     }
 }
 
-async fn admin_view(entry: &SocietyEntry) -> AdminSocietyView {
+async fn admin_view(state: &AppState, entry: &SocietyEntry) -> AdminSocietyView {
+    let statements_close_at = state
+        .store
+        .latest_archive(entry.row.id)
+        .await
+        .ok()
+        .flatten()
+        .filter(|a| a.is_open(chrono::Utc::now()))
+        .map(|a| a.closes_at);
     AdminSocietyView {
         summary: summary(entry).await,
         paused: entry.control.is_paused(),
         tick_origin: entry.schedule().tick_origin,
+        statements_close_at,
     }
 }
 
@@ -375,7 +385,7 @@ async fn admin_societies(
         .collect();
     let mut societies = Vec::with_capacity(entries.len());
     for e in &entries {
-        societies.push(admin_view(e).await);
+        societies.push(admin_view(&state, e).await);
     }
     Ok(Json(AdminSocietiesView { societies }))
 }
@@ -397,7 +407,7 @@ async fn admin_pause(
         account = auth.account_id,
         "paused by operator"
     );
-    Ok(Json(admin_view(&entry).await))
+    Ok(Json(admin_view(&state, &entry).await))
 }
 
 #[utoipa::path(post, path = "/admin/s/{id}/resume", summary = "Operator: release the clock with the next tick due one tick length from now (no catch-up)",
@@ -426,7 +436,7 @@ async fn admin_resume(
         account = auth.account_id,
         "resumed by operator"
     );
-    Ok(Json(admin_view(&entry).await))
+    Ok(Json(admin_view(&state, &entry).await))
 }
 
 #[utoipa::path(post, path = "/admin/s/{id}/step", summary = "Operator: resolve exactly one tick while the clock is held",
@@ -445,7 +455,7 @@ async fn admin_step(
         ));
     }
     entry.handle.tick().await?;
-    Ok(Json(admin_view(&entry).await))
+    Ok(Json(admin_view(&state, &entry).await))
 }
 
 #[utoipa::path(post, path = "/admin/s/{id}/tick-seconds", summary = "Operator: a new tick length, re-anchored so the next tick is due one length from now",
@@ -476,7 +486,7 @@ async fn admin_tick_seconds(
         tick_seconds = req.tick_seconds,
         "tick length set by operator"
     );
-    Ok(Json(admin_view(&entry).await))
+    Ok(Json(admin_view(&state, &entry).await))
 }
 
 #[utoipa::path(post, path = "/admin/s/{id}/end-epoch", summary = "Operator: end the epoch now (the only operator command the engine takes)",
@@ -502,7 +512,7 @@ async fn admin_end_epoch(
         account = auth.account_id,
         "epoch ended by operator"
     );
-    Ok(Json(admin_view(&entry).await))
+    Ok(Json(admin_view(&state, &entry).await))
 }
 
 #[utoipa::path(patch, path = "/me", summary = "Change what you may about your account: the biography line", request_body = UpdateMe,
@@ -535,29 +545,18 @@ async fn admin_new_epoch(
 ) -> ApiResult<Json<AdminSocietyView>> {
     require_operator(&state, &auth).await?;
     let entry = society(&state, id)?;
-    let epoch = entry.handle.new_epoch().await?.map_err(ApiError::Reject)?;
-    // Tick 0 of the new epoch is due one tick length from now; nothing is caught up.
-    let s = entry.control.resume(0, chrono::Utc::now());
-    state
-        .store
-        .set_society_schedule(
-            id,
-            i32::try_from(s.tick_seconds).unwrap_or(i32::MAX),
-            s.tick_origin,
-        )
-        .await?;
-    state.store.set_society_status(id, "active").await?;
-    state
-        .store
-        .set_society_epoch(id, i32::try_from(epoch).unwrap_or(i32::MAX))
-        .await?;
+    // "Start now": the rollover, which also closes the statements window early (S1.15).
+    let epoch =
+        crate::runtime::start_next_epoch(&state.store, id, &entry.handle, &entry.control)
+            .await?
+            .map_err(ApiError::Reject)?;
     tracing::warn!(
         society = id,
         epoch,
         account = auth.account_id,
         "new epoch started by operator"
     );
-    Ok(Json(admin_view(&entry).await))
+    Ok(Json(admin_view(&state, &entry).await))
 }
 
 // -- spectator routes: no citizenship, no session (TDD 10.2) --------------------
@@ -604,6 +603,31 @@ async fn public_stats(
         credit_outstanding: numbers.credit_outstanding,
         last_cycle: numbers.last_cycle,
     }))
+}
+
+#[utoipa::path(get, path = "/public/s/{id}/archives", summary = "Past epochs of a society, for anyone: each one's frozen summary and closing statements", security(()),
+    params(("id" = i64, Path, description = "Society id")), responses((status = 200, body = ArchivesView), (status = 404, body = Problem)))]
+async fn public_archives(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<ArchivesView>> {
+    let entry = public_society(&state, id)?;
+    Ok(Json(
+        crate::society_api::archives_of(&state, &entry, None).await?,
+    ))
+}
+
+#[utoipa::path(get, path = "/public/s/{id}/archives/{epoch}", summary = "One past epoch of a society, for anyone", security(()),
+    params(("id" = i64, Path, description = "Society id"), ("epoch" = u32, Path, description = "The epoch as the clock shows it (1-based)")),
+    responses((status = 200, body = ArchiveView), (status = 404, body = Problem)))]
+async fn public_archive(
+    State(state): State<AppState>,
+    Path((id, epoch)): Path<(i64, u32)>,
+) -> ApiResult<Json<ArchiveView>> {
+    let entry = public_society(&state, id)?;
+    Ok(Json(
+        crate::society_api::archive_of(&state, &entry, epoch, None).await?,
+    ))
 }
 
 #[utoipa::path(
@@ -909,6 +933,8 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(me, update_me))
         .routes(routes!(public_societies))
         .routes(routes!(public_stats))
+        .routes(routes!(public_archives))
+        .routes(routes!(public_archive))
         .routes(routes!(admin_societies))
         .routes(routes!(admin_pause))
         .routes(routes!(admin_resume))

@@ -15,7 +15,9 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use isms_api_types::Problem;
 use isms_api_types::society::{
-    AcceptRequest, AddWorkplaceRequest, AppointRequest, BookView, BooksView, CitizensView,
+    AcceptRequest, AddWorkplaceRequest, AppointRequest, ArchiveView, ArchivesView, BookView,
+    BooksView, CLOSING_STATEMENT_MAX_CHARS, CitizensView, ClosingStatementRequest,
+    ClosingStatementView,
     Committed, ContractsView, CreditOfferRequest, DigestView, DividendRequest,
     EmploymentOfferRequest, EventRef, ExplainView, FormerOrg, FoundOrgRequest, Headline, HomeView,
     HouseholdersView, IssueSharesRequest, LeaseOfferRequest, MachinesRequest, MemberRequest,
@@ -35,6 +37,7 @@ use isms_core::plan::{away_digest, touches};
 use isms_core::rules::Rules;
 use isms_core::world::{Allocation, Instrument, OfferBody, Side, StandingPlan, World};
 use isms_store::StoredEvent;
+use isms_store::archives::{ArchiveRow, ClosingStatement};
 use serde::Deserialize;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -1277,7 +1280,159 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(scoreboard))
         .routes(routes!(householders))
         .routes(routes!(explain))
+        .routes(routes!(archives))
+        .routes(routes!(archive))
+        .routes(routes!(closing_statement))
         .routes(routes!(crate::stream::stream))
+}
+
+// -- epoch archives (S1.15, GDD 11.5) --------------------------------------------
+
+fn archive_view(
+    row: &ArchiveRow,
+    me: Option<CitizenId>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> ArchiveView {
+    let statements = row.statements();
+    ArchiveView {
+        epoch: u32::try_from(row.epoch).unwrap_or(0) + 1,
+        reason: row.reason.clone(),
+        final_cycle: u32::try_from(row.final_cycle).unwrap_or(0) + 1,
+        ended_at: row.ended_at,
+        ended_seq: row.ended_seq,
+        closes_at: row.closes_at,
+        open: row.is_open(now),
+        summary: row.summary.clone(),
+        mine: me.and_then(|m| {
+            statements
+                .iter()
+                .find(|s| s.citizen == m.0)
+                .map(|s| s.text.clone())
+        }),
+        closing_statements: statements
+            .into_iter()
+            .map(|s| ClosingStatementView {
+                citizen: s.citizen,
+                handle: s.handle,
+                text: s.text,
+                written_at: s.written_at,
+            })
+            .collect(),
+    }
+}
+
+/// Every archived epoch, oldest first; `me` marks the caller's own statement.
+pub(crate) async fn archives_of(
+    state: &AppState,
+    entry: &SocietyEntry,
+    me: Option<CitizenId>,
+) -> ApiResult<ArchivesView> {
+    let rows = state.store.list_archives(entry.row.id).await?;
+    let now = chrono::Utc::now();
+    let clock = clock_of(&*entry.handle.world.read().await);
+    Ok(ArchivesView {
+        clock,
+        archives: rows.iter().map(|r| archive_view(r, me, now)).collect(),
+    })
+}
+
+/// One archived epoch by its 1-based number, or 404.
+pub(crate) async fn archive_of(
+    state: &AppState,
+    entry: &SocietyEntry,
+    epoch: u32,
+    me: Option<CitizenId>,
+) -> ApiResult<ArchiveView> {
+    let row = match epoch.checked_sub(1).and_then(|e| i32::try_from(e).ok()) {
+        Some(e) => state.store.archive(entry.row.id, e).await?,
+        None => None,
+    };
+    let row = row.ok_or_else(|| ApiError::NotFound(format!("no archive of epoch {epoch}")))?;
+    Ok(archive_view(&row, me, chrono::Utc::now()))
+}
+
+#[utoipa::path(get, path = "/s/{id}/archives", summary = "Past epochs of this society: each one's frozen summary and closing statements, with your own marked",
+    params(("id" = i64, Path, description = "Society id")), responses((status = 200, body = ArchivesView), (status = 403, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn archives(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<ArchivesView>> {
+    let (entry, me) = me_in(&state, &auth, id).await?;
+    Ok(Json(archives_of(&state, &entry, Some(me)).await?))
+}
+
+#[utoipa::path(get, path = "/s/{id}/archives/{epoch}", summary = "One past epoch of this society",
+    params(("id" = i64, Path, description = "Society id"), ("epoch" = u32, Path, description = "The epoch as the clock shows it (1-based)")),
+    responses((status = 200, body = ArchiveView), (status = 403, body = Problem), (status = 404, body = Problem)), security(("session" = []), ("api_key" = [])))]
+async fn archive(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path((id, epoch)): Path<(i64, u32)>,
+) -> ApiResult<Json<ArchiveView>> {
+    let (entry, me) = me_in(&state, &auth, id).await?;
+    Ok(Json(archive_of(&state, &entry, epoch, Some(me)).await?))
+}
+
+#[utoipa::path(put, path = "/s/{id}/closing-statement", summary = "Leave your closing statement on the epoch that just ended: one per citizen, replaced on every write, accepted until the window closes",
+    request_body = ClosingStatementRequest, params(("id" = i64, Path, description = "Society id")),
+    responses((status = 200, body = ArchiveView), (status = 400, body = Problem, description = "Empty, or over the length limit"), (status = 403, body = Problem),
+        (status = 404, body = Problem, description = "No epoch has ended here yet"), (status = 422, body = Problem, description = "The window has closed (code epoch_ended)")),
+    security(("session" = []), ("api_key" = [])))]
+async fn closing_statement(
+    State(state): State<AppState>,
+    auth: Auth,
+    Path(id): Path<i64>,
+    Json(req): Json<ClosingStatementRequest>,
+) -> ApiResult<Json<ArchiveView>> {
+    let (entry, me) = me_in(&state, &auth, id).await?;
+    let text = req.text.trim();
+    if text.is_empty() {
+        return Err(ApiError::BadRequest(
+            "a closing statement needs some words".into(),
+        ));
+    }
+    if text.chars().count() > CLOSING_STATEMENT_MAX_CHARS {
+        return Err(ApiError::BadRequest(format!(
+            "a closing statement is at most {CLOSING_STATEMENT_MAX_CHARS} characters"
+        )));
+    }
+    let latest = state
+        .store
+        .latest_archive(id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("no epoch has ended here yet".into()))?;
+    let now = chrono::Utc::now();
+    if !latest.is_open(now) {
+        return Err(ApiError::Reject(Reject::new(
+            RejectCode::EpochEnded,
+            format!(
+                "the closing statements on epoch {} closed at {}",
+                u32::try_from(latest.epoch).unwrap_or(0) + 1,
+                latest.closes_at.format("%Y-%m-%d %H:%M UTC")
+            ),
+        )));
+    }
+    let handle = entry
+        .handle
+        .world
+        .read()
+        .await
+        .citizens
+        .get(&me)
+        .map_or_else(|| format!("citizen {}", me.0), |c| c.handle.clone());
+    let statement = ClosingStatement {
+        citizen: me.0,
+        handle,
+        text: text.to_owned(),
+        written_at: now,
+    };
+    let row = state
+        .store
+        .write_closing_statement(id, latest.epoch, &statement)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("no epoch has ended here yet".into()))?;
+    Ok(Json(archive_view(&row, Some(me), now)))
 }
 
 #[allow(dead_code)]

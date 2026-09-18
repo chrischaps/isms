@@ -5,7 +5,8 @@
 
 use axum_test::TestServer;
 use isms_api_types::society::{
-    BookView, BooksView, CitizensView, Committed, ContractsView, DigestView, ExplainView, HomeView,
+    ArchiveView, ArchivesView, BookView, BooksView, CitizensView, Committed, ContractsView,
+    DigestView, ExplainView, HomeView,
     HouseholdersView, NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlanView,
     PricesView, ScoreboardView, StatsView, StreamFrame,
 };
@@ -16,7 +17,7 @@ use isms_core::event::Actor;
 use isms_core::ids::CitizenId;
 use isms_core::kinds::{ClientKind, Good};
 use isms_core::ledger::{Asset, Party};
-use isms_server::actor::{SocietyHandle, spawn};
+use isms_server::actor::{SocietyHandle, envelope, spawn};
 use isms_server::mail::MemorySender;
 use isms_server::runtime::{SeedSpec, seed_society};
 use isms_server::scheduler::{Control, Schedule};
@@ -1054,4 +1055,102 @@ async fn a_manager_withdraws_a_job_offer_and_a_worker_cannot(pool: PgPool) {
     let r = manager.delete(f.id, &format!("/offers/{offer}")).await;
     assert_eq!(r.status_code(), 422);
     assert_eq!(r.json::<Problem>().code, Some(RejectCode::UnknownOffer));
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn a_closing_statement_is_kept_until_the_window_closes(pool: PgPool) {
+    // S1.15: nothing to sign before the epoch ends; then one statement per
+    // citizen, rewritable, in the order they first spoke, readable by anyone;
+    // refused with a named code once the window has closed.
+    let f = fixture(pool, "freeport").await;
+    let a = f.client("ada").await;
+    let b = f.client("bo").await;
+    let url = format!("/s/{}/closing-statement", f.id);
+    let say = async |c: &Client, text: &str| {
+        c.server
+            .put(&url)
+            .add_header("x-requested-with", "isms")
+            .json(&json!({ "text": text }))
+            .await
+    };
+    let r = say(&a, "Too soon.").await;
+    assert_eq!(r.status_code(), 404, "{}", r.text());
+
+    // The operator ends the epoch by hand: the archive appears, open, with the summary.
+    f.handle
+        .command(envelope(
+            Actor::System,
+            ClientKind::Sim,
+            Command::EndEpoch {
+                reason: "test".into(),
+            },
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    let v: ArchivesView = a
+        .server
+        .get(&format!("/s/{}/archives", f.id))
+        .await
+        .json();
+    assert_eq!(v.archives.len(), 1);
+    let ar = &v.archives[0];
+    assert_eq!((ar.epoch, ar.reason.as_str(), ar.final_cycle, ar.open), (1, "operator", 1, true));
+    assert!(ar.summary["standings"].as_array().is_some_and(|s| !s.is_empty()));
+    assert!(ar.summary["aggregates"]["population"].is_number());
+    assert!(ar.closing_statements.is_empty());
+    assert_eq!(ar.mine, None);
+
+    let r = say(&a, "  We did what we could.  ").await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let r = say(&b, "Bo was here.").await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let r = say(&a, "We did more than we could.").await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let ar: ArchiveView = r.json();
+    assert_eq!(ar.mine.as_deref(), Some("We did more than we could."));
+    let texts: Vec<&str> = ar.closing_statements.iter().map(|s| s.text.as_str()).collect();
+    assert_eq!(texts, ["We did more than we could.", "Bo was here."]);
+    assert_eq!(ar.closing_statements[0].citizen, a.citizen);
+    assert_eq!(ar.closing_statements[0].handle, "ada");
+    assert_eq!(say(&a, "   ").await.status_code(), 400);
+    assert_eq!(say(&a, &"x".repeat(2001)).await.status_code(), 400);
+
+    // Anyone may read it, without a `mine`; other epochs are 404.
+    let anon = TestServer::builder()
+        .http_transport()
+        .build(f.router.clone())
+        .unwrap();
+    let p: ArchiveView = anon
+        .get(&format!("/public/s/{}/archives/1", f.id))
+        .await
+        .json();
+    assert_eq!(p.closing_statements.len(), 2);
+    assert_eq!(p.mine, None);
+    for wrong in [0, 2] {
+        assert_eq!(
+            anon.get(&format!("/public/s/{}/archives/{wrong}", f.id))
+                .await
+                .status_code(),
+            404
+        );
+    }
+
+    // The window closes (the rollover does this): a late word is refused, the rest stays.
+    f.store
+        .close_statements(f.id, 0, chrono::Utc::now())
+        .await
+        .unwrap();
+    let r = say(&a, "Late.").await;
+    assert_eq!(r.status_code(), 422, "{}", r.text());
+    let p: Problem = r.json();
+    assert_eq!(p.code, Some(RejectCode::EpochEnded));
+    let ar: ArchiveView = a
+        .server
+        .get(&format!("/s/{}/archives/1", f.id))
+        .await
+        .json();
+    assert!(!ar.open);
+    assert_eq!(ar.closing_statements.len(), 2);
+    assert_eq!(ar.mine.as_deref(), Some("We did more than we could."));
 }

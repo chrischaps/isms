@@ -5,6 +5,7 @@
 //! JSON object and the schema says `Object`.
 
 use crate::Clock;
+use chrono::{DateTime, Utc};
 use isms_core::ids::{CitizenId, DwellingId, OrgId, SlotId, WorkplaceId};
 use isms_core::kinds::{Effort, Good, OrgKind, WorkplaceKind};
 use isms_core::ledger::{Asset, Party};
@@ -701,4 +702,59 @@ pub fn slot_id(n: u32) -> SlotId {
 #[must_use]
 pub fn dwelling_id(n: u32) -> DwellingId {
     DwellingId(n)
+}
+
+// -- epoch archives (S1.15) ----------------------------------------------------
+
+/// A closing statement is at most this many characters.
+pub const CLOSING_STATEMENT_MAX_CHARS: usize = 2000;
+
+/// What an ended epoch left behind (GDD §11.5): the engine's frozen summary
+/// and the citizens' closing statements, readable by anyone once written.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ArchiveView {
+    /// 1-based, as the clock shows it.
+    pub epoch: u32,
+    /// `scheduled`, `collapse` or `operator`.
+    pub reason: String,
+    /// The epoch's last day, 1-based.
+    pub final_cycle: u32,
+    pub ended_at: DateTime<Utc>,
+    /// The `EpochEnded` event.
+    pub ended_seq: i64,
+    /// Closing statements are accepted until this moment; the next epoch starts then.
+    pub closes_at: DateTime<Utc>,
+    /// Whether a statement written now would be accepted.
+    pub open: bool,
+    /// The engine's `EpochSummary`: `aggregates` (the last day's `CycleAggregates`)
+    /// and `standings` (every citizen ranked by net worth: `citizen`, `handle`,
+    /// `kind`, `dormant`, `net_worth`, `self_made`, in cents).
+    #[schema(value_type = Object)]
+    pub summary: serde_json::Value,
+    /// In the order citizens first spoke.
+    pub closing_statements: Vec<ClosingStatementView>,
+    /// The caller's own statement, on the citizen routes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mine: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ClosingStatementView {
+    pub citizen: u32,
+    pub handle: String,
+    pub text: String,
+    pub written_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ArchivesView {
+    pub clock: Clock,
+    /// Oldest first.
+    pub archives: Vec<ArchiveView>,
+}
+
+/// One per citizen, replaced on every write, until the window closes.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ClosingStatementRequest {
+    pub text: String,
 }

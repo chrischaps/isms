@@ -49,11 +49,23 @@ test("an operator can pause, step and resume a society", async ({ page, context,
     .poll(async () => tickOf((await row.getByTestId("admin-clock").textContent()) ?? ""), { timeout: 15_000 })
     .toBeGreaterThan(held + 1);
 
-  // End the epoch by hand, then start the next one: the clock restarts at epoch 2, tick 0, and runs.
+  // End the epoch by hand: the archive is written at once and anyone can read it (S1.15).
   await row.getByRole("button", { name: "end epoch" }).click();
   await row.getByRole("button", { name: "Yes, end it" }).click();
   await expect(row.getByTestId("admin-state")).toHaveText("epoch ended");
-  await row.getByRole("button", { name: "Start epoch 2" }).click();
+  const sid = /#(\d+)/.exec((await row.textContent()) ?? "")?.[1];
+  expect(sid).toBeTruthy();
+  const reader = await page.context().newPage();
+  await reader.goto(`/public/s/${sid}/archives`);
+  const card = reader.getByTestId("archive-1");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("ended by the operator");
+  await expect(card.getByTestId("archive-summary")).toBeVisible();
+  await expect(card.getByTestId("archive-standings")).toBeVisible();
+  await expect(card).toContainText("Citizens may still leave a word");
+  await reader.close();
+  // Then start the next one now (the statements close early): epoch 2, tick 0, running.
+  await row.getByRole("button", { name: /Start epoch 2/ }).click();
   await expect(row.getByTestId("admin-state")).toHaveText("running");
   await expect(row.getByTestId("admin-clock")).toContainText("epoch 2");
   await expect

@@ -14,7 +14,7 @@ import { Home } from "./Home";
 
 const SCREENS: Record<
   string,
-  "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market" | "/s/$id/orgs" | "/s/$id/contracts" | "/s/$id/society" | "/s/$id/talk"
+  "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market" | "/s/$id/orgs" | "/s/$id/contracts" | "/s/$id/society" | "/s/$id/talk" | "/s/$id/archives"
 > = {
   "": "/s/$id",
   work: "/s/$id/work",
@@ -24,6 +24,7 @@ const SCREENS: Record<
   contracts: "/s/$id/contracts",
   society: "/s/$id/society",
   talk: "/s/$id/talk",
+  archives: "/s/$id/archives",
 };
 
 export function SocietyShell({ id }: { id: number }) {
@@ -56,6 +57,7 @@ export function SocietyShell({ id }: { id: number }) {
     { to: "contracts", label: "Contracts", built: true },
     { to: "society", label: "Society", built: true },
     { to: "talk", label: "Talk", built: true },
+    { to: "archives", label: "Archive", built: true },
   ];
   return (
     <div>

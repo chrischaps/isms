@@ -3,18 +3,21 @@
 //! event; the `OpenAPI` document is produced (linted in CI).
 
 use axum_test::TestServer;
+use isms_api_types::society::ArchivesView;
 use isms_api_types::{
     ApiKeyCreated, CapabilitiesView, Health, Joined, Lexicon, Me, Problem, SocietyList,
     SocietySummary, Welcome,
 };
 use isms_core::WORKSPACE_PRESETS_DIR;
+use isms_core::command::Command;
+use isms_core::event::Actor;
 use isms_core::kinds::ClientKind;
-use isms_server::actor::spawn;
+use isms_server::actor::{SocietyHandle, envelope, spawn};
 use isms_server::mail::MemorySender;
 use isms_server::runtime::{SeedSpec, seed_society};
 use isms_server::scheduler::{Control, Schedule};
 use isms_server::state::{AppState, SocietyEntry};
-use isms_store::{EventStore, PgEventStore, load_world};
+use isms_store::{EventStore, PgEventStore, SocietyRow, load_world};
 use serde_json::json;
 use sqlx::PgPool;
 use std::collections::BTreeMap;
@@ -367,9 +370,8 @@ async fn join_is_idempotent_and_api_keys_stamp_their_kind(pool: PgPool) {
 
 /// ADR-0009: a `lab` society is for synthetic players. Anyone signed in on the
 /// server can see and join it; a visitor on `/public/*` cannot tell it exists.
-#[sqlx::test(migrator = "isms_store::MIGRATOR")]
-async fn a_lab_society_is_never_public(pool: PgPool) {
-    let f = fixture(pool).await;
+/// A lab society (ADR-0009) beside the fixture's canonical one, in the same state.
+async fn lab_society(f: &Fixture) -> (SocietyRow, SocietyHandle) {
     let lab = seed_society(
         &f.store,
         Path::new(WORKSPACE_PRESETS_DIR),
@@ -391,7 +393,7 @@ async fn a_lab_society_is_never_public(pool: PgPool) {
         lab.id,
         SocietyEntry {
             row: lab.clone(),
-            handle,
+            handle: handle.clone(),
             control: Arc::new(Control::new(
                 Schedule {
                     tick_seconds: 3600,
@@ -401,6 +403,46 @@ async fn a_lab_society_is_never_public(pool: PgPool) {
             )),
         },
     );
+    (lab, handle)
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn a_lab_society_has_no_public_archive(pool: PgPool) {
+    // S1.15: the archive is written for a lab society too, but /public/* does
+    // not know the society exists; a canonical one with no ended epoch answers
+    // an empty list, not a 404.
+    let f = fixture(pool).await;
+    let (lab, handle) = lab_society(&f).await;
+    handle
+        .command(envelope(
+            Actor::System,
+            ClientKind::Sim,
+            Command::EndEpoch {
+                reason: "test".into(),
+            },
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(f.store.latest_archive(lab.id).await.unwrap().is_some());
+    for path in [
+        format!("/public/s/{}/archives", lab.id),
+        format!("/public/s/{}/archives/1", lab.id),
+    ] {
+        assert_eq!(f.server.get(&path).await.status_code(), 404, "{path}");
+    }
+    let v: ArchivesView = f
+        .server
+        .get(&format!("/public/s/{}/archives", f.society))
+        .await
+        .json();
+    assert!(v.archives.is_empty());
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn a_lab_society_is_never_public(pool: PgPool) {
+    let f = fixture(pool).await;
+    let (lab, _handle) = lab_society(&f).await;
 
     // The spectator routes: absent, and 404 by id.
     let public: SocietyList = f.server.get("/public/societies").await.json();

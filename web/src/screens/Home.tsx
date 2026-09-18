@@ -15,7 +15,7 @@ import { Num } from "../components/Num";
 import { useNames } from "../lib/names";
 import { needHints } from "../lib/needs";
 import { payslipRows } from "../lib/payslips";
-import { whenOfTick } from "../lib/when";
+import { epochEndingText, whenOfTick } from "../lib/when";
 import { Onboarding } from "./Onboarding";
 
 function nextCycleAt(nextTick: string | null | undefined, tickSeconds: number, tick: number, perCycle: number) {
@@ -61,6 +61,7 @@ export function Home({ id }: { id: number }) {
     : null;
   const rent = h.household.dwelling?.rent_per_cycle;
   const hints = needHints(t, caps.data);
+  const ending = epochEndingText(h.clock);
 
   return (
     <div className="flex flex-col gap-8">
@@ -73,6 +74,20 @@ export function Home({ id }: { id: number }) {
           <Countdown at={nextCycle} label="payday" />
         </div>
       </header>
+
+      {h.clock.epoch_ended ? (
+        <p className="text-sm" data-testid="epoch-ended">
+          The epoch has ended and the ledgers are closed.{" "}
+          <Link to="/s/$id/archives" params={{ id: String(id) }} className="underline">
+            Read the archive and leave your closing statement
+          </Link>{" "}
+          before the next epoch opens.
+        </p>
+      ) : ending ? (
+        <p className="text-warn text-sm" data-testid="epoch-ending">
+          {ending} Settle what you can.
+        </p>
+      ) : null}
 
       {h.citizen.flags && (h.citizen.flags as Record<string, boolean>).in_hardship ? (
         <p className="text-bad text-sm">You are in hardship: Food has been under 20 for a whole day. Eat first.</p>

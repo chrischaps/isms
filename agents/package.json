@@ -13,7 +13,8 @@
     "bootstrap": "tsx src/main.ts bootstrap",
     "play": "tsx src/main.ts run",
     "report": "tsx src/main.ts report",
-    "record": "tsx src/main.ts record"
+    "record": "tsx src/main.ts record",
+    "rollover": "tsx src/main.ts rollover"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

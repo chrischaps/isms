@@ -47,6 +47,7 @@ say "a fresh database and a lab Freeport ($EPOCH_CYCLES-day epoch, $TICK_SECONDS
 RUST_LOG=warn "$SERVER" migrate
 SID="$(RUST_LOG=warn "$SERVER" seed --preset freeport --class lab --name "lab-$RUN" --tick-seconds "$TICK_SECONDS" \
   --param "params.time.epoch_cycles=$EPOCH_CYCLES" \
+  --param "params.time.closing_window_minutes=${CLOSING_WINDOW_MINUTES:-1}" \
   --param params.population.collapse_enabled=false | tail -n 1)"
 export ISMS_SOCIETY="$SID"
 echo "society $SID in $DATABASE_URL"
@@ -63,6 +64,10 @@ curl -fsS "$ISMS_URL/public/societies" | grep -q "\"id\":$SID," && fail "the lab
 say "run the cohort: $PLAYERS players, brain $BRAIN"
 # AGENTS_CMD=record records one player's every exchange for the replay test (agents/test/replay.test.ts).
 pnpm --dir agents "${AGENTS_CMD:-play}" --run "$RUN" --players "$PLAYERS" --brain "$BRAIN" ${AGENTS_ARGS:-}
+
+say "the epoch's end: a closing statement, the archive, the rollover (S1.15)"
+# The lab seed keeps the statements window to a minute, so the next epoch starts inside the run.
+pnpm --dir agents rollover -- --run "$RUN" --wait "${ROLLOVER_WAIT:-180}" || fail "the epoch did not archive and roll over (see agents/runs/$RUN/rollover.json)"
 
 say "replay the log (conservation and determinism)"
 kill "$SERVER_PID" 2>/dev/null || true

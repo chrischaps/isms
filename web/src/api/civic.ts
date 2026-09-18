@@ -16,6 +16,8 @@ export type ExplainView = Schemas["ExplainView"];
 export type MessagesView = Schemas["MessagesView"];
 export type MessageView = Schemas["MessageView"];
 export type Me = Schemas["Me"];
+export type ArchivesView = Schemas["ArchivesView"];
+export type ArchiveView = Schemas["ArchiveView"];
 export type ApiKeyCreated = Schemas["ApiKeyCreated"];
 
 export const civicKeys = {
@@ -29,6 +31,8 @@ export const civicKeys = {
   publicSocieties: ["public", "societies"] as const,
   publicStats: (id: number) => ["public", id, "stats"] as const,
   publicChronicle: (id: number, cycle: number | null) => ["public", id, "chronicle", cycle] as const,
+  archives: (id: number) => ["society", id, "archives"] as const,
+  publicArchives: (id: number) => ["public", id, "archives"] as const,
 };
 
 export function useStats(id: number) {
@@ -153,6 +157,36 @@ export function usePublicStats(id: number) {
     queryKey: civicKeys.publicStats(id),
     queryFn: async () => unwrap(await api.GET("/public/s/{id}/stats", { params: { path: { id } } })),
     refetchInterval: TICK_FALLBACK_MS,
+  });
+}
+
+/** Every finished epoch, with the caller's own closing statement marked (S1.15). */
+export function useArchives(id: number) {
+  return useQuery({
+    queryKey: civicKeys.archives(id),
+    queryFn: async () => unwrap(await api.GET("/s/{id}/archives", { params: { path: { id } } })),
+    refetchInterval: TICK_FALLBACK_MS,
+  });
+}
+
+export function usePublicArchives(id: number) {
+  return useQuery({
+    queryKey: civicKeys.publicArchives(id),
+    queryFn: async () => unwrap(await api.GET("/public/s/{id}/archives", { params: { path: { id } } })),
+    refetchInterval: TICK_FALLBACK_MS,
+  });
+}
+
+/** One closing statement per citizen, replaced on every write, until the window closes. */
+export function useClosingStatement(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (text: string) =>
+      unwrap(await api.PUT("/s/{id}/closing-statement", { params: { path: { id } }, body: { text } })),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: civicKeys.archives(id) });
+      void qc.invalidateQueries({ queryKey: civicKeys.publicArchives(id) });
+    },
   });
 }
 

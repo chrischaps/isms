@@ -13,8 +13,9 @@ use isms_core::ids::{Cycle, Epoch, Tick};
 use isms_core::kinds::ClientKind;
 use isms_core::rules::Rules;
 use isms_core::tick::{TickError, TickInput, start_epoch, tick};
-use isms_core::world::World;
+use isms_core::world::{EpochEndReason, World};
 use isms_core::{apply, handle};
+use isms_store::archives::NewArchive;
 use isms_store::{EventMeta, EventStore, Loaded, NewEvent, PgEventStore, StoreError};
 use std::sync::Arc;
 use std::time::Instant;
@@ -254,7 +255,12 @@ impl SocietyActor {
         }
         let first_seq = self.next_seq;
         let (tick, cycle) = (batch[0].meta.tick, batch[0].meta.cycle);
-        if let Err(e) = self.store.append_batch(self.id, first_seq, &batch).await {
+        let archive = self.archive_for(first_seq, &batch).await?;
+        if let Err(e) = self
+            .store
+            .append_batch_archiving(self.id, first_seq, &batch, archive.as_ref())
+            .await
+        {
             if matches!(e, StoreError::SeqCollision { .. }) {
                 tracing::error!(
                     society = self.id,
@@ -279,6 +285,46 @@ impl SocietyActor {
             events,
         }));
         Ok(Some(first_seq))
+    }
+
+    /// The archive row an `EpochEnded` in the batch leaves behind (S1.15):
+    /// the engine's frozen summary and the closing-statements window, open
+    /// for the society's `closing_window_minutes` from now. `None` when the
+    /// batch ends nothing.
+    async fn archive_for(
+        &self,
+        first_seq: i64,
+        batch: &[NewEvent],
+    ) -> Result<Option<NewArchive>, ActorError> {
+        let Some((offset, e)) = batch
+            .iter()
+            .enumerate()
+            .find(|(_, e)| matches!(e.event, Event::EpochEnded { .. }))
+        else {
+            return Ok(None);
+        };
+        let Event::EpochEnded {
+            reason,
+            cycle,
+            summary,
+        } = &e.event
+        else {
+            return Ok(None);
+        };
+        let minutes = self.world.read().await.params.time.closing_window_minutes;
+        let reason = match reason {
+            EpochEndReason::Scheduled => "scheduled",
+            EpochEndReason::Collapse => "collapse",
+            EpochEndReason::Operator => "operator",
+        };
+        Ok(Some(NewArchive {
+            epoch: i32::try_from(e.meta.epoch).map_err(StoreError::from)?,
+            reason: reason.to_owned(),
+            final_cycle: i32::try_from(*cycle).map_err(StoreError::from)?,
+            ended_seq: first_seq + i64::try_from(offset).map_err(StoreError::from)?,
+            summary: serde_json::to_value(summary).map_err(StoreError::from)?,
+            closes_at: chrono::Utc::now() + chrono::Duration::minutes(i64::from(minutes)),
+        }))
     }
 
     async fn command(

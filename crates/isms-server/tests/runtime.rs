@@ -207,7 +207,12 @@ async fn three_tick_outage_catches_up_in_order(pool: PgPool) {
     };
     let cancel = CancellationToken::new();
     let control = std::sync::Arc::new(scheduler::Control::new(schedule, false));
-    let task = tokio::spawn(scheduler::run(handle.clone(), control, cancel.clone()));
+    let task = tokio::spawn(scheduler::run(
+        handle.clone(),
+        control,
+        store.clone(),
+        cancel.clone(),
+    ));
     let h = handle.clone();
     wait_until(Duration::from_secs(10), async || {
         h.world.read().await.meta.tick >= 4
@@ -289,4 +294,67 @@ async fn runtime_starts_every_active_society(pool: PgPool) {
     );
     assert!(runtime.handle(a.id).is_some());
     runtime.shutdown().await.unwrap();
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn the_epoch_ends_archives_and_rolls_over_after_the_window(pool: PgPool) {
+    // S1.15: a lab society on a two-day epoch with a one-minute window, as
+    // fast as it can tick. The archive row lands with EpochEnded; the
+    // scheduler waits out the window and then starts epoch 2 on its own.
+    fast_commits(&pool).await;
+    let store = PgEventStore::from_pool(pool);
+    let mut s = spec(0);
+    s.class = "lab".into();
+    s.overrides.push((
+        "params.time.epoch_cycles".to_owned(),
+        toml::Value::Integer(2),
+    ));
+    s.overrides.push((
+        "params.time.closing_window_minutes".to_owned(),
+        toml::Value::Integer(1),
+    ));
+    let row = seed_society(&store, Path::new(WORKSPACE_PRESETS_DIR), &s)
+        .await
+        .expect("seed");
+    let cancel = CancellationToken::new();
+    let running = start_society(&store, &row, StartOptions::default(), &cancel)
+        .await
+        .unwrap();
+    let h = running.handle.clone();
+    wait_until(Duration::from_secs(120), async || {
+        h.world.read().await.meta.epoch_ended.is_some()
+    })
+    .await;
+    let ended_at = Utc::now();
+    let archive = store
+        .latest_archive(row.id)
+        .await
+        .unwrap()
+        .expect("the archive row is written with EpochEnded");
+    assert_eq!((archive.epoch, archive.reason.as_str(), archive.final_cycle), (0, "scheduled", 1));
+    let ended = store.read_one(row.id, archive.ended_seq).await.unwrap().unwrap();
+    let Event::EpochEnded { summary, .. } = &ended.event else {
+        panic!("ended_seq {} is {}", archive.ended_seq, ended.event.kind());
+    };
+    assert_eq!(archive.summary, serde_json::to_value(summary).unwrap());
+    assert!(archive.closes_at > ended_at + ChronoDuration::seconds(30));
+    assert!(archive.closes_at <= ended_at + ChronoDuration::seconds(61));
+    assert!(archive.statements().is_empty());
+    // The window holds: no rollover for the first seconds of it.
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    assert_eq!(h.world.read().await.meta.epoch, 0);
+    // Then the statements close and epoch 2 ticks on its own.
+    wait_until(Duration::from_secs(120), async || {
+        let w = h.world.read().await;
+        w.meta.epoch == 1 && w.meta.tick >= 2
+    })
+    .await;
+    let closed = store.archive(row.id, 0).await.unwrap().unwrap();
+    assert!(closed.closes_at <= Utc::now());
+    let rows = store.list_societies().await.unwrap();
+    let mine = rows.iter().find(|r| r.id == row.id).unwrap();
+    assert_eq!((mine.epoch, mine.status.as_str()), (1, "active"));
+    running.shutdown(&cancel).await.unwrap();
+    let loaded = load_world(&store, row.id).await.unwrap();
+    conservation_check(&loaded.world).unwrap();
 }

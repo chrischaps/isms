@@ -4,16 +4,17 @@
 //   pnpm run -- --run <name> [--players N] [--brain scripted|llm|mixed] [--model id] [--cycle-model id] [--max-usd n] [--record <player>]
 //   pnpm bootstrap -- --run <name>
 //   pnpm report <run>
+//   pnpm rollover -- --run <name> [--wait <seconds>]   (S1.15: a closing statement, the archive, the next epoch)
 //
 // Environment: ISMS_URL, ISMS_SOCIETY, ISMS_SERVER_BIN, DATABASE_URL, ANTHROPIC_API_KEY.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { appendFileSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { makeClient, unwrap } from "./api/client.ts";
+import { ApiError, makeClient, unwrap, type Client } from "./api/client.ts";
 import { liveTransport, recordingTransport, type Transport } from "./api/transport.ts";
-import { ensurePlayers } from "./bootstrap/accounts.ts";
+import { ensurePlayers, type PlayerAccount } from "./bootstrap/accounts.ts";
 import type { Brain, Persona } from "./brain/brain.ts";
 import { AnthropicBrain } from "./brain/llm/anthropic.ts";
 import { ScriptedBrain } from "./brain/scripted/index.ts";
@@ -56,6 +57,76 @@ function log(line: string) {
   console.log(`${at} ${line}`);
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** What the epoch-end sequence left behind, for the report (S1.15). */
+export type Rollover = {
+  archived_epoch: number;
+  reason: string;
+  final_cycle: number;
+  ended_at: string;
+  closes_at: string;
+  statements: number;
+  statement_by: string | null;
+  /** When the next epoch was first seen ticking; null when the wait ran out. */
+  next_epoch_at: string | null;
+  next_epoch: number | null;
+};
+
+/** After a run that ended with the epoch: the first player leaves a closing
+ *  statement, then we wait for the window to close and the next epoch to
+ *  tick on its own. Writes `rollover.json` beside the journals. */
+export async function rollover(client: Client, sid: number, player: PlayerAccount, waitSeconds: number): Promise<Rollover> {
+  const deadline = Date.now() + waitSeconds * 1000;
+  const path = { params: { path: { id: sid } } };
+  let archive = null;
+  while (archive === null) {
+    const v = unwrap(await client.GET("/s/{id}/archives", path));
+    archive = v.archives.at(-1) ?? null;
+    if (archive === null) {
+      if (Date.now() > deadline) throw new Error(`no epoch archive within ${waitSeconds}s`);
+      await sleep(1000);
+    }
+  }
+  log(`archive: epoch ${archive.epoch} ended (${archive.reason}) after day ${archive.final_cycle}; statements close at ${archive.closes_at}`);
+  let by: string | null = null;
+  try {
+    const written = unwrap(
+      await client.PUT("/s/{id}/closing-statement", {
+        ...path,
+        body: { text: `${player.handle} played this epoch as the ${player.persona}. The ledgers are what they are.` },
+      }),
+    );
+    by = player.handle;
+    archive = written;
+    log(`closing statement left by ${player.handle}; the archive holds ${written.closing_statements.length}`);
+  } catch (e) {
+    log(`closing statement refused: ${e instanceof ApiError ? `${e.code} ${e.message}` : String(e)}`);
+  }
+  let nextAt: string | null = null;
+  let next: number | null = null;
+  while (nextAt === null && Date.now() <= deadline) {
+    const s = unwrap(await client.GET("/s/{id}/stats", path));
+    if (s.clock.epoch > archive.epoch && s.clock.engine_tick >= 1) {
+      nextAt = new Date().toISOString();
+      next = s.clock.epoch;
+      log(`epoch ${s.clock.epoch} is ticking (day ${s.clock.cycle}, hour ${s.clock.tick})`);
+    } else await sleep(1000);
+  }
+  if (nextAt === null) log(`no rollover within ${waitSeconds}s`);
+  return {
+    archived_epoch: archive.epoch,
+    reason: archive.reason,
+    final_cycle: archive.final_cycle,
+    ended_at: archive.ended_at,
+    closes_at: archive.closes_at,
+    statements: archive.closing_statements.length,
+    statement_by: by,
+    next_epoch_at: nextAt,
+    next_epoch: next,
+  };
+}
+
 async function main(argv: string[]) {
   const [cmd, ...rest] = argv;
   if (cmd === "report") {
@@ -69,7 +140,31 @@ async function main(argv: string[]) {
     console.log(file);
     return;
   }
-  if (cmd !== "run" && cmd !== "bootstrap" && cmd !== "record") throw new Error("usage: run | bootstrap | report | record");
+  if (cmd === "rollover") {
+    const { values } = parseArgs({
+      args: rest.filter((a) => a !== "--"),
+      options: { run: { type: "string" }, wait: { type: "string", default: "180" } },
+    });
+    if (!values.run) throw new Error("usage: rollover --run <name> [--wait <seconds>]");
+    const env = readEnv();
+    const runDir = join(RUNS_DIR, values.run);
+    const accountsFile = join(runDir, "accounts.json");
+    if (!existsSync(accountsFile)) throw new Error(`${accountsFile} is missing: run the cohort first`);
+    const accounts = JSON.parse(readFileSync(accountsFile, "utf8")) as PlayerAccount[];
+    const first = accounts[0];
+    if (!first) throw new Error("no players in accounts.json");
+    const client = makeClient({ baseUrl: env.ismsUrl, auth: { key: first.key } });
+    const r = await rollover(client, env.society, first, Number(values.wait));
+    writeFileSync(join(runDir, "rollover.json"), JSON.stringify(r, null, 2) + "\n");
+    // The report was written when the cohort stopped; write it again with the ending in it.
+    const md = buildReport(fold(runDir, values.run));
+    writeFileSync(join(runDir, "report.md"), md);
+    mkdirSync(REPORTS_DIR, { recursive: true });
+    writeFileSync(join(REPORTS_DIR, `${values.run}.md`), md);
+    if (r.next_epoch_at === null) process.exitCode = 1;
+    return;
+  }
+  if (cmd !== "run" && cmd !== "bootstrap" && cmd !== "record") throw new Error("usage: run | bootstrap | report | record | rollover");
 
   // pnpm hands a literal `--` through to the script.
   const { values } = parseArgs({

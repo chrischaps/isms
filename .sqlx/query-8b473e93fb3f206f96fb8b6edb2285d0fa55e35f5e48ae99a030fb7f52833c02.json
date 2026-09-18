@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT closing_statements FROM epoch_archives\n             WHERE society_id = $1 AND epoch = $2 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "closing_statements",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8b473e93fb3f206f96fb8b6edb2285d0fa55e35f5e48ae99a030fb7f52833c02"
+}

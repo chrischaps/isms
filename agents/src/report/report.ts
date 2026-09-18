@@ -39,6 +39,8 @@ export type Folded = {
   run: string;
   summary: Summary | null;
   stats: Record<string, unknown> | null;
+  /** S1.15: what the epoch-end sequence left behind, when the run waited for it. */
+  rollover: Record<string, unknown> | null;
   players: Map<string, JournalRecord[]>;
   turns: TurnRecord[];
 };
@@ -51,11 +53,13 @@ export function fold(runDir: string, run: string): Folded {
   }
   const summaryFile = join(runDir, "summary.json");
   const statsFile = join(runDir, "stats.json");
+  const rolloverFile = join(runDir, "rollover.json");
   const turns = [...players.values()].flat().filter((r): r is TurnRecord => r.kind === "turn");
   return {
     run,
     summary: existsSync(summaryFile) ? (JSON.parse(readFileSync(summaryFile, "utf8")) as Summary) : null,
     stats: existsSync(statsFile) ? (JSON.parse(readFileSync(statsFile, "utf8")) as Record<string, unknown> | null) : null,
+    rollover: existsSync(rolloverFile) ? (JSON.parse(readFileSync(rolloverFile, "utf8")) as Record<string, unknown>) : null,
     players,
     turns,
   };
@@ -123,6 +127,16 @@ export function buildReport(f: Folded): string {
     }
   } else out.push("(no /stats snapshot)");
   out.push("");
+  if (f.rollover) {
+    const r = f.rollover;
+    const windowSecs = Math.round((new Date(String(r.closes_at)).getTime() - new Date(String(r.ended_at)).getTime()) / 1000);
+    out.push(
+      "## The epoch's end",
+      "",
+      `Epoch ${String(r.archived_epoch)} ended (${String(r.reason)}) after day ${String(r.final_cycle)} and was archived with ${String(r.statements)} closing statement${Number(r.statements) === 1 ? "" : "s"}${r.statement_by ? ` (one by ${String(r.statement_by)})` : ""}; the window was ${windowSecs} s. ${r.next_epoch_at ? `Epoch ${String(r.next_epoch)} started on its own at ${String(r.next_epoch_at)}.` : "The next epoch did not start within the wait."}`,
+      "",
+    );
+  }
 
   // Rejections
   const groups = new Map<string, Map<string, Rejection>>();
