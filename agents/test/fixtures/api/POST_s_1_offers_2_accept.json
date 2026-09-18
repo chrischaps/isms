@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "no offer f2",
+  "code": "unknown_offer"
+ }
+}

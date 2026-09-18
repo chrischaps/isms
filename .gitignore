@@ -7,3 +7,5 @@
 /docs/tuning/runs
 /web/test-results
 /web/playwright-report
+/agents/node_modules
+/agents/runs

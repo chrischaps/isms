@@ -1,0 +1,768 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 5,
+   "ticks_per_cycle": 24,
+   "engine_tick": 4,
+   "epoch_ended": false
+  },
+  "offers": [
+   {
+    "id": 1,
+    "by": {
+     "org": 0
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        0,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 2,
+    "by": {
+     "org": 1
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 1,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 1,
+      "term_cycles": null,
+      "workplace": 1
+     }
+    }
+   },
+   {
+    "id": 3,
+    "by": {
+     "org": 1
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        1,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 4,
+    "by": {
+     "org": 2
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 2,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 3,
+      "term_cycles": null,
+      "workplace": 2
+     }
+    }
+   },
+   {
+    "id": 5,
+    "by": {
+     "org": 2
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        2,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 6,
+    "by": {
+     "org": 3
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 3,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 3,
+      "term_cycles": null,
+      "workplace": 3
+     }
+    }
+   },
+   {
+    "id": 7,
+    "by": {
+     "org": 3
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        3,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 8,
+    "by": {
+     "org": 4
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 4,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 4
+     }
+    }
+   },
+   {
+    "id": 9,
+    "by": {
+     "org": 4
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        4,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 10,
+    "by": {
+     "org": 5
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 5,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 5
+     }
+    }
+   },
+   {
+    "id": 11,
+    "by": {
+     "org": 5
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        5,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 12,
+    "by": {
+     "org": 6
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 6,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 6
+     }
+    }
+   },
+   {
+    "id": 13,
+    "by": {
+     "org": 6
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        6,
+        100
+       ]
+      },
+      "price": {
+       "money": 43800
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 14,
+    "by": {
+     "org": 7
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 7,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 7
+     }
+    }
+   },
+   {
+    "id": 15,
+    "by": {
+     "org": 7
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        7,
+        100
+       ]
+      },
+      "price": {
+       "money": 43800
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 16,
+    "by": {
+     "org": 8
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 8,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 8
+     }
+    }
+   },
+   {
+    "id": 17,
+    "by": {
+     "org": 8
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        8,
+        100
+       ]
+      },
+      "price": {
+       "money": 43800
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 18,
+    "by": {
+     "org": 9
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 9,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 9
+     }
+    }
+   },
+   {
+    "id": 19,
+    "by": {
+     "org": 9
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        9,
+        100
+       ]
+      },
+      "price": {
+       "money": 87200
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 20,
+    "by": {
+     "org": 10
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 10,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 10
+     }
+    }
+   },
+   {
+    "id": 21,
+    "by": {
+     "org": 10
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        10,
+        100
+       ]
+      },
+      "price": {
+       "money": 87200
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 22,
+    "by": {
+     "org": 11
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 11,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 11
+     }
+    }
+   },
+   {
+    "id": 23,
+    "by": {
+     "org": 11
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        11,
+        100
+       ]
+      },
+      "price": {
+       "money": 87200
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 24,
+    "by": {
+     "org": 12
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 12,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 12
+     }
+    }
+   },
+   {
+    "id": 25,
+    "by": {
+     "org": 12
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        12,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 26,
+    "by": {
+     "org": 13
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 13,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 13
+     }
+    }
+   },
+   {
+    "id": 27,
+    "by": {
+     "org": 13
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        13,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 28,
+    "by": {
+     "org": 14
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 14,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 14
+     }
+    }
+   },
+   {
+    "id": 29,
+    "by": {
+     "org": 14
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        14,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 30,
+    "by": {
+     "org": 15
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 15,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 15
+     }
+    }
+   },
+   {
+    "id": 31,
+    "by": {
+     "org": 15
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        15,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 32,
+    "by": {
+     "org": 16
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 16,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 16
+     }
+    }
+   },
+   {
+    "id": 53,
+    "by": {
+     "org": 16
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        16,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   },
+   {
+    "id": 54,
+    "by": {
+     "org": 17
+    },
+    "created_tick": 0,
+    "kind": "employment",
+    "body": {
+     "employment": {
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "org": 17,
+      "pay": {
+       "hourly": 800
+      },
+      "places": 4,
+      "term_cycles": null,
+      "workplace": 17
+     }
+    }
+   },
+   {
+    "id": 75,
+    "by": {
+     "org": 17
+    },
+    "created_tick": 0,
+    "kind": "sale",
+    "body": {
+     "sale": {
+      "asset": {
+       "shares": [
+        17,
+        100
+       ]
+      },
+      "price": {
+       "money": 38400
+      },
+      "to": null
+     }
+    }
+   }
+  ]
+ }
+}

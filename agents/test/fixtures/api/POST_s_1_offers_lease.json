@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "Citizen(c47) does not own d1",
+  "code": "not_owner"
+ }
+}

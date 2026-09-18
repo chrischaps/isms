@@ -944,7 +944,7 @@ These can interleave with Phase 1's server/web sessions. Each adds capability-ga
 - **Build.** `Dockerfile` (multi-stage; embeds the web build), `docker-compose.yml`, `Caddyfile`, `.env.example`, `deploy.yml` (GHCR + SSH), `backup.sh` with restore instructions and a tested restore on a throwaway container, `/healthz` and `/metrics`, `isms-server seed --preset freeport --name freeport-1 --tick-seconds 3600 --cycle-boundary 04:00 --tz America/Chicago` creating the first society with householders (the boundary is stored in UTC), a `RUNBOOK.md` (deploy, rollback, restore, rotate a key, pause a society).
 - **Done gate.** A clean VPS reaches a working society over HTTPS from the runbook alone; restore drill passes; CI deploy is green.
 
-#### S1.16 — Synthetic players *(new, ADR-0009; runs before S1.15)*
+#### S1.16 — Synthetic players *(new, ADR-0009; runs before S1.15; built as a hybrid of scripted and model-driven brains, ADR-0010)*
 - **Goal.** A cohort of LLM-driven players that play a society through the public API the way strategic people would, and write down where the game confused or refused them.
 - **Read.** ADR-0009; GDD §9.1 (core loop), §11.4 (player agents); TDD §10 (API), §10.2 (one API); `docs/SCRIPT.md` (what householders already do, so personas do not repeat it); `scripts/e2e/core-loop.sh` (the loop as commands).
 - **Build.**

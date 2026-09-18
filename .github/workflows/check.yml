@@ -37,12 +37,16 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          cache-dependency-path: |
+            web/pnpm-lock.yaml
+            agents/pnpm-lock.yaml
       - run: make check
       - name: OpenAPI lint (S1.3)
         run: make openapi-lint
       - name: Core loop end to end (S1.6)
         run: make e2e
+      - name: Scripted cohort against a lab society (S1.16)
+        run: make e2e-agents
       - name: Playwright browsers
         run: pnpm --dir web exec playwright install --with-deps chromium
       - name: Web end to end (S1.7)

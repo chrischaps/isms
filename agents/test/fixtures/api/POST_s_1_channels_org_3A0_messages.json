@@ -1,0 +1,9 @@
+{
+ "status": 403,
+ "body": {
+  "type": "about:blank",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "you are not in this channel"
+ }
+}

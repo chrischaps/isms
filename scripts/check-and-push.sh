@@ -46,15 +46,16 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 
 # What the diff can break decides what runs. Anything unrecognised gets the full check.
-engine=0 rust=0 web=0
+engine=0 rust=0 web=0 agents=0
 while IFS= read -r f; do
   case "$f" in
     crates/isms-core/* | crates/isms-sim/* | presets/*) engine=1 ;;
     docs/* | *.md) ;;
     web/*) web=1 ;;
-    crates/isms-api-types/*) rust=1 web=1 ;;
+    agents/*) agents=1 ;;
+    crates/isms-api-types/*) rust=1 web=1 agents=1 ;;
     crates/* | Cargo.toml | Cargo.lock | .sqlx/* | rust-toolchain*) rust=1 ;;
-    *) rust=1 web=1 ;;
+    *) rust=1 web=1 agents=1 ;;
   esac
 done < <(git diff --name-only "$base" "$sha")
 
@@ -67,6 +68,7 @@ fi
 targets=""
 [ "$rust" = 1 ] && targets="fmt-check clippy test"
 [ "$web" = 1 ] && targets="${targets:+$targets }web-check"
+[ "$agents" = 1 ] && targets="${targets:+$targets }agents-check"
 
 if ! mkdir "$lock" 2>/dev/null; then
   echo "check-and-push: a check is already running for $(cat "$lock/sha" 2>/dev/null || echo '?')." >&2

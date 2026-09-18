@@ -12,9 +12,9 @@ export DATABASE_URL ?= postgres://isms:isms@localhost:5433/isms
 EPOCHS ?= 5
 SEED   ?= 1
 
-.PHONY: check push hooks fmt fmt-check clippy test web-check db db-stop dev e2e e2e-web sim sim-check sim-all sqlx-prepare openapi-lint api-types
+.PHONY: check push hooks fmt fmt-check clippy test web-check agents-check agents e2e-agents db db-stop dev e2e e2e-web sim sim-check sim-all sqlx-prepare openapi-lint api-types
 
-check: fmt-check clippy test web-check
+check: fmt-check clippy test web-check agents-check
 
 # Non-engine work on main: check HEAD in ../Isms-check (only what its diff can break), push on green.
 push:
@@ -45,6 +45,11 @@ sqlx-prepare:
 web-check:
 	pnpm --dir web install --frozen-lockfile
 	pnpm --dir web check
+
+# The synthetic-player harness (S1.16): typecheck, lint, and its recorded-API tests (no model calls).
+agents-check:
+	pnpm --dir agents install --frozen-lockfile
+	pnpm --dir agents check
 
 # Local Postgres for the store, the server, and sqlx::test (deploy/docker-compose.dev.yml).
 db:
@@ -81,6 +86,7 @@ openapi-lint:
 api-types:
 	cargo run -q -p isms-server -- openapi > target/openapi.json
 	pnpm --dir web api-types
+	pnpm --dir agents api-types
 
 # Playwright against a live server (S1.7).
 e2e-web:
@@ -90,3 +96,17 @@ e2e-web:
 .PHONY: sim-detail
 sim-detail:
 	cargo run -p isms-sim --release -- run --preset $(PRESET) --epochs $(EPOCHS) --seed $(SEED) --out docs/tuning/runs --detail
+
+# A synthetic cohort against a throwaway lab society (S1.16): report in docs/playtest/runs/<RUN>.md.
+# BRAIN=scripted costs nothing; mixed and llm need ANTHROPIC_API_KEY in the environment or .env.
+RUN ?= $(shell date +%Y%m%d-%H%M)
+PLAYERS ?= 8
+TICK_SECONDS ?= 10
+EPOCH_CYCLES ?= 7
+BRAIN ?= mixed
+agents:
+	set -a; [ -f .env ] && . ./.env; set +a; RUN=$(RUN) PLAYERS=$(PLAYERS) TICK_SECONDS=$(TICK_SECONDS) EPOCH_CYCLES=$(EPOCH_CYCLES) BRAIN=$(BRAIN) bash scripts/agents/run.sh
+
+# The scripted cohort as a regression: two fast days, every probe refused, no 5xx, no turn in error (CI).
+e2e-agents:
+	set -a; [ -f .env ] && . ./.env; set +a; RUN=e2e-$(shell date +%s) PLAYERS=8 TICK_SECONDS=1 EPOCH_CYCLES=2 BRAIN=scripted ASSERT_CLEAN=1 bash scripts/agents/run.sh

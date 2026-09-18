@@ -1,0 +1,52 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 5,
+   "ticks_per_cycle": 24,
+   "engine_tick": 4,
+   "epoch_ended": false
+  },
+  "first_seq": 964,
+  "events": [
+   {
+    "seq": 964,
+    "tick": 4,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "EmploymentAccepted",
+    "payload": {
+     "EmploymentAccepted": {
+      "citizen": 47,
+      "contract": 86,
+      "max_hours": 8,
+      "notice_cycles": 1,
+      "offer": 4,
+      "org": 2,
+      "pay": {
+       "hourly": 800
+      },
+      "term_cycles": null,
+      "workplace": 2
+     }
+    }
+   },
+   {
+    "seq": 965,
+    "tick": 4,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "Assigned",
+    "payload": {
+     "Assigned": {
+      "citizen": 47,
+      "contract": 86,
+      "workplace": 2
+     }
+    }
+   }
+  ]
+ }
+}

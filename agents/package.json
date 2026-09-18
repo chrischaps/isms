@@ -1,0 +1,36 @@
+{
+  "name": "isms-agents",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Synthetic players for Isms (S1.16): scripted and LLM brains that play a lab society through the public API and journal what refused or confused them.",
+  "scripts": {
+    "api-types": "openapi-typescript ../target/openapi.json -o src/api/schema.d.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --passWithNoTests",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "bootstrap": "tsx src/main.ts bootstrap",
+    "play": "tsx src/main.ts run",
+    "report": "tsx src/main.ts report",
+    "record": "tsx src/main.ts record"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
+    "gray-matter": "^4.0.3",
+    "openapi-fetch": "^0.17.0",
+    "smol-toml": "^1.8.0",
+    "ws": "^8.21.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/ws": "^8.18.1",
+    "openapi-typescript": "^7.13.0",
+    "oxlint": "^1.81.0",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
+  },
+  "packageManager": "pnpm@10.30.0"
+}

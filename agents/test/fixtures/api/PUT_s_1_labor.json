@@ -1,0 +1,35 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 6,
+   "ticks_per_cycle": 24,
+   "engine_tick": 5,
+   "epoch_ended": false
+  },
+  "first_seq": 1095,
+  "events": [
+   {
+    "seq": 1095,
+    "tick": 5,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "LaborSet",
+    "payload": {
+     "LaborSet": {
+      "allocations": [
+       {
+        "effort": "normal",
+        "hours": 8,
+        "workplace": 2
+       }
+      ],
+      "citizen": 47
+     }
+    }
+   }
+  ]
+ }
+}

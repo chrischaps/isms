@@ -1,0 +1,187 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 5,
+   "ticks_per_cycle": 24,
+   "engine_tick": 4,
+   "epoch_ended": false
+  },
+  "citizen": {
+   "id": 47,
+   "handle": "rule-prober-1",
+   "dormant": false,
+   "joined_tick": 3,
+   "last_seen_tick": 4,
+   "flags": {
+    "defaulted": false,
+    "destitute": false,
+    "in_hardship": false,
+    "options_narrowed": false
+   }
+  },
+  "household": {
+   "balance": 96856,
+   "pantry": {},
+   "pantry_capacity": {
+    "food": 48,
+    "wares": 48
+   },
+   "dwelling": null
+  },
+  "needs": {
+   "food": 96.0,
+   "shelter": 98.0,
+   "comfort": 98.0,
+   "low_food_ticks_this_cycle": 0
+  },
+  "labor": {
+   "budget": 8,
+   "fatigue_debt": 0,
+   "output_mult": 0.7,
+   "allocations": [],
+   "skills": [],
+   "employment": [],
+   "effort": {
+    "output_mult": [
+     0.6,
+     1.0,
+     1.3
+    ],
+    "food_decay_mult": [
+     0.8,
+     1.0,
+     1.3
+    ],
+    "high_effort_debt_after_cycles": 2,
+    "high_effort_debt_hours": 1,
+    "max_workplaces": 2
+   }
+  },
+  "plan": {
+   "buy_wares_when": null,
+   "keep_balance_at_least": 0,
+   "keep_food_at_least": 24,
+   "labor": "explicit",
+   "max_food_price": null,
+   "standing_orders": [],
+   "vote_default": "abstain"
+  },
+  "since_last_seen": {
+   "since_tick": 3,
+   "events": [
+    {
+     "seq": 813,
+     "tick": 3,
+     "cycle": 0,
+     "epoch": 0,
+     "kind": "CitizenJoined",
+     "payload": {
+      "CitizenJoined": {
+       "citizen": 47,
+       "dwelling": null,
+       "endowment": 100000,
+       "explain": {
+        "formula": "endowment",
+        "inputs": [
+         [
+          "endowment",
+          {
+           "Money": 100000
+          }
+         ]
+        ],
+        "result": {
+         "Money": 100000
+        },
+        "rule": "endowment"
+       },
+       "handle": "rule-prober-1",
+       "kind": "human"
+      }
+     }
+    },
+    {
+     "seq": 875,
+     "tick": 3,
+     "cycle": 0,
+     "epoch": 0,
+     "kind": "OrderPlaced",
+     "payload": {
+      "OrderPlaced": {
+       "escrow": {
+        "money": 3144
+       },
+       "order": {
+        "expires_tick": 47,
+        "id": 188,
+        "instrument": {
+         "good": "food"
+        },
+        "limit_price": 131,
+        "owner": {
+         "citizen": 47
+        },
+        "placed_tick": 3,
+        "qty": 24,
+        "remaining": 24,
+        "side": "bid",
+        "source": "standing"
+       }
+      }
+     }
+    },
+    {
+     "seq": 954,
+     "tick": 4,
+     "cycle": 0,
+     "epoch": 0,
+     "kind": "CitizenSeen",
+     "payload": {
+      "CitizenSeen": {
+       "citizen": 47,
+       "client_kind": "api_key",
+       "tick": 4
+      }
+     }
+    }
+   ]
+  },
+  "headlines": [
+   {
+    "seq": 809,
+    "tick": 3,
+    "text": "saver-1 arrives with 1000.00 credits and nothing else."
+   },
+   {
+    "seq": 810,
+    "tick": 3,
+    "text": "slacker-1 arrives with 1000.00 credits and nothing else."
+   },
+   {
+    "seq": 811,
+    "tick": 3,
+    "text": "borrower-1 arrives with 1000.00 credits and nothing else."
+   },
+   {
+    "seq": 812,
+    "tick": 3,
+    "text": "landlord-1 arrives with 1000.00 credits and nothing else."
+   },
+   {
+    "seq": 813,
+    "tick": 3,
+    "text": "rule-prober-1 arrives with 1000.00 credits and nothing else."
+   }
+  ],
+  "society": {
+   "population": 48,
+   "active_humans": 8,
+   "price_index": 1.0004291845493563,
+   "food_last_price": 131,
+   "unemployed": 8
+  }
+ }
+}

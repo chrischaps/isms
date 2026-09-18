@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "a workplace needs 20 Materials; pantry holds 0",
+  "code": "insufficient_goods"
+ }
+}

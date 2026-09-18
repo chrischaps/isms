@@ -1,0 +1,34 @@
+# Synthetic players (S1.16). CLI flags override these; personas may override
+# `models` for themselves in their frontmatter.
+
+[models]
+# Plays each hour's turn. `claude-haiku-4-5` is the cheap option, `claude-opus-5` the careful one.
+turn = "claude-sonnet-5"
+# Rewrites a player's notes and plan once a day.
+cycle = "claude-opus-5"
+# Effort for turn models with adaptive thinking (Sonnet 5, Opus 5): low | medium | high.
+turn_effort = "low"
+# Thinking budget for Haiku 4.5, which takes a token budget instead.
+haiku_thinking_budget = 2048
+
+[turn]
+# Act tools per hour (reads are free); accepted or refused, each counts.
+max_actions_per_turn = 4
+max_tokens = 4096
+# Players taking turns at once.
+concurrency = 4
+# A player still mid-turn when the next hour lands: skip that hour, or queue one turn.
+overrun = "skip"
+
+[budget]
+# The run stops cleanly, and still writes its report, at either limit.
+max_tokens = 15_000_000
+max_usd = 40
+
+[run]
+players = 8
+# Poll /home this often when the WebSocket is down.
+poll_ms = 3000
+personas = ["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord", "rule-prober"]
+# scripted (free, deterministic) | llm (every persona on a model) | mixed (each persona's own choice)
+brain = "mixed"
