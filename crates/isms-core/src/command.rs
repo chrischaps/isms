@@ -168,6 +168,12 @@ pub enum Command {
     RemoveWanted {
         offer: OfferId,
     },
+    /// Q109 (S1.15): whoever posted an open employment, credit, lease, sale or
+    /// wanted offer may take it back; accepted contracts are untouched. Sale
+    /// and wanted offers keep their own events (`SaleCancelled`, `WantedRemoved`).
+    WithdrawOffer {
+        offer: OfferId,
+    },
     OfferCredit {
         to: Option<Party>,
         principal: Money,
@@ -323,6 +329,7 @@ impl Command {
             Command::CancelSale { .. } => "CancelSale",
             Command::PostWanted { .. } => "PostWanted",
             Command::RemoveWanted { .. } => "RemoveWanted",
+            Command::WithdrawOffer { .. } => "WithdrawOffer",
             Command::OfferCredit { .. } => "OfferCredit",
             Command::AcceptCredit { .. } => "AcceptCredit",
             Command::OfferLease { .. } => "OfferLease",
@@ -434,6 +441,7 @@ impl Capabilities {
             | Command::SetLabor { .. }
             | Command::PostWanted { .. }
             | Command::RemoveWanted { .. }
+            | Command::WithdrawOffer { .. }
             | Command::RequestMembership { .. }
             | Command::AdmitMember { .. }
             | Command::LeaveOrg { .. }
@@ -537,6 +545,9 @@ pub fn handle(
             max_price,
         } => crate::transfers::post_wanted(world, envelope, *good, *qty, *max_price),
         Command::RemoveWanted { offer } => crate::transfers::remove_wanted(world, envelope, *offer),
+        Command::WithdrawOffer { offer } => {
+            crate::transfers::withdraw_offer(world, envelope, *offer)
+        }
         Command::PlaceOrder {
             instrument,
             side,

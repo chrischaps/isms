@@ -708,3 +708,56 @@ fn a_payslip_names_its_tick_hours_when_the_allocation_changed_mid_day() {
     assert_eq!(*amount, Money::cents(300));
     h.check();
 }
+
+/// Q109 (D9): a manager takes back an open job offer; the one already hired stays.
+#[test]
+fn a_manager_withdraws_an_open_job_offer_and_the_hired_stay() {
+    let mut h = firm(2, 1000);
+    let (mgr, w, other) = (nth(&h, 0), nth(&h, 1), nth(&h, 2));
+    h.cmd(Envelope::citizen(
+        mgr,
+        offer(Pay::Hourly(Money::cents(700)), 2),
+        0,
+    ))
+    .unwrap();
+    h.cmd(Envelope::citizen(
+        w,
+        Command::AcceptEmployment { offer: OfferId(0) },
+        0,
+    ))
+    .unwrap();
+    let withdraw = Command::WithdrawOffer { offer: OfferId(0) };
+    let r = h.cmd_dry(Envelope::citizen(w, withdraw.clone(), 0));
+    assert_eq!(
+        r.unwrap_err().code,
+        RejectCode::NotParty,
+        "the worker did not post it"
+    );
+    let r = h.cmd_dry(Envelope::citizen(other, withdraw.clone(), 0).on_behalf_of(OrgId(0)));
+    assert_eq!(r.unwrap_err().code, RejectCode::NotManager);
+    let r = h.cmd_dry(
+        Envelope::citizen(mgr, Command::WithdrawOffer { offer: OfferId(77) }, 0)
+            .on_behalf_of(OrgId(0)),
+    );
+    assert_eq!(r.unwrap_err().code, RejectCode::UnknownOffer);
+    let ev = h
+        .cmd(Envelope::citizen(mgr, withdraw, 0).on_behalf_of(OrgId(0)))
+        .unwrap();
+    assert_eq!(
+        ev.iter().map(Event::kind).collect::<Vec<_>>(),
+        ["OfferWithdrawn"]
+    );
+    assert!(h.world.offers.is_empty(), "the remaining place is gone");
+    assert!(employed(&h.world, w), "the hire stands");
+    assert_eq!(
+        h.world.contracts[&ContractId(0)].status,
+        ContractStatus::Active
+    );
+    let r = h.cmd_dry(Envelope::citizen(
+        other,
+        Command::AcceptEmployment { offer: OfferId(0) },
+        0,
+    ));
+    assert_eq!(r.unwrap_err().code, RejectCode::UnknownOffer);
+    h.check();
+}

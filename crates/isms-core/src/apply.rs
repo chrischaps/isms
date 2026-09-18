@@ -282,22 +282,11 @@ pub fn apply(world: &mut World, event: &Event) {
             world.offers.remove(offer);
         }
         Event::SaleCancelled { offer } => {
-            let by = world.offers.get(offer).map(|o| o.by);
-            if let (Some(a), Some(by)) = (
-                world.escrow.remove(&crate::world::EscrowKey::Offer(*offer)),
-                by,
-            ) {
-                credit(world, Holder::from(by), a);
-            }
-            if let (Some((org, q)), Some(by)) = (
-                world
-                    .share_escrow
-                    .remove(&crate::world::EscrowKey::Offer(*offer)),
-                by,
-            ) && let Some(h) = crate::shares::holder_of(by, org)
-            {
-                move_shares(world, org, None, Some(h), q);
-            }
+            release_offer_escrow(world, *offer);
+            world.offers.remove(offer);
+        }
+        Event::OfferWithdrawn { offer, .. } => {
+            release_offer_escrow(world, *offer);
             world.offers.remove(offer);
         }
         Event::WantedPosted {
@@ -1896,3 +1885,24 @@ pub fn money_of(world: &World, party: Party) -> Money {
 
 #[cfg(test)]
 mod tests;
+
+/// Whatever an open offer holds in escrow (a sale's goods or money, a credit
+/// offer's principal, a share sale's shares) goes back to its poster.
+fn release_offer_escrow(world: &mut World, offer: crate::ids::OfferId) {
+    let by = world.offers.get(&offer).map(|o| o.by);
+    if let (Some(a), Some(by)) = (
+        world.escrow.remove(&crate::world::EscrowKey::Offer(offer)),
+        by,
+    ) {
+        credit(world, Holder::from(by), a);
+    }
+    if let (Some((org, q)), Some(by)) = (
+        world
+            .share_escrow
+            .remove(&crate::world::EscrowKey::Offer(offer)),
+        by,
+    ) && let Some(h) = crate::shares::holder_of(by, org)
+    {
+        move_shares(world, org, None, Some(h), q);
+    }
+}

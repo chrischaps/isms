@@ -588,6 +588,13 @@ pub enum Event {
     StrikeEnded {
         union: OrgId,
     },
+    /// An open employment, credit or lease offer taken back by its poster
+    /// (Q109, S1.15). Carries the body so a ledger can say what it was.
+    OfferWithdrawn {
+        offer: OfferId,
+        by: Party,
+        body: OfferBody,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -807,6 +814,7 @@ impl Event {
             Event::StrikeCalled { .. } => "StrikeCalled",
             Event::StrikePaid { .. } => "StrikePaid",
             Event::StrikeEnded { .. } => "StrikeEnded",
+            Event::OfferWithdrawn { .. } => "OfferWithdrawn",
         }
     }
 
@@ -909,5 +917,6 @@ impl Event {
         "StrikeCalled",
         "StrikePaid",
         "StrikeEnded",
+        "OfferWithdrawn",
     ];
 }

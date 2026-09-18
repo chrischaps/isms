@@ -391,3 +391,38 @@ fn a_dwelling_can_be_sold_and_lived_in_by_its_owner() {
     assert_eq!(h.citizen(other).household.dwelling, Some(DwellingId(0)));
     h.check();
 }
+
+/// Q109 (D9): withdrawing a lease offer frees the dwelling for another offer.
+#[test]
+fn a_withdrawn_lease_offer_frees_the_dwelling() {
+    let mut h = town(1);
+    let mgr = nth(&h, 1);
+    h.cmd(Envelope::citizen(mgr, lease_offer(800, None), 0).on_behalf_of(OrgId(0)))
+        .unwrap();
+    let r = h.cmd_dry(Envelope::citizen(mgr, lease_offer(900, None), 0).on_behalf_of(OrgId(0)));
+    assert_eq!(
+        r.unwrap_err().code,
+        RejectCode::AlreadyExists,
+        "under offer"
+    );
+    let r = h.cmd_dry(Envelope::citizen(
+        nth(&h, 0),
+        Command::WithdrawOffer { offer: OfferId(0) },
+        0,
+    ));
+    assert_eq!(r.unwrap_err().code, RejectCode::NotParty);
+    let ev = h
+        .cmd(
+            Envelope::citizen(mgr, Command::WithdrawOffer { offer: OfferId(0) }, 0)
+                .on_behalf_of(OrgId(0)),
+        )
+        .unwrap();
+    assert_eq!(
+        ev.iter().map(Event::kind).collect::<Vec<_>>(),
+        ["OfferWithdrawn"]
+    );
+    assert!(h.world.offers.is_empty());
+    h.cmd(Envelope::citizen(mgr, lease_offer(900, None), 0).on_behalf_of(OrgId(0)))
+        .unwrap();
+    h.check();
+}

@@ -263,6 +263,7 @@ Grouped by the GDD section that motivates them. Later phases add governance and 
 | | `AcceptEmployment { offer }` / `TerminateEmployment { contract }` | citizen / either | employer terminating inside the notice period pays the notice-period wages; a worker leaving inside it forfeits the current cycle's accrued pay (provisional; QUESTIONS.md) |
 | | `OfferSale { asset: Good(kind, qty) \| Shares(org, qty) \| Dwelling(id), price: Money(n) \| Good(kind, qty), to: Option<CitizenId \| OrgId> }` / `AcceptSale` / `CancelSale` | owner / buyer | `Money` prices only where `capabilities.money`; a `Good` price is barter and is legal everywhere. the GDD "Sale (direct)" contract and the notice-board "sale" ad; escrowed; used for dwellings, legacy-firm sales, and in systems without order books (goods-for-goods in the Commune) |
 | | `PostWanted { good, qty, max_price }` / `RemoveWanted` | citizen/org | informational notice-board ad; no escrow, no mechanical effect |
+| | `WithdrawOffer { offer }` | the poster (a manager on behalf of the org) | takes an open offer of any kind off the board (Q109, S1.15): a sale or wanted ad through its own cancel, an employment, credit or lease offer as `OfferWithdrawn`; a credit offer's escrowed principal returns; accepted contracts are untouched |
 | | `OfferCredit { to: Option<_>, principal, rate_per_cycle, term_cycles, collateral: Option<Dwelling \| Shares> }` / `AcceptCredit` | any | A5 = open; total interest = principal × rate × term, repaid in equal installments per cycle (integer cents, remainder on the last) |
 | | `OfferLease { asset: Dwelling \| Workplace, rent_per_cycle, term }` / `AcceptLease` / `EndLease` | owner / tenant | |
 | | `RequestMembership { org }` / `AdmitMember { org, citizen }` / `LeaveOrg { org }` | citizen / manager (associations) or member vote (coops, Phase 0b/2) | the notice-board "membership" ad is a standing `RequestMembership` |
@@ -288,6 +289,7 @@ Discrete events are emitted by `handle` and by `tick` for things that *happened*
 | `Transferred` | handle | from, to, asset, memo |
 | `OrderPlaced`, `OrderCancelled`, `OrderExpired`, `Trade` | handle / tick | `Trade` = one fill: buyer, seller, instrument, qty, price, escrow released |
 | `SaleOffered`, `SaleAccepted`, `SaleCancelled`, `WantedPosted`, `WantedRemoved` | handle | direct sales and informational ads |
+| `OfferWithdrawn { offer, by, body }` | handle | an open employment, credit or lease offer taken back by its poster (Q109, S1.15); appended after `StrikeEnded` |
 | `OrgFounded`, `WorkplaceAdded`, `ManagerAppointed`, `MemberAdmitted`, `MemberLeft`, `SharesIssued`, `SharesTransferred`, `DividendDeclared`, `DividendPaid` | handle / tick | |
 | `MachinesInstalled`, `MachinesUninstalled`, `MachinesDepreciated` | handle / tick | |
 | `EmploymentOffered/Accepted/Terminated`, `CreditOffered/Accepted/Installment/Repaid/Defaulted`, `LeaseOffered/Accepted/RentPaid/Ended` | handle / tick | contract ids; `Defaulted` includes collateral seized |
