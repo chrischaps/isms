@@ -8,7 +8,7 @@ use isms_core::world::EpochEndReason;
 
 fn ended(events: &[Event]) -> Option<(EpochEndReason, u32)> {
     events.iter().find_map(|e| match e {
-        Event::EpochEnded { reason, cycle } => Some((*reason, *cycle)),
+        Event::EpochEnded { reason, cycle, .. } => Some((*reason, *cycle)),
         _ => None,
     })
 }

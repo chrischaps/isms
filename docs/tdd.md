@@ -300,7 +300,8 @@ Discrete events are emitted by `handle` and by `tick` for things that *happened*
 | `PolicyChanged { patch, by }` | handle | |
 | `TickResolved { tick, cycle, price_index, last_prices, citizen_deltas: [...], workplace_deltas: [...] }` | tick | continuous bookkeeping only: need meters, food/wares consumed from pantry, skill, fatigue, output multipliers, hardship counters, output remainders, machine wear. **Never** money or goods movements between holders — those are discrete events above. Emitted last, as the tick's commit marker. |
 | `CycleClosed { cycle, aggregates }` | tick | the per-cycle metrics snapshot (§13) |
-| `EpochEnded { reason: Scheduled \| Collapse \| Operator }` | tick / handle | |
+| `EpochEnded { reason: Scheduled \| Collapse \| Operator, cycle, summary }` | tick / handle | `summary: EpochSummary` (S1.15, GDD §11.5): the last cycle's aggregates and every citizen's standing (net worth, self-made, ranked), frozen in the ending tick so the archive replays byte for byte; an operator's end carries the running cycle's figures |
+| `EpochEnding { final_cycle }` | tick | two cycles remain (GDD §11.5): emitted at the close of the cycle two before the last, only when `epoch_cycles ≥ 3` (Q115); collapse and an operator's end give no warning; appended after `OfferWithdrawn` (S1.15) |
 
 Event `seq` is a per-society monotonically increasing integer assigned by the actor at persistence time; it is the total order of the society's history.
 
@@ -1024,6 +1025,7 @@ All live in `presets/_base.toml` alongside GDD Appendix A; starting values only.
 | `housed_tick_weight` | 0.5 | §13 | consumption score |
 | Rate limit | 5 commands/s, burst 20 | §10.2 | identical for web and API |
 | `ticks_per_cycle`, `epoch_cycles`, `tick_seconds` | 24 / 42 / 3600 | §9.2 | overridable per society for playtests and tests |
+| `closing_window_minutes` | 2880 | S1.15, GDD §11.5 | the closing-statements window after `EpochEnded`, kept by the server, never read by the engine; overridable per society (lab societies use minutes) |
 | `collapse_enabled` | true (false in the simulator) | §5.5 | |
 | Order expiry default | end of next cycle | §5.5 | |
 | Lease grace period | 1 cycle | S0.11 | |

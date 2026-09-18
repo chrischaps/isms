@@ -31,6 +31,8 @@ pub struct SocietyMeta {
     pub tick: Tick,
     /// Set when the epoch has ended and no new epoch has started.
     pub epoch_ended: Option<EpochEndReason>,
+    /// The last cycle of the epoch, once the end has been announced (S1.15).
+    pub epoch_ending: Option<Cycle>,
     /// Consecutive cycles with active humans below the population floor (GDD Q7).
     pub low_population_cycles: u32,
     /// Whether active humans have reached the population floor at any cycle end
@@ -124,6 +126,7 @@ impl World {
                 epoch: 0,
                 tick: 0,
                 epoch_ended: None,
+                epoch_ending: None,
                 low_population_cycles: 0,
                 reached_floor: false,
             },

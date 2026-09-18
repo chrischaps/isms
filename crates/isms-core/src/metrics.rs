@@ -2,7 +2,7 @@
 //! 8m so live views, the simulator and the Observatory share one definition.
 //! Accumulators live in `World` and `Citizen` as continuous state.
 
-use crate::event::CycleAggregates;
+use crate::event::{CycleAggregates, EpochSummary, Standing};
 use crate::ids::CitizenId;
 use crate::kinds::{CitizenKind, Good, Product};
 use crate::money::Money;
@@ -304,6 +304,34 @@ pub fn record_tick(
         (u64::from(c.needs.food) + u64::from(c.needs.shelter) + u64::from(c.needs.comfort)) / 3;
     if c.needs.food < threshold || c.needs.shelter < threshold {
         c.cycle.needs_breached = true;
+    }
+}
+
+/// The frozen summary an `EpochEnded` carries (S1.15): the aggregates as just
+/// computed and every citizen ranked on the Freeport scoreboard (net worth,
+/// self-made), dormant citizens included, since the archive is a record.
+#[must_use]
+pub fn epoch_summary(world: &World, aggregates: CycleAggregates) -> EpochSummary {
+    let mut standings: Vec<Standing> = world
+        .citizens
+        .values()
+        .map(|c| Standing {
+            citizen: c.id,
+            handle: c.handle.clone(),
+            kind: c.kind,
+            dormant: c.dormant,
+            net_worth: crate::shares::net_worth(world, c.id),
+            self_made: crate::shares::self_made(world, c.id),
+        })
+        .collect();
+    standings.sort_by(|a, b| {
+        b.net_worth
+            .cmp(&a.net_worth)
+            .then(a.citizen.cmp(&b.citizen))
+    });
+    EpochSummary {
+        aggregates,
+        standings,
     }
 }
 

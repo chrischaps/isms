@@ -35,6 +35,7 @@ pub fn apply(world: &mut World, event: &Event) {
             world.meta.epoch = *epoch;
             world.meta.tick = 0;
             world.meta.epoch_ended = None;
+            world.meta.epoch_ending = None;
         }
         Event::Seeded { holder, asset } => {
             credit(world, *holder, *asset);
@@ -1122,6 +1123,9 @@ pub fn apply(world: &mut World, event: &Event) {
         }
         Event::EpochEnded { reason, .. } => {
             world.meta.epoch_ended = Some(*reason);
+        }
+        Event::EpochEnding { final_cycle } => {
+            world.meta.epoch_ending = Some(*final_cycle);
         }
         Event::TickResolved {
             tick,

@@ -873,8 +873,13 @@ fn end_epoch(world: &World, envelope: &Envelope<Command>) -> Result<Vec<Event>, 
         ));
     }
     let cycle = world.cycle_of(world.meta.tick.saturating_sub(1));
+    // An operator ends the epoch mid-cycle, so the summary carries the running
+    // cycle's figures as they stand rather than a closed cycle's.
+    let aggregates = crate::metrics::aggregates(world, world.meta.low_population_cycles);
+    let summary = crate::metrics::epoch_summary(world, aggregates);
     Ok(vec![Event::EpochEnded {
         reason: crate::world::EpochEndReason::Operator,
         cycle,
+        summary,
     }])
 }

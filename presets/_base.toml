@@ -8,6 +8,7 @@
 ticks_per_cycle = 24
 epoch_cycles = 42
 tick_seconds = 3600            # overridable per society; 0 in tests
+closing_window_minutes = 2880  # [new tunable] S1.15 (GDD 11.5): closing statements stay open 48 h after the epoch ends; overridable per society
 
 [params.labor]
 base_budget_hours = 8
