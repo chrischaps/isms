@@ -29,6 +29,7 @@ use isms_core::event::{Actor, Event};
 use isms_core::ids::{
     CitizenId, ContractId, DwellingId, OfferId, OrderId, OrgId, SlotId, WorkplaceId,
 };
+use isms_core::ledger::Party;
 use isms_core::money::Money;
 use isms_core::plan::{away_digest, touches};
 use isms_core::rules::Rules;
@@ -983,7 +984,7 @@ async fn accept_offer(
     ))
 }
 
-#[utoipa::path(delete, path = "/s/{id}/offers/{oid}", summary = "Withdraw your sale offer or wanted ad",
+#[utoipa::path(delete, path = "/s/{id}/offers/{oid}", summary = "Withdraw an offer you posted: a job, a loan, a lease, a sale or a wanted ad",
     params(("id" = i64, Path, description = "Society id"), ("oid" = u32, Path, description = "Offer id"), OnBehalfQuery),
     responses((status = 200, body = Committed), (status = 404, body = Problem), (status = 422, body = Problem)), security(("session" = []), ("api_key" = [])))]
 async fn withdraw_offer(
@@ -994,26 +995,34 @@ async fn withdraw_offer(
 ) -> ApiResult<Json<Committed>> {
     let (entry, me) = me_in(&state, &auth, id).await?;
     let offer = OfferId(oid);
-    let body = entry
+    // Q109: every kind withdraws through one command. When the org posted it
+    // and the caller did not say so, act for the org; the engine still checks
+    // that the caller manages it.
+    let Some(by) = entry
         .handle
         .world
         .read()
         .await
         .offers
         .get(&offer)
-        .map(|o| o.body.clone());
-    let cmd = match body {
-        Some(OfferBody::Sale { .. }) => Command::CancelSale { offer },
-        Some(OfferBody::Wanted { .. }) => Command::RemoveWanted { offer },
-        Some(_) => {
-            return Err(ApiError::BadRequest(
-                "only sale offers and wanted ads can be withdrawn".into(),
-            ));
-        }
-        None => return Err(unknown_offer(&entry, me, oid).await),
+        .map(|o| o.by)
+    else {
+        return Err(unknown_offer(&entry, me, oid).await);
     };
+    let on_behalf_of = org_of(q.on_behalf_of).or(match by {
+        Party::Org(o) => Some(o),
+        _ => None,
+    });
     Ok(Json(
-        send(&state, &entry, &auth, me, org_of(q.on_behalf_of), cmd).await?,
+        send(
+            &state,
+            &entry,
+            &auth,
+            me,
+            on_behalf_of,
+            Command::WithdrawOffer { offer },
+        )
+        .await?,
     ))
 }
 

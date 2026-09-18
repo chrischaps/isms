@@ -263,7 +263,7 @@ export const acceptOffer = act(
 
 export const withdrawOffer = act(
   "withdraw_offer",
-  "Withdraw an offer you posted.",
+  "Withdraw an open offer you posted: a job, a loan, a lease, a sale or a wanted ad. Accepted contracts are untouched.",
   z.object({ offer: id }),
   async (i, ctx) => committed(unwrap(await ctx.client.DELETE("/s/{id}/offers/{oid}", { params: { path: { id: ctx.sid, oid: i.offer } } }))),
 );

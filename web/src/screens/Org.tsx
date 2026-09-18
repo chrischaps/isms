@@ -527,7 +527,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
                       ? `${t("job")}: ${j.pay}, up to ${j.hours} h, ${j.term}, notice ${j.notice} day(s), ${j.places} open (${title(j.workplace)})`
                       : `${x.kind}: ${JSON.stringify(x.body)}`}
                   </span>
-                  {manage && x.kind !== "employment" ? (
+                  {manage ? (
                     <button type="button" className="text-muted text-xs underline" onClick={() => cancelOffer.mutate(x.id, { onError: fail })}>
                       withdraw
                     </button>

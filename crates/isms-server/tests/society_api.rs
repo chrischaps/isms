@@ -1020,3 +1020,47 @@ async fn a_builders_dwellings_show_on_the_org_and_its_ledger(pool: PgPool) {
         "the lease offer shows on the dwelling"
     );
 }
+
+/// Q109 (D9): a manager withdraws a job offer through the one withdraw route,
+/// with no on_behalf_of needed; the worker cannot.
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn a_manager_withdraws_a_job_offer_and_a_worker_cannot(pool: PgPool) {
+    let f = fixture(pool, "freeport").await;
+    let (manager, worker, wp) = firm_with_worker(&f).await;
+    let oid = manager
+        .get::<HomeView>(f.id, "/home")
+        .await
+        .labor
+        .employment
+        .first()
+        .map(|_| 0)
+        .unwrap_or(0);
+    let _ = oid;
+    let orgs: OrgsView = manager.get(f.id, "/orgs").await;
+    let org = orgs
+        .orgs
+        .iter()
+        .find(|o| o.workplaces.iter().any(|w| u64::from(w.id) == wp))
+        .expect("the firm");
+    let c = manager
+        .ok(
+            f.id,
+            &format!("/orgs/{}/offers", org.id),
+            json!({ "workplace": wp, "pay": { "hourly": 700 }, "max_hours": 8, "term_cycles": null, "notice_cycles": 1, "places": 1 }),
+        )
+        .await;
+    let offer = c.events[0].payload["EmploymentOffered"]["offer"]
+        .as_u64()
+        .unwrap();
+    // The org posted it, so the server acts for the org; the engine answers
+    // that the worker does not manage it.
+    let r = worker.delete(f.id, &format!("/offers/{offer}")).await;
+    assert_eq!(r.status_code(), 422, "{}", r.text());
+    assert_eq!(r.json::<Problem>().code, Some(RejectCode::NotManager));
+    let r = manager.delete(f.id, &format!("/offers/{offer}")).await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    assert_eq!(kinds(&r.json::<Committed>()), vec!["OfferWithdrawn"]);
+    let r = manager.delete(f.id, &format!("/offers/{offer}")).await;
+    assert_eq!(r.status_code(), 422);
+    assert_eq!(r.json::<Problem>().code, Some(RejectCode::UnknownOffer));
+}

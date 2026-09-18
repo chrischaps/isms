@@ -646,7 +646,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Withdraw your sale offer or wanted ad */
+        /** Withdraw an offer you posted: a job, a loan, a lease, a sale or a wanted ad */
         delete: operations["withdraw_offer"];
         options?: never;
         head?: never;
