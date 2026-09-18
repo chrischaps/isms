@@ -687,12 +687,10 @@ fn a_payslip_names_its_tick_hours_when_the_allocation_changed_mid_day() {
         )
     };
     let input = |name: &str| {
-        explain
-            .inputs
-            .iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, v)| v.clone())
-            .unwrap_or_else(|| panic!("no input {name} in {:?}", explain.inputs))
+        explain.inputs.iter().find(|(n, _)| n == name).map_or_else(
+            || panic!("no input {name} in {:?}", explain.inputs),
+            |(_, v)| *v,
+        )
     };
     let half = tpc / 2;
     assert_eq!(explain.formula, "tick_hours / ticks_per_cycle x rate");
