@@ -120,8 +120,9 @@ export function jobOffers(offers: Offer[]): JobOffer[] {
   return out.sort((a, b) => b.hourly - a.hourly);
 }
 
+/** Contracts the citizen may still work: one in its notice period stays listed but labor there is refused (`not_assigned`). */
 export function currentJobs(home: HomeView): { contract: number; org: number; workplace: number; hourly: number; maxHours: number }[] {
-  return home.labor.employment.map((c) => {
+  return home.labor.employment.filter((c) => c.status === "active").map((c) => {
     const e = (c.body as { employment?: Record<string, unknown> }).employment ?? {};
     const pay = (e.pay ?? {}) as { hourly?: number; piece_rate?: number };
     return {

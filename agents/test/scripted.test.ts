@@ -108,3 +108,12 @@ describe("the rule-prober", () => {
     expect(second.intent).toContain(`probed "${PROBES[1]!.name}"`);
   });
 });
+
+describe("contracts in their notice period", () => {
+  it("are not worked: only active contracts count as jobs", () => {
+    const home = employedHome();
+    const ending = { ...home.labor.employment[0]!, id: 2, status: "notice" };
+    const view = { ...home, labor: { ...home.labor, employment: [home.labor.employment[0]!, ending] } };
+    expect(currentJobs(view).map((j) => j.contract)).toEqual([1]);
+  });
+});

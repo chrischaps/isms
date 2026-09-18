@@ -50,6 +50,8 @@ export class AnthropicBrain implements Brain {
   private readonly cycleModel: string;
   private readonly opts: LlmOpts;
   private readonly system: Anthropic.Beta.Messages.BetaTextBlockParam[];
+  /** Set when the API refused us for a reason no retry fixes (credit, key); every later turn is an error without a request. */
+  dead: string | null = null;
   constructor(opts: LlmOpts) {
     this.opts = opts;
     this.model = opts.persona.model.turn ?? opts.cfg.models.turn;
@@ -75,8 +77,19 @@ export class AnthropicBrain implements Brain {
     return [...READ_TOOLS, ...ACT_TOOLS, endTurn].map(wrap);
   }
 
+  /** A 401, 402, or a 400 about credit or billing: the run cannot continue on this brain. */
+  private fatal(e: unknown): string | null {
+    if (!(e instanceof Anthropic.APIError)) return null;
+    if (e.status === 401 || e.status === 402) return `${e.status}: ${e.message}`;
+    if (e.status === 400 && /credit balance|billing|purchase credits/i.test(e.message)) return `${e.status}: ${e.message}`;
+    return null;
+  }
+
   async takeTurn(ctx: ToolContext, input: TurnInput): Promise<TurnOutcome> {
     const { cfg, budget, player } = this.opts;
+    if (this.dead) {
+      return { intent: "(the model API refused this player for the run)", did_not_understand: [], ended_by: "error", error: this.dead, usage: { ...ZERO_USAGE } };
+    }
     const lastTurn = input.lastTurn
       ? [`You meant to: ${input.lastTurn.intent}`, ...input.lastTurn.rejections.map((r) => `Refused by ${r.tool} (${r.code}): "${r.detail}"`)].join("\n")
       : null;
@@ -126,6 +139,7 @@ export class AnthropicBrain implements Brain {
       } else {
         endedBy = "error";
         error = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+        this.dead = this.fatal(e);
       }
     }
     const ended = ctx.turn.ended;
@@ -140,6 +154,7 @@ export class AnthropicBrain implements Brain {
 
   async reflect(input: ReflectionInput): Promise<ReflectionOutcome> {
     const { budget, player } = this.opts;
+    if (this.dead) return { notes: input.notes, plan: "", usage: { ...ZERO_USAGE } };
     const response = await this.opts.client.messages.parse({
       model: this.cycleModel,
       max_tokens: 4096,

@@ -47,7 +47,7 @@ export const ConfigSchema = z.object({
     .prefault({}),
   budget: z
     .object({
-      max_tokens: z.number().int().min(1).default(15_000_000),
+      max_tokens: z.number().int().min(1).default(60_000_000),
       max_usd: z.number().min(0).default(40),
     })
     .prefault({}),

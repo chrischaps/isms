@@ -38,7 +38,9 @@ export function situationText(home: HomeView): string {
   const dwelling = h.dwelling
     ? `dwelling ${h.dwelling.id}${h.dwelling.rent_per_cycle != null ? ` renting at ${credits(h.dwelling.rent_per_cycle)} a day` : ", yours"}`
     : "unhoused";
-  const flags = Object.keys(home.citizen.flags as Record<string, unknown>);
+  const flags = Object.entries(home.citizen.flags as Record<string, unknown>)
+    .filter(([, v]) => v === true)
+    .map(([k]) => k);
   const since = home.since_last_seen.events;
   const kinds = new Map<string, number>();
   for (const e of since) kinds.set(e.kind, (kinds.get(e.kind) ?? 0) + 1);

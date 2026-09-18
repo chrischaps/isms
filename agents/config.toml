@@ -21,8 +21,9 @@ concurrency = 4
 overrun = "skip"
 
 [budget]
-# The run stops cleanly, and still writes its report, at either limit.
-max_tokens = 15_000_000
+# The run stops cleanly, and still writes its report, at either limit. Tokens count cache reads
+# (a cached turn reads ~35k), so dollars are the real cap: the first live run spent $12.74 on 15M tokens.
+max_tokens = 60_000_000
 max_usd = 40
 
 [run]
