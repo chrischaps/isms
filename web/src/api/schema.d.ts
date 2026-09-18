@@ -1383,6 +1383,11 @@ export interface components {
             lease?: number | null;
             /** Format: int32 */
             occupant?: number | null;
+            /**
+             * Format: int32
+             * @description The open sale or lease offer on it, if any (S1.15, D6).
+             */
+            offer?: number | null;
             owner: Record<string, never>;
             rent_per_cycle?: null | components["schemas"]["i64"];
         };
@@ -1680,13 +1685,19 @@ export interface components {
         };
         OrgView: {
             book_value: components["schemas"]["i64"];
+            declared_dividend?: null | components["schemas"]["i64"];
+            /** @description Dwellings the org owns (a Builder's output), in id order (S1.15, D6). */
+            dwellings: components["schemas"]["DwellingView"][];
             /** Format: int32 */
             employees: number;
+            /** @description Money held in the org's resting bids; the treasury is net of it (S1.15, D5). */
+            escrow: components["schemas"]["i64"];
             i_manage: boolean;
             /** Format: int32 */
             id: number;
             inventory: Record<string, never>;
             kind: string;
+            last_payment_missed?: null | components["schemas"]["PaymentMissedView"];
             /** Format: int32 */
             manager?: number | null;
             members: number[];
@@ -1712,6 +1723,20 @@ export interface components {
             recipes: components["schemas"]["RecipeView"][];
             /** @description Slot scarcity per slot-limited workplace kind; an absent kind is unlimited. */
             slots: Record<string, never>;
+        };
+        /** @description A payday an org could not cover: who was owed what, and when. */
+        PaymentMissedView: {
+            /** Format: int32 */
+            citizen: number;
+            /** Format: int32 */
+            cycle: number;
+            /** Format: int32 */
+            epoch: number;
+            handle: string;
+            owed: components["schemas"]["i64"];
+            paid: components["schemas"]["i64"];
+            /** Format: int64 */
+            seq: number;
         };
         PayslipsView: {
             clock: components["schemas"]["Clock"];
@@ -1803,6 +1828,12 @@ export interface components {
                 [key: string]: number;
             };
             produces: string;
+            /**
+             * @description True when each unit made is one dwelling in the org's `dwellings`,
+             *     not a good in its inventory; a workplace's `cycle_output` then counts
+             *     finished dwellings (S1.15, D6).
+             */
+            produces_asset: boolean;
             workplace_kind: string;
         };
         /**

@@ -78,7 +78,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 1,
@@ -147,7 +151,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 2,
@@ -210,7 +218,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 3,
@@ -261,7 +273,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 4,
@@ -306,7 +322,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 5,
@@ -351,7 +371,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 6,
@@ -397,7 +421,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 7,
@@ -443,7 +471,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 8,
@@ -489,7 +521,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 9,
@@ -535,7 +571,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 10,
@@ -581,7 +621,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 11,
@@ -627,7 +671,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 12,
@@ -673,7 +721,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 13,
@@ -719,7 +771,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 14,
@@ -765,7 +821,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 15,
@@ -811,7 +871,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 16,
@@ -854,7 +918,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 17,
@@ -897,7 +965,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 18,
@@ -931,7 +1003,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    },
    {
     "id": 19,
@@ -965,7 +1041,11 @@
      }
     ],
     "my_shares": 0,
-    "i_manage": false
+    "i_manage": false,
+    "escrow": 0,
+    "declared_dividend": null,
+    "last_payment_missed": null,
+    "dwellings": []
    }
   ],
   "former": [],
@@ -974,13 +1054,15 @@
     "workplace_kind": "farm",
     "produces": "grain",
     "consumes": {},
-    "base_rate": 15.0
+    "base_rate": 15.0,
+    "produces_asset": false
    },
    {
     "workplace_kind": "mine",
     "produces": "ore",
     "consumes": {},
-    "base_rate": 10.0
+    "base_rate": 10.0,
+    "produces_asset": false
    },
    {
     "workplace_kind": "foundry",
@@ -988,7 +1070,8 @@
     "consumes": {
      "ore": 1
     },
-    "base_rate": 10.0
+    "base_rate": 10.0,
+    "produces_asset": false
    },
    {
     "workplace_kind": "mill",
@@ -996,7 +1079,8 @@
     "consumes": {
      "grain": 1
     },
-    "base_rate": 15.0
+    "base_rate": 15.0,
+    "produces_asset": false
    },
    {
     "workplace_kind": "workshop",
@@ -1004,7 +1088,8 @@
     "consumes": {
      "materials": 1
     },
-    "base_rate": 5.0
+    "base_rate": 5.0,
+    "produces_asset": false
    },
    {
     "workplace_kind": "machine_shop",
@@ -1012,7 +1097,8 @@
     "consumes": {
      "materials": 2
     },
-    "base_rate": 2.0
+    "base_rate": 2.0,
+    "produces_asset": false
    },
    {
     "workplace_kind": "builder",
@@ -1020,7 +1106,8 @@
     "consumes": {
      "materials": 10
     },
-    "base_rate": 0.5
+    "base_rate": 0.5,
+    "produces_asset": true
    }
   ],
   "founding": {

@@ -18,9 +18,10 @@ use isms_api_types::society::{
     Committed, ContractsView, CreditOfferRequest, DigestView, DividendRequest,
     EmploymentOfferRequest, EventRef, ExplainView, FormerOrg, FoundOrgRequest, Headline, HomeView,
     HouseholdersView, IssueSharesRequest, LeaseOfferRequest, MachinesRequest, MemberRequest,
-    NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlaceOrderRequest, PlanView,
-    PricePoint, PricesView, SaleOfferRequest, ScoreboardView, SetLaborRequest, SetPlanRequest,
-    StatsView, TransferRequest, WantedRequest, cents, instrument_name, parse_instrument,
+    NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PaymentMissedView, PayslipsView,
+    PlaceOrderRequest, PlanView, PricePoint, PricesView, SaleOfferRequest, ScoreboardView,
+    SetLaborRequest, SetPlanRequest, StatsView, TransferRequest, WantedRequest, cents,
+    instrument_name, parse_instrument,
 };
 use isms_core::command::Command;
 use isms_core::event::{Actor, Event};
@@ -548,9 +549,39 @@ async fn get_org(
     let (entry, me) = me_in(&state, &auth, id).await?;
     let world = entry.handle.world.read().await;
     let viewer = Viewer::new(&world, Some(me));
-    views::org(&world, &viewer, OrgId(oid))
-        .map(Json)
-        .ok_or_else(|| ApiError::NotFound(format!("no org {oid}")))
+    let mut org = views::org(&world, &viewer, OrgId(oid))
+        .ok_or_else(|| ApiError::NotFound(format!("no org {oid}")))?;
+    // D7: the flag alone says nothing; its manager and owners get the last missed payday.
+    if org.payment_missed && (org.i_manage || org.my_shares > 0 || org.members.contains(&me.0)) {
+        org.last_payment_missed = state
+            .store
+            .read_last_of_kind(id, "PaymentMissed", 500)
+            .await?
+            .into_iter()
+            .find_map(|e| match &e.event {
+                Event::PaymentMissed {
+                    citizen,
+                    org: o,
+                    owed,
+                    paid,
+                    ..
+                } if o.0 == oid => Some(PaymentMissedView {
+                    seq: e.seq,
+                    epoch: e.meta.epoch,
+                    cycle: e.meta.cycle,
+                    citizen: citizen.0,
+                    handle: world
+                        .citizens
+                        .get(citizen)
+                        .map(|c| c.handle.clone())
+                        .unwrap_or_default(),
+                    owed: cents(*owed),
+                    paid: cents(*paid),
+                }),
+                _ => None,
+            });
+    }
+    Ok(Json(org))
 }
 
 /// Does the payload name this org anywhere (`{"org": n}` as a party or as a field)?
@@ -567,8 +598,9 @@ fn mentions_org(v: &serde_json::Value, oid: u32) -> bool {
     }
 }
 
-/// The event kinds that move an org's treasury or its escrow.
-const LEDGER_KINDS: [&str; 7] = [
+/// The event kinds that move an org's treasury or its escrow, or turn its
+/// Materials into a dwelling (D6).
+const LEDGER_KINDS: [&str; 8] = [
     "Trade",
     "SaleAccepted",
     "Transferred",
@@ -576,6 +608,7 @@ const LEDGER_KINDS: [&str; 7] = [
     "PaymentMissed",
     "DividendPaid",
     "OrderPlaced",
+    "DwellingBuilt",
 ];
 
 #[utoipa::path(get, path = "/s/{id}/orgs/{oid}/ledger", summary = "Managers and owners: what moved the treasury, oldest first",

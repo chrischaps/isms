@@ -60,6 +60,8 @@ pub struct DwellingView {
     pub occupant: Option<u32>,
     pub lease: Option<u32>,
     pub rent_per_cycle: Option<Cents>,
+    /// The open sale or lease offer on it, if any (S1.15, D6).
+    pub offer: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -338,12 +340,33 @@ pub struct OrgView {
     #[schema(value_type = Object)]
     pub ownership: serde_json::Value,
     pub book_value: Cents,
+    /// Money held in the org's resting bids; the treasury is net of it (S1.15, D5).
+    pub escrow: Cents,
+    /// Per-share dividend declared this cycle, paid at the day's end (S1.15).
+    pub declared_dividend: Option<Cents>,
     pub payment_missed: bool,
+    /// The last payday the org could not cover, for its manager and owners on
+    /// the single-org view (S1.15, D7); `None` on the list.
+    pub last_payment_missed: Option<PaymentMissedView>,
     pub employees: u32,
     pub members: Vec<u32>,
     pub workplaces: Vec<WorkplaceView>,
+    /// Dwellings the org owns (a Builder's output), in id order (S1.15, D6).
+    pub dwellings: Vec<DwellingView>,
     pub my_shares: u64,
     pub i_manage: bool,
+}
+
+/// A payday an org could not cover: who was owed what, and when.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct PaymentMissedView {
+    pub seq: i64,
+    pub epoch: u32,
+    pub cycle: u32,
+    pub citizen: u32,
+    pub handle: String,
+    pub owed: Cents,
+    pub paid: Cents,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -368,6 +391,10 @@ pub struct OrgsView {
 pub struct RecipeView {
     pub workplace_kind: String,
     pub produces: String,
+    /// True when each unit made is one dwelling in the org's `dwellings`,
+    /// not a good in its inventory; a workplace's `cycle_output` then counts
+    /// finished dwellings (S1.15, D6).
+    pub produces_asset: bool,
     /// Inputs used up per unit made.
     pub consumes: BTreeMap<String, u32>,
     /// Units per worker-hour before skill, effort, needs and machines.

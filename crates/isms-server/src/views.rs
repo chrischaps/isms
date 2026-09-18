@@ -11,12 +11,12 @@ use isms_api_types::society::{
 };
 use isms_core::ids::{CitizenId, OrgId};
 use isms_core::kinds::{CitizenKind, Good, WorkplaceKind};
-use isms_core::ledger::Party;
+use isms_core::ledger::{Asset, Party};
 use isms_core::market::{depth, last_price};
 use isms_core::needs::TENTHS;
 use isms_core::shares::{book_value, net_worth, self_made, shares_held};
 use isms_core::world::{
-    Contract, ContractBody, Instrument, Offer, OfferBody, Ownership, Side, World,
+    Contract, ContractBody, EscrowKey, Instrument, Offer, OfferBody, Owner, Ownership, Side, World,
 };
 use std::collections::BTreeMap;
 
@@ -43,12 +43,29 @@ pub fn dwelling(world: &World, id: isms_core::ids::DwellingId) -> Option<Dwellin
             ContractBody::Lease { rent_per_cycle, .. } => Some(cents(rent_per_cycle)),
             _ => None,
         });
+    // The open sale or lease on it (the engine's private `housing::under_offer`, with the id).
+    let offer = world
+        .offers
+        .values()
+        .find(|o| match &o.body {
+            OfferBody::Sale {
+                asset: isms_core::world::SaleAsset::Dwelling(x),
+                ..
+            }
+            | OfferBody::Lease {
+                asset: isms_core::world::LeaseAsset::Dwelling(x),
+                ..
+            } => *x == id,
+            _ => false,
+        })
+        .map(|o| o.id.0);
     Some(DwellingView {
         id: id.0,
         owner: serde_json::to_value(d.owner).unwrap_or_default(),
         occupant: d.occupant.map(|c| c.0),
         lease: d.lease.map(|l| l.0),
         rent_per_cycle: rent,
+        offer,
     })
 }
 
@@ -316,6 +333,24 @@ pub fn org(world: &World, viewer: &Viewer, id: OrgId) -> Option<OrgView> {
     let my_shares = viewer
         .citizen
         .map_or(0, |c| shares_held(world, Party::Citizen(c), id));
+    // Money the org's resting bids hold: the treasury is already net of it.
+    let escrow = world
+        .books
+        .values()
+        .flat_map(|b| b.orders.values())
+        .filter(|r| r.owner == Party::Org(id))
+        .filter_map(|r| world.escrow.get(&EscrowKey::Order(r.id)))
+        .map(|a| match a {
+            Asset::Money(m) => cents(*m),
+            Asset::Good(..) => 0,
+        })
+        .sum();
+    let dwellings = world
+        .dwellings
+        .values()
+        .filter(|d| d.owner == Owner::Org(id))
+        .filter_map(|d| dwelling(world, d.id))
+        .collect();
     Some(OrgView {
         id: id.0,
         kind: o.kind,
@@ -325,10 +360,14 @@ pub fn org(world: &World, viewer: &Viewer, id: OrgId) -> Option<OrgView> {
         inventory: o.inventory.clone(),
         ownership: serde_json::to_value(&o.ownership).unwrap_or_default(),
         book_value: cents(book_value(world, o)),
+        escrow,
+        declared_dividend: o.declared_dividend.map(cents),
         payment_missed: o.payment_missed,
+        last_payment_missed: None,
         employees: u32::try_from(o.employees.len()).unwrap_or(u32::MAX),
         members: o.members.iter().map(|c| c.0).collect(),
         workplaces,
+        dwellings,
         my_shares,
         i_manage,
     })
@@ -349,6 +388,7 @@ pub fn recipes(world: &World) -> Vec<RecipeView> {
         .map(|(kind, r)| RecipeView {
             workplace_kind: name(kind),
             produces: name(r.produces),
+            produces_asset: r.produces.as_good().is_none(),
             consumes: r.consumes.iter().map(|(g, n)| (name(g), *n)).collect(),
             base_rate: r.base_rate,
         })

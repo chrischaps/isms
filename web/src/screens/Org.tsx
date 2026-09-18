@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ApiError, credits, type EventRef, type OfferView } from "../api/client";
 import { useBoard, useCapabilities, useHome, useLexicon } from "../api/hooks";
-import { useContracts, useTransfer } from "../api/contracts";
+import { useContracts, useOfferLease, useTransfer } from "../api/contracts";
 import { useBook, usePlaceOrder } from "../api/market";
 import { Ledger, type LedgerRow } from "../components/Ledger";
 import {
@@ -71,6 +71,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const issue = useIssueShares(id, oid);
   const addWorkplace = useAddWorkplace(id, oid);
   const sale = useOfferSale(id);
+  const lease = useOfferLease(id);
   const cancelOffer = useCancelOffer(id);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -95,6 +96,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const [listing, setListing] = useState({ qty: 10, price: "" });
   const [manager, setManager] = useState("");
   const [newKind, setNewKind] = useState("mine");
+  const [dwellingTerms, setDwellingTerms] = useState({ rent: "8.00", price: "" });
 
   if (home.isPending || org.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
   if (home.error instanceof ApiError && home.error.status === 403) {
@@ -122,6 +124,8 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const manage = o.i_manage;
   const slots = (all.data?.slots ?? {}) as Record<string, { total?: number | null; free?: number | null }>;
   const founding = all.data?.founding;
+  // A Builder's units are dwellings, listed below, not goods in the inventory (D6).
+  const makesDwellings = (kind: string) => all.data?.recipes.find((r) => r.workplace_kind === kind)?.produces_asset ?? false;
   const offers = (board.data?.offers ?? []).filter((x) => (x.by as Record<string, unknown>).org === oid);
   // Payroll due at cycle end (TDD 5.5 8a): every active employment contract of
   // this org, hourly ones at the worker's hours this cycle, piece-rate ones at
@@ -197,6 +201,8 @@ export function Org({ id, oid }: { id: number; oid: number }) {
           return [{ ...base, what: `Payday missed, ${names.citizen(Number(p.citizen))}: owed ${credits(Number(p.owed ?? 0))}, paid`, cents: -Number(p.paid ?? 0) }];
         case "DividendPaid":
           return [{ ...base, what: `Dividend, ${names.citizen(Number(p.citizen))}`, cents: -Number(p.amount ?? 0) }];
+        case "DwellingBuilt":
+          return [{ ...base, what: `Built dwelling no. ${String(p.dwelling)}`, goods: `-${String(p.materials_consumed ?? 0)} materials` }];
         case "OrderPlaced": {
           const order = (p.order ?? {}) as Record<string, unknown>;
           if (!isOrg(order.owner)) return [];
@@ -220,7 +226,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
       <h4 className="text-sm">
         {title(w.id)}
         <span className="num text-muted">
-          {w.slot != null ? ` · slot ${w.slot}` : ""} · {w.machines} machines · {w.cycle_output.toFixed(0)} units today
+          {w.slot != null ? ` · slot ${w.slot}` : ""} · {w.machines} machines · {w.cycle_output.toFixed(0)} {makesDwellings(w.kind) ? "dwellings" : "units"} today
         </span>
       </h4>
       {w.workers.length === 0 ? (
@@ -260,7 +266,11 @@ export function Org({ id, oid }: { id: number; oid: number }) {
             {o.kind.replace("_", " ")}
             {o.manager != null ? ` · managed by ${names.citizen(o.manager)}` : " · no manager"}
             {shares && o.my_shares > 0 ? ` · you hold ${(myShare * 100).toFixed(0)}%${controlling ? " (controlling)" : ""}` : ""}
-            {o.payment_missed ? " · missed a payday" : ""}
+            {o.last_payment_missed
+              ? ` · missed ${names.citizen(o.last_payment_missed.citizen)}'s payday on day ${o.last_payment_missed.cycle}: owed ${credits(o.last_payment_missed.owed)} cr, paid ${credits(o.last_payment_missed.paid)} cr`
+              : o.payment_missed
+                ? " · missed a payday"
+                : ""}
           </p>
         </div>
         <Link to="/s/$id/orgs" params={{ id: String(id) }} className="text-muted text-sm underline">
@@ -280,9 +290,19 @@ export function Org({ id, oid }: { id: number; oid: number }) {
           {c.money ? (
             <>
               <dt className="text-muted">Treasury</dt>
-              <dd className="num">{credits(o.treasury)} cr</dd>
+              <dd className="num">
+                {credits(o.treasury)} cr{o.escrow > 0 ? <span className="text-muted"> · {credits(o.escrow)} cr more held in open bids</span> : null}
+              </dd>
               <dt className="text-muted">Book value</dt>
               <dd className="num">{credits(o.book_value)} cr</dd>
+              {o.declared_dividend != null ? (
+                <>
+                  <dt className="text-muted">Dividend</dt>
+                  <dd className="num" data-testid="declared-dividend">
+                    {credits(o.declared_dividend)} cr a share, declared today, paid at the day's end
+                  </dd>
+                </>
+              ) : null}
             </>
           ) : null}
           <dt className="text-muted">Inventory</dt>
@@ -407,10 +427,85 @@ export function Org({ id, oid }: { id: number; oid: number }) {
         ) : null}
       </section>
 
+      {o.dwellings.length > 0 || o.workplaces.some((w) => makesDwellings(w.kind)) ? (
+        <section data-testid="org-dwellings">
+          <h3 className="text-lg">Dwellings</h3>
+          {o.dwellings.length === 0 ? (
+            <p className="text-muted mt-2 text-sm">None yet. A Builder turns 10 Materials into one dwelling, on the hour its output reaches a whole unit; it appears here, owned by the firm.</p>
+          ) : (
+            <table className="mt-2 w-full text-sm">
+              <thead className="text-muted text-left text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="py-1 font-normal">Dwelling</th>
+                  <th className="py-1 font-normal">Occupant</th>
+                  <th className="py-1 font-normal">Status</th>
+                  {manage ? <th className="py-1 font-normal"></th> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {o.dwellings.map((d) => (
+                  <tr key={d.id} className="rule" data-testid={`dwelling-${d.id}`}>
+                    <td className="py-1 pr-2">no. {d.id}</td>
+                    <td className="py-1 pr-2">{d.occupant != null ? names.citizen(d.occupant) : "empty"}</td>
+                    <td className="py-1 pr-2">
+                      {d.lease != null ? `let at ${credits(d.rent_per_cycle ?? 0)} cr a day` : d.offer != null ? "on the notice board" : "free"}
+                    </td>
+                    {manage ? (
+                      <td className="py-1 text-right">
+                        {d.lease == null && d.offer == null ? (
+                          <>
+                            <button
+                              type="button"
+                              className="text-muted text-xs underline"
+                              onClick={() =>
+                                lease.mutate(
+                                  { asset: { dwelling: d.id } as never, rent_per_cycle: cents(dwellingTerms.rent), term_cycles: null, on_behalf_of: oid },
+                                  { onSuccess: ok(`Dwelling no. ${d.id} is on the notice board to let.`), onError: fail },
+                                )
+                              }
+                            >
+                              let it
+                            </button>
+                            <button
+                              type="button"
+                              disabled={cents(dwellingTerms.price) < 1}
+                              className="text-muted ml-2 text-xs underline disabled:opacity-50"
+                              onClick={() =>
+                                sale.mutate(
+                                  { asset: { dwelling: d.id }, price: { money: cents(dwellingTerms.price) }, on_behalf_of: oid },
+                                  { onSuccess: ok(`Dwelling no. ${d.id} is on the notice board for sale.`), onError: fail },
+                                )
+                              }
+                            >
+                              sell it
+                            </button>
+                          </>
+                        ) : null}
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {manage && o.dwellings.some((d) => d.lease == null && d.offer == null) ? (
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+              <Field label="Rent a day">
+                <input aria-label="Dwelling rent" type="number" step="0.01" min={0} className="border-line num w-24 rounded-sm border px-1" value={dwellingTerms.rent} onChange={(e) => setDwellingTerms({ ...dwellingTerms, rent: e.target.value })} />
+              </Field>
+              <Field label="Sale price">
+                <input aria-label="Dwelling price" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={dwellingTerms.price} onChange={(e) => setDwellingTerms({ ...dwellingTerms, price: e.target.value })} />
+              </Field>
+              <span className="text-muted text-xs">Rent settles to the treasury each day; a sale is for the price in one payment.</span>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {ledger.data ? (
         <section>
           <h3 className="text-lg">Treasury ledger</h3>
-          <p className="text-muted mt-1 text-xs">Every movement of the treasury and its escrow, newest first: trades and sales, transfers, wages, dividends, orders placed.</p>
+          <p className="text-muted mt-1 text-xs">Every movement of the treasury and its escrow, newest first: trades and sales, transfers, wages, dividends, orders placed, dwellings built.</p>
           <div className="mt-2" data-testid="treasury-ledger">
             <Ledger rows={ledgerRows} empty="Nothing has moved the treasury yet." />
           </div>
@@ -616,15 +711,21 @@ export function Org({ id, oid }: { id: number; oid: number }) {
           {c.money ? (
             <div className="flex flex-col gap-2">
               <h3 className="text-lg">Dividend</h3>
-              <Field label="Per share">
-                <input aria-label="Dividend per share" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={perShare} onChange={(e) => setPerShare(e.target.value)} />
-              </Field>
-              <p className="text-muted text-xs">
-                {credits(cents(perShare) * shares.issued)} cr from the treasury, split by share count.
-              </p>
-              <button type="button" className="border-line self-start rounded-sm border px-2 py-0.5" onClick={() => dividend.mutate(cents(perShare), { onSuccess: ok("Dividend declared."), onError: fail })}>
-                Declare
-              </button>
+              {o.declared_dividend != null ? (
+                <p className="text-muted text-xs">Declared for today: {credits(o.declared_dividend)} cr a share, paid at the day's end. One a day.</p>
+              ) : (
+                <>
+                  <Field label="Per share">
+                    <input aria-label="Dividend per share" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={perShare} onChange={(e) => setPerShare(e.target.value)} />
+                  </Field>
+                  <p className="text-muted text-xs">
+                    {credits(cents(perShare) * (shares.issued - (shares.holdings.org_self ?? 0)))} cr from the treasury, split by share count; the firm's own shares earn nothing.
+                  </p>
+                  <button type="button" className="border-line self-start rounded-sm border px-2 py-0.5" onClick={() => dividend.mutate(cents(perShare), { onSuccess: ok("Dividend declared."), onError: fail })}>
+                    Declare
+                  </button>
+                </>
+              )}
             </div>
           ) : null}
           <div className="flex flex-col gap-2">

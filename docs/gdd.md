@@ -188,6 +188,8 @@ Six goods in three tiers, plus dwellings. Chosen to be the smallest set that pro
 
 The critical tension is at the Foundry's output: Materials can become Wares (consumption now), Machines (productivity later), or Dwellings (shelter). That one allocation decision — consumption vs. accumulation — is made by different actors under different systems (individual firms chasing margins, a planning committee, an assembly vote, coops deciding retained earnings), and it's the single most ideologically loaded decision in economics. Making the graph funnel through it is deliberate.
 
+**How a dwelling is built.** A Builder workplace makes dwellings the way any workplace makes its product: each worker-hour adds `base_rate` of a unit, and one unit costs 10 Materials from the org's inventory. On the hour the accumulated output crosses a whole unit and the Materials are on hand, a `DwellingBuilt` event creates the dwelling, owned by the org that runs the Builder; the fraction carries over to the next hour. A Builder's `cycle_output` therefore counts finished dwellings, not progress toward one. The org's page lists the dwellings it owns and its ledger carries every build; the manager lets or sells them by contract like any owner (decided in S1.15, Q110).
+
 **[Open]** A labor-only service good (Care: education/health, no material input, consumed for Comfort) is a strong v2 candidate — it's the one kind of good whose value is hardest to price and easiest to plan, which sharpens the contrast between systems. Held out of v1 for scope.
 
 ### 4.2 Needs **[Proposed]**
@@ -267,7 +269,7 @@ An economy is a vector across these eight axes. Each setting is a concrete engin
 - **Firms.** Any citizen with capital founds a firm: a share registry, a treasury, one or more workplaces, a manager (owner-appointed; initially the founder). The manager sets prices (posts asks), wages (posts job offers: hourly or piece-rate, term, notice period), production mix, and investment (buy Machines). Profit accrues to the treasury; dividends are declared by the majority owner; shares trade on the order book like any good.
 - **Labor.** Free. Employment is a contract; either party may terminate with the contracted notice. Unemployment is possible and has no cushion.
 - **Credit.** Any citizen or firm may lend to any other by contract (principal, rate, term, collateral optional). Default = collateral seized, then a public default flag. No bankruptcy protection in v1.
-- **Housing.** Dwellings are property; rent or buy by contract. Unhoused citizens take the Shelter penalty.
+- **Housing.** Dwellings are property; rent or buy by contract. A firm that runs a Builder owns what it builds and lets or sells it (§4.1). Unhoused citizens take the Shelter penalty.
 - **Governance.** None. There is nothing to vote on. Charity, mutual aid, unions, cartels — all possible via contracts and transfers, none provided.
 - **Scoreboard.** Net worth (balance + holdings at market), firm valuation, and a "self-made" track (net worth excluding endowment).
 - **The felt experience the design is aiming at:** freedom and precarity at once. Your day is prices. Nobody owes you anything, and anything is for sale.

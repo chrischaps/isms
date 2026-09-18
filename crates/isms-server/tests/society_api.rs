@@ -6,8 +6,8 @@
 use axum_test::TestServer;
 use isms_api_types::society::{
     BookView, BooksView, CitizensView, Committed, ContractsView, DigestView, ExplainView, HomeView,
-    HouseholdersView, NoticeBoardView, OrgView, OrgsView, PayslipsView, PlanView, PricesView,
-    ScoreboardView, StatsView, StreamFrame,
+    HouseholdersView, NoticeBoardView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlanView,
+    PricesView, ScoreboardView, StatsView, StreamFrame,
 };
 use isms_api_types::{Joined, Problem, RejectCode};
 use isms_core::WORKSPACE_PRESETS_DIR;
@@ -841,4 +841,130 @@ async fn stream_delivers_a_trade_to_both_parties(pool: PgPool) {
         }
     }
     assert!(own);
+}
+
+/// D6: a Builder turns Materials into dwellings the org owns; the org view
+/// lists them, the recipe says its units are dwellings, the ledger carries
+/// the build, and money resting in the org's bids shows as escrow (D5).
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn a_builders_dwellings_show_on_the_org_and_its_ledger(pool: PgPool) {
+    let f = fixture(pool, "freeport").await;
+    let manager = f.client("mason").await;
+    let worker = f.client("hod").await;
+    f.tick(24).await;
+    f.grant(Good::Materials, 40, manager.citizen).await;
+    let c = manager
+        .ok(
+            f.id,
+            "/orgs",
+            json!({ "kind": "firm", "name": "Brick and Beam", "first_workplace": { "kind": "builder" } }),
+        )
+        .await;
+    let oid = c.events[0].payload["OrgFounded"]["org"].as_u64().unwrap();
+    manager
+        .ok(
+            f.id,
+            "/transfers",
+            json!({ "to": { "org": oid }, "asset": { "good": ["materials", 20] }, "memo": "stock" }),
+        )
+        .await;
+    let all: OrgsView = manager.get(f.id, "/orgs").await;
+    let builder = all
+        .recipes
+        .iter()
+        .find(|r| r.workplace_kind == "builder")
+        .expect("a builder recipe");
+    assert!(builder.produces_asset, "a builder's units are dwellings");
+    assert!(
+        !all.recipes
+            .iter()
+            .any(|r| r.workplace_kind == "farm" && r.produces_asset)
+    );
+    let org: OrgView = manager.get(f.id, &format!("/orgs/{oid}")).await;
+    assert!(org.dwellings.is_empty());
+    let wp = u64::from(org.workplaces[0].id);
+    let c = manager
+        .ok(
+            f.id,
+            &format!("/orgs/{oid}/offers"),
+            json!({ "workplace": wp, "pay": { "hourly": 100 }, "max_hours": 8, "term_cycles": null, "notice_cycles": 1, "places": 1 }),
+        )
+        .await;
+    let offer = c.events[0].payload["EmploymentOffered"]["offer"]
+        .as_u64()
+        .unwrap();
+    worker
+        .ok(f.id, &format!("/offers/{offer}/accept"), json!({}))
+        .await;
+    let r = worker
+        .put(
+            f.id,
+            "/labor",
+            json!({ "allocations": [{ "workplace": wp, "hours": 8, "effort": "normal" }] }),
+        )
+        .await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    // Money in resting bids is escrow, not treasury.
+    manager
+        .ok(
+            f.id,
+            "/transfers",
+            json!({ "to": { "org": oid }, "asset": { "money": 5000 }, "memo": "float" }),
+        )
+        .await;
+    manager
+        .ok(
+            f.id,
+            "/orders",
+            json!({ "instrument": "ore", "side": "bid", "qty": 1, "limit_price": 1, "on_behalf_of": oid }),
+        )
+        .await;
+    let org: OrgView = manager.get(f.id, &format!("/orgs/{oid}")).await;
+    assert_eq!(org.escrow, 1, "one cent rests in the bid");
+    assert_eq!(org.treasury, 4999);
+    let mut built = false;
+    for _ in 0..4 {
+        f.tick(24).await;
+        let org: OrgView = manager.get(f.id, &format!("/orgs/{oid}")).await;
+        if !org.dwellings.is_empty() {
+            built = true;
+            let d = &org.dwellings[0];
+            assert_eq!(d.occupant, None);
+            assert_eq!(d.offer, None);
+            assert_eq!(d.owner, json!({ "org": oid }));
+            break;
+        }
+    }
+    assert!(
+        built,
+        "eight hours a day of building makes a dwelling within four days"
+    );
+    let ledger: OrgLedgerView = manager.get(f.id, &format!("/orgs/{oid}/ledger")).await;
+    assert!(
+        ledger.entries.iter().any(|e| e.kind == "DwellingBuilt"),
+        "the ledger carries the build: {:?}",
+        ledger
+            .entries
+            .iter()
+            .map(|e| e.kind.as_str())
+            .collect::<Vec<_>>()
+    );
+    // A dwelling the org owns can be let on its behalf, and the view says so.
+    let d = manager
+        .get::<OrgView>(f.id, &format!("/orgs/{oid}"))
+        .await
+        .dwellings[0]
+        .id;
+    manager
+        .ok(
+            f.id,
+            "/offers/lease",
+            json!({ "asset": { "dwelling": d }, "rent_per_cycle": 800, "term_cycles": null, "on_behalf_of": oid }),
+        )
+        .await;
+    let org: OrgView = manager.get(f.id, &format!("/orgs/{oid}")).await;
+    assert!(
+        org.dwellings[0].offer.is_some(),
+        "the lease offer shows on the dwelling"
+    );
 }
