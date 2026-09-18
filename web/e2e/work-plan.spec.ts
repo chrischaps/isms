@@ -25,15 +25,16 @@ test("work and standing plan", async ({ page, context }) => {
   await page.getByRole("button", { name: "Keep these and go home" }).click();
   await expect(page.getByRole("heading", { name: /Your Accounts/ })).toBeVisible();
 
-  // Work: the position is in the editor; 9 hours is more than the day holds.
+  // Work: the position is in the editor; 9 hours is more than the contract allows,
+  // and the editor keeps to it before the server has to refuse (D4).
   await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Work" }).click();
   const editor = page.getByTestId("allocation-editor");
   await expect(editor).toBeVisible();
   const hours = editor.getByLabel(/^Hours at /).first();
   await expect(hours).toHaveValue("8");
   await hours.fill("9");
-  await page.getByRole("button", { name: "Set my hours" }).click();
-  await expect(page.getByRole("alert")).toContainText(/exceeds this day's budget of 8 h|allows at most 8 h/i);
+  await expect(hours).toHaveValue("8");
+  await expect(editor.getByText(/up to 8 h a day/)).toBeVisible();
   // Effort costs come from the preset, not the client.
   await expect(editor.getByText(/output x1\.0, Food decay x1\.0/)).toBeVisible();
   await hours.fill("6");
