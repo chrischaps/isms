@@ -4,6 +4,11 @@
 
 ifeq ($(OS),Windows_NT)
 SHELL := bash
+# From PowerShell or cmd, GnuWin32 make hands recipes to cmd.exe, where `bash` is
+# WSL's, and every script target hangs with no output. Git Bash sets MSYSTEM.
+ifndef MSYSTEM
+$(error Run make from Git Bash (the isms-dev launcher opens one); from PowerShell the recipes go to WSL bash and hang)
+endif
 endif
 
 PRESET ?= freeport
