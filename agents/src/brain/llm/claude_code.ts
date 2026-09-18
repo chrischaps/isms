@@ -68,6 +68,8 @@ export function parseClaudeCodeResult(stdout: string): ClaudeCodeResult {
 }
 
 export type ClaudeCodeCall = {
+  /** How many CLI processes may run at once; each is a whole Claude Code runtime, and five at once froze a 16 GB machine. */
+  concurrency?: number;
   model: string;
   system: string;
   prompt: string;
@@ -77,8 +79,27 @@ export type ClaudeCodeCall = {
   timeoutMs?: number;
 };
 
-/** One call: the prompt on stdin, the JSON document on stdout. */
+let active = 0;
+const waiting: (() => void)[] = [];
+
+/** Wait for a slot under `limit`, and release it when `f` settles. */
+async function withSlot<T>(limit: number, f: () => Promise<T>): Promise<T> {
+  if (active >= limit) await new Promise<void>((r) => waiting.push(r));
+  active += 1;
+  try {
+    return await f();
+  } finally {
+    active -= 1;
+    waiting.shift()?.();
+  }
+}
+
+/** One call: the prompt on stdin, the JSON document on stdout; at most `concurrency` at once. */
 export function callClaudeCode(call: ClaudeCodeCall): Promise<ClaudeCodeResult> {
+  return withSlot(call.concurrency ?? 1, () => spawnClaudeCode(call));
+}
+
+function spawnClaudeCode(call: ClaudeCodeCall): Promise<ClaudeCodeResult> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       call.bin ?? "claude",

@@ -159,6 +159,7 @@ export class AnthropicBrain implements Brain {
     if (this.opts.cfg.models.cycle_provider === "claude_code") {
       // On the subscription, through the CLI: same rules, persona and schema; tokens counted, no dollars.
       const r = await callClaudeCode({
+        concurrency: this.opts.cfg.models.claude_code_concurrency,
         model: this.cycleModel,
         system: `${RULES}
 

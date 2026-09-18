@@ -80,7 +80,8 @@ export async function runCohort(opts: CohortOpts, ticks: AsyncIterable<TickSigna
       cyclesSeen += 1;
       log(`day ${signal.clock.cycle - 1} ended; players reflect`);
       for (const p of opts.players) {
-        track(pool.run(() => p.reflect(signal.clock)).catch((e) => log(`${p.name}: reflection failed: ${e instanceof Error ? e.message : String(e)}`)));
+        // Outside the turn pool: a reflection holds no slot, so the day's turns keep going.
+        track(p.reflect(signal.clock).catch((e) => log(`${p.name}: reflection failed: ${e instanceof Error ? e.message : String(e)}`)));
       }
       continue;
     }

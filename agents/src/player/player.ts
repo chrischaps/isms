@@ -125,11 +125,18 @@ export class Player {
       this.cycleTurns = [];
       return;
     }
-    await this.exclusive(async () => {
+    // Snapshot the day under the lock, then think outside it: the next day's
+    // turns go on with yesterday's notes until the rewrite lands, instead of
+    // skipping every hour a slow reflection takes.
+    const { before, digest } = await this.exclusive(async () => {
+      const snapshot = { before: this.o.notes.get(), digest: this.digest() };
+      this.cycleTurns = [];
+      return snapshot;
+    });
+    {
       const now = this.o.now ?? Date.now;
       const started = now();
-      const before = this.o.notes.get();
-      const r = await this.brain.reflect!({ clock, notes: before, digest: this.digest() });
+      const r = await this.brain.reflect!({ clock, notes: before, digest });
       this.o.notes.set(r.notes, r.plan);
       this.o.journal.append({
         kind: "reflection",
@@ -145,7 +152,6 @@ export class Player {
         plan: r.plan,
         usage: r.usage,
       });
-      this.cycleTurns = [];
-    });
+    }
   }
 }

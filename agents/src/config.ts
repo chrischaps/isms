@@ -35,6 +35,8 @@ export const ConfigSchema = z.object({
       cycle: modelId.default("claude-opus-5"),
       /** `api`: the SDK on API credit. `claude_code`: `claude -p` on the account's subscription. */
       cycle_provider: z.enum(["api", "claude_code"]).default("api"),
+      /** CLI reflections at once; each is a whole Claude Code runtime. */
+      claude_code_concurrency: z.number().int().min(1).default(1),
       turn_effort: z.enum(["low", "medium", "high"]).default("low"),
       haiku_thinking_budget: z.number().int().min(1024).default(2048),
     })
