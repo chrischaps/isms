@@ -53,9 +53,9 @@ Everything the playtests so far have left to do, gathered from this file, the ru
 11. ~~D4~~ note closed 2026-09-18: the labor editor caps rows and blocks an over-budget save.
 
 **Harness (`agents/`)**
-12. A second `make agents` run with the raised token cap, to get a report that reaches the epoch's end; about $15. Source: SESSIONS hand-off.
-13. Record a model-driven player for the replay fixture (`AGENTS_CMD=record` with a key); today's fixture is a scripted player. Source: `agents/README.md`.
-14. A Makefile guard so `make` from PowerShell fails with a message instead of hanging in WSL's bash. Source: the first attempt to run `make agents` on 2026-09-17.
+12. ~~A second `make agents` run~~ three partial runs on 2026-09-18 (`docs/playtest/runs/2026-09-18-partial-runs.md`), none past day 3, about $17; the cohort test is complete at Chris's budget (ADR-0011). They confirmed D2, D3, D6, D8 and D12 on the build and found D13.
+13. ~~Record a model-driven player for the replay fixture~~ dropped for Phase 1 (ADR-0011): it needs a paid run.
+14. ~~A Makefile guard~~ done 2026-09-18.
 15. An OpenAI-compatible provider behind the `LlmProvider` seam for local models; designed, not built (ADR-0010). Only if a free run becomes worth its noise.
 
 **S1.15 proper (the card in `docs/tdd.md` §18.4)**
