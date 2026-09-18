@@ -20,12 +20,14 @@ export type ClaudeCodeResult = {
 
 /** The arguments for one structured, tool-less, non-persisted call. */
 export function claudeCodeArgs(model: string, system: string, schema: object): string[] {
+  // The CLI validates the schema itself and rejects a `$schema` draft reference (zod emits one).
+  const { $schema: _draft, ...plain } = schema as Record<string, unknown>;
   return [
     "-p",
     "--output-format",
     "json",
     "--json-schema",
-    JSON.stringify(schema),
+    JSON.stringify(plain),
     "--model",
     model,
     "--system-prompt",

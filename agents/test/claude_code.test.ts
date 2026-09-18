@@ -4,7 +4,7 @@ import { claudeCodeArgs, parseClaudeCodeResult } from "../src/brain/llm/claude_c
 
 describe("claude -p as the reflection provider", () => {
   it("asks for one structured, tool-less, non-persisted answer", () => {
-    const args = claudeCodeArgs("claude-opus-5", "rules and persona", { type: "object" });
+    const args = claudeCodeArgs("claude-opus-5", "rules and persona", { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" });
     expect(args.slice(0, 3)).toEqual(["-p", "--output-format", "json"]);
     expect(args[args.indexOf("--json-schema") + 1]).toBe('{"type":"object"}');
     expect(args[args.indexOf("--model") + 1]).toBe("claude-opus-5");
