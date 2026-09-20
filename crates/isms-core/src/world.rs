@@ -803,15 +803,97 @@ pub enum OfferBody {
 // ---------------------------------------------------------------------------
 // Governance (Phase 2 fills these in)
 
+/// The society's offices (GDD §8.2, §8.3; S2.2): who sits, which elections
+/// are open, and what each citizen has served. Reset with the epoch.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Offices {
     pub holders: BTreeMap<OfficeKind, Vec<OfficeHolder>>,
+    /// The election open for an office, at most one at a time (S2.2).
+    #[serde(default)]
+    pub elections: BTreeMap<OfficeKind, Election>,
+    /// What each citizen has served in each office: the tie-break and the
+    /// no-consecutive rule read it (S2.2, Q118).
+    #[serde(default)]
+    pub past_terms: BTreeMap<OfficeKind, BTreeMap<CitizenId, ServiceRecord>>,
+    /// The cycle since which an office has had fewer holders than seats;
+    /// absent while it is full (S2.2, GDD §8.3's five-cycle headline).
+    #[serde(default)]
+    pub short_since: BTreeMap<OfficeKind, Cycle>,
+}
+
+impl Offices {
+    /// The seats of `kind` filled right now.
+    #[must_use]
+    pub fn filled(&self, kind: OfficeKind) -> u32 {
+        self.holders
+            .get(&kind)
+            .map_or(0, |h| u32::try_from(h.len()).unwrap_or(u32::MAX))
+    }
+
+    /// Whether `citizen` sits in `kind` right now.
+    #[must_use]
+    pub fn holds(&self, citizen: CitizenId, kind: OfficeKind) -> bool {
+        self.holders
+            .get(&kind)
+            .is_some_and(|seats| seats.iter().any(|h| h.citizen == citizen))
+    }
+
+    /// `citizen`'s record in `kind`, empty when they never sat.
+    #[must_use]
+    pub fn record(&self, citizen: CitizenId, kind: OfficeKind) -> ServiceRecord {
+        self.past_terms
+            .get(&kind)
+            .and_then(|m| m.get(&citizen))
+            .copied()
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OfficeHolder {
     pub citizen: CitizenId,
+    /// The last cycle of the term: the seat empties at that cycle's end (8j).
     pub term_ends_cycle: Cycle,
+}
+
+/// One citizen's service in one office (S2.2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceRecord {
+    /// Terms served, full or partial: the election tie-break (Q118).
+    pub terms: u32,
+    /// The cycle a full term last ended; a partial term (recall, absence)
+    /// leaves it alone, so it never bars the next election (Q118).
+    pub last_full_term_ended: Option<Cycle>,
+}
+
+/// An election for the vacant seats of one office (S2.2, Q118): approval
+/// ballots, the top `seats` by approvals win, ties by fewer past terms then
+/// lower id. Opened at 8j (or at epoch start) and closed at the next 8j; with
+/// no candidate it re-runs each cycle (GDD §8.3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Election {
+    pub office: OfficeKind,
+    /// Seats this election fills.
+    pub seats: u32,
+    /// The cycle the election opened in; kept across re-runs.
+    pub opened_cycle: Cycle,
+    /// The cycle whose end (8j) closes it.
+    pub closes_cycle: Cycle,
+    pub candidates: BTreeSet<CitizenId>,
+    /// Each voter's approved candidates, replaceable until close.
+    pub approvals: BTreeMap<CitizenId, BTreeSet<CitizenId>>,
+}
+
+/// Why a seat emptied (S2.2; GDD §8.2 "Removal", §8.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VacancyReason {
+    /// The term ran its course.
+    TermEnded,
+    /// No session for `population.office_vacancy_absent_cycles` cycles.
+    Absence,
+    /// A recall carried by the office's `RecallRule`.
+    Recalled,
 }
 
 /// One citizen's ballot on a proposal (GDD 8.1: one citizen one vote).

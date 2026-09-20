@@ -312,6 +312,20 @@ pub enum Command {
         proposal: crate::ids::ProposalId,
         ballot: crate::world::Ballot,
     },
+    /// Stand in the open election for `office` (S2.2).
+    Stand {
+        office: crate::constitution::OfficeKind,
+    },
+    /// Withdraw a candidacy from the open election for `office` (S2.2).
+    Withdraw {
+        office: crate::constitution::OfficeKind,
+    },
+    /// Cast or replace an approval ballot in the open election for `office`:
+    /// any subset of its candidates (S2.2, Q118).
+    Approve {
+        office: crate::constitution::OfficeKind,
+        candidates: std::collections::BTreeSet<crate::ids::CitizenId>,
+    },
 }
 
 impl Command {
@@ -372,6 +386,9 @@ impl Command {
             Command::CallStrike { .. } => "CallStrike",
             Command::Propose { .. } => "Propose",
             Command::Vote { .. } => "Vote",
+            Command::Stand { .. } => "Stand",
+            Command::Withdraw { .. } => "Withdraw",
+            Command::Approve { .. } => "Approve",
         }
     }
 }
@@ -430,6 +447,14 @@ pub enum RejectCode {
     TooManyProposals,
     /// No open proposal with this id.
     UnknownProposal,
+    /// No election is open for this office (S2.2).
+    NoElection,
+    /// The citizen is not a candidate in this election (S2.2).
+    NotACandidate,
+    /// The office bars consecutive terms and this citizen's just ended (S2.2).
+    ConsecutiveTerm,
+    /// The citizen does not hold the office the command needs (S2.2).
+    NotAnOfficeHolder,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -528,6 +553,9 @@ impl Capabilities {
             Command::Propose { kind, .. } => self.proposal_kinds.contains(&kind.tag()),
             Command::Vote { .. } => {
                 !self.proposal_kinds.is_empty() || self.allows_org(OrgKind::Cooperative)
+            }
+            Command::Stand { office } | Command::Withdraw { office } | Command::Approve { office, .. } => {
+                self.offices.iter().any(|o| o.kind == *office)
             }
         }
     }
@@ -758,6 +786,11 @@ pub fn handle(
         }
         Command::Vote { proposal, ballot } => {
             crate::governance::vote(world, envelope, *proposal, *ballot)
+        }
+        Command::Stand { office } => crate::offices::stand(world, envelope, *office),
+        Command::Withdraw { office } => crate::offices::withdraw(world, envelope, *office),
+        Command::Approve { office, candidates } => {
+            crate::offices::approve(world, envelope, *office, candidates)
         }
     }
 }

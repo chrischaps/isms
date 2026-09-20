@@ -12,10 +12,30 @@ use crate::world::{
     Citizen, CitizenFlags, Household, LaborPlan, LaborState, Needs, StandingPlan, VoteDefault,
     World,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Event kinds whose `apply` is still a no-op. Each later card removes its own.
 pub const UNIMPLEMENTED: &[&str] = &[];
+
+/// Keep `Offices.short_since` honest after an office event: set to `cycle`
+/// when the office has just fallen short of its seats, cleared when full.
+fn note_short(
+    world: &mut World,
+    office: crate::constitution::OfficeKind,
+    cycle: crate::ids::Cycle,
+) {
+    let seats = world
+        .constitution
+        .offices
+        .iter()
+        .find(|o| o.kind == office)
+        .map_or(0, |o| o.seats);
+    if world.offices.filled(office) < seats {
+        world.offices.short_since.entry(office).or_insert(cycle);
+    } else {
+        world.offices.short_since.remove(&office);
+    }
+}
 
 /// Fold one event into the world.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)] // a flat dispatcher
@@ -1033,6 +1053,101 @@ pub fn apply(world: &mut World, event: &Event) {
         Event::ProposalClosed { proposal, .. } => {
             world.proposals.remove(proposal);
         }
+        Event::ElectionOpened {
+            office,
+            seats,
+            closes_cycle,
+        } => {
+            let cycle = world.cycle_of(world.meta.tick);
+            world.offices.elections.insert(
+                *office,
+                crate::world::Election {
+                    office: *office,
+                    seats: *seats,
+                    opened_cycle: cycle,
+                    closes_cycle: *closes_cycle,
+                    candidates: BTreeSet::new(),
+                    approvals: BTreeMap::new(),
+                },
+            );
+            note_short(world, *office, cycle);
+        }
+        Event::CandidacyDeclared { office, citizen } => {
+            if let Some(e) = world.offices.elections.get_mut(office) {
+                e.candidates.insert(*citizen);
+            }
+        }
+        Event::CandidacyWithdrawn { office, citizen } => {
+            if let Some(e) = world.offices.elections.get_mut(office) {
+                e.candidates.remove(citizen);
+                for approved in e.approvals.values_mut() {
+                    approved.remove(citizen);
+                }
+            }
+        }
+        Event::Approved {
+            office,
+            citizen,
+            candidates,
+        } => {
+            if let Some(e) = world.offices.elections.get_mut(office) {
+                e.approvals.insert(*citizen, candidates.clone());
+            }
+        }
+        Event::ElectionClosed { office, .. } => {
+            world.offices.elections.remove(office);
+        }
+        Event::OfficeTaken {
+            office,
+            citizen,
+            term_ends_cycle,
+            ..
+        } => {
+            world
+                .offices
+                .holders
+                .entry(*office)
+                .or_default()
+                .push(crate::world::OfficeHolder {
+                    citizen: *citizen,
+                    term_ends_cycle: *term_ends_cycle,
+                });
+            let cycle = world.cycle_of(world.meta.tick);
+            note_short(world, *office, cycle);
+        }
+        Event::OfficeVacated {
+            office,
+            citizen,
+            reason,
+        } => {
+            if let Some(seats) = world.offices.holders.get_mut(office) {
+                seats.retain(|h| h.citizen != *citizen);
+            }
+            let cycle = world.cycle_of(world.meta.tick);
+            let record = world
+                .offices
+                .past_terms
+                .entry(*office)
+                .or_default()
+                .entry(*citizen)
+                .or_default();
+            record.terms += 1;
+            if *reason == crate::world::VacancyReason::TermEnded {
+                record.last_full_term_ended = Some(cycle);
+            }
+            note_short(world, *office, cycle);
+        }
+        Event::ElectionRerun {
+            office,
+            seats,
+            closes_cycle,
+        } => {
+            if let Some(e) = world.offices.elections.get_mut(office) {
+                e.seats = *seats;
+                e.closes_cycle = *closes_cycle;
+            }
+        }
+        Event::OfficeUnfilled { .. } => {}
         Event::UnionFormed { org, firm } => {
             if let Some(o) = world.orgs.get_mut(org) {
                 o.union = Some(crate::world::UnionState {

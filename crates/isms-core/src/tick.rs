@@ -291,8 +291,12 @@ fn cycle_end_8i_norms_ledger(b: &mut TickBuilder) {
 }
 /// 8j. Votes close (S2.1): every proposal whose `closes_cycle` has come is
 /// tallied and, where it passed, takes effect. Elections and vacancies are S2.2.
+/// 8j. Proposals close first (a recall that carries empties a seat), then the
+/// offices: term expiry, absence, the elections' close, re-runs, the open for
+/// any vacancy, and the unfilled headline (S2.2).
 fn cycle_end_8j_votes_and_vacancies(b: &mut TickBuilder) {
     crate::governance::cycle_end_8j_close_proposals(b);
+    crate::offices::cycle_end_8j_offices(b);
 }
 fn cycle_end_8k_dormancy(b: &mut TickBuilder) {
     crate::plan::cycle_end_8k_dormancy(b);
