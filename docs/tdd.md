@@ -942,7 +942,7 @@ These can interleave with Phase 1's server/web sessions. Each adds capability-ga
 - **Done gate.** Playwright: a headline links to the event; API key creation and a CLI call with it (S1.6) appear as `ApiKey` in the profile's action share; a logged-out visitor can read the Chronicle.
 
 #### S1.14 — Deployment, backups, seeding *(parked by ADR-0009)*
-- **Parked.** Nobody remote needs to reach a society yet. Take this card up when a second human player is real; nothing depends on it until then (S1.15 no longer does).
+- **Parked.** Nobody remote needs to reach a society yet. Take this card up when a second human player is real, or at the start of Phase 5 if that player is remote (ADR-0012); nothing depends on it until then (S1.15 no longer does).
 - **Read.** TDD §17, D11.
 - **Build.** `Dockerfile` (multi-stage; embeds the web build), `docker-compose.yml`, `Caddyfile`, `.env.example`, `deploy.yml` (GHCR + SSH), `backup.sh` with restore instructions and a tested restore on a throwaway container, `/healthz` and `/metrics`, `isms-server seed --preset freeport --name freeport-1 --tick-seconds 3600 --cycle-boundary 04:00 --tz America/Chicago` creating the first society with householders (the boundary is stored in UTC), a `RUNBOOK.md` (deploy, rollback, restore, rotate a key, pause a society).
 - **Done gate.** A clean VPS reaches a working society over HTTPS from the runbook alone; restore drill passes; CI deploy is green.
@@ -961,21 +961,117 @@ These can interleave with Phase 1's server/web sessions. Each adds capability-ga
 - **Done gate.** Unit tests for the tool layer against a recorded API (no model calls in CI); a recorded-transcript test that replays one player's epoch without the network; a live run of 8 players through a 7-cycle epoch at `tick_seconds=10` that ends inside its token budget with a report in `docs/playtest/runs/`; conservation holds at the end of that run (`isms-server rebuild` replays it clean); the report's defects are filed in `docs/playtest/phase1-defects.md` with a severity each.
 - **Hand-off.** What the cohort did that householders never do, what broke, what a run costs, and which personas were worth their tokens.
 
-#### S1.15 — Hardening, load test, epoch end *(trimmed by ADR-0009)*
+#### S1.15 — Hardening, load test, epoch end *(trimmed by ADR-0009; done 2026-09-18, Phase 1 exit per ADR-0012)*
 - **Read.** GDD §11.5, §18 Phase 1 exit; TDD §17 performance budget, T5; ADR-0009; `docs/playtest/phase1-defects.md`.
 - **Build.** Epoch end sequence (`epoch_cycles` override; Chronicle announcement at cycle N−2; final resolution; the frozen aggregates snapshot written to `epoch_archives` — this is the "Observatory snapshot" of GDD §11.5, consumed by Phase 3; archive page; 48-hour closing-statements window; `start_epoch` invoked by the scheduler after the window), load test script (100 householders + 20 CLI agents at `tick_seconds=5` for an epoch) with the budget assertions, measured `events` size (decide T5), the blocking defects from S1.16's journals fixed and the rest triaged, the interview guide in `docs/playtest/phase1.md` (from GDD §18/§19: "what did you feel", not "was it fun") written for a cohort of one to three.
 - **Out of scope (until S1.14 is taken up).** Invite-code issuance for a cohort, the mailed invitation back to the roster, anything "against production config".
-- **Done gate.** **Phase 1 exit criteria met (as amended by ADR-0009 and ADR-0011):** budget assertions pass; epoch end produces an archive; the S1.16 cohort's findings are closed or triaged with no blocking defect open (D13 fixed) and `make e2e-agents` plays its two days clean on the exiting build; Chris has played a Freeport epoch and filled in `docs/playtest/phase1.md`.
+- **Done gate.** **Phase 1 exit criteria met (as amended by ADR-0009, ADR-0011 and ADR-0012):** budget assertions pass; epoch end produces an archive; the S1.16 cohort's findings are closed or triaged with no blocking defect open (D13 fixed) and `make e2e-agents` plays its two days clean on the exiting build. The human Freeport epoch that ADR-0009 put here is Phase 5's (ADR-0012); `docs/playtest/phase1.md` is its guide, written and unfilled.
 
-### 18.5 Phases 2–4 — milestones
+### 18.5 Phase 2 — The Commune (cards), Phases 3–5 — milestones
 
-These are milestones, not cards; expand each into cards after Phase 1 interviews, since the GDD expects them to change things. Estimated session counts are for planning only.
+Phase 2 is cut into cards here (2026-09-19, ADR-0012) from GDD §6.2, §8 and §12, the engine's existing governance scaffolding, and the S1.16 journals; the Phase 1 interviews this section once waited for are Phase 5's. Phases 3 and 4 stay milestones until their own kickoff. Session counts are for planning only. No phase from 2 to 4 has a human playtest on its gate: what only a person can judge is marked `[H]` in `docs/playtest/phase<N>-visual.md` for Phase 5. The kickoff plan is `docs/plans/phase2.md`; the provisional answers the cards start from are Q116–Q122.
 
-**Phase 2 — The Commune (≈10–12 sessions).** Governance primitives in the engine: proposals (typed), ballots, quorum, cycle-end closes, offices with terms and rotation, recall, vacancy and auto-vacate (GDD §8.1–8.3), `vote_default` execution, `PolicyChanged` from proposals; coordinator role and its three powers; assembly floor channel bound to proposals; Ledger of Contribution and Common Store screens; the Commune lexicon, Welcome Brief, and Chronicle voice; the assembly/ballot builder as a role workspace; the Materials-split vote; honors; the "felt difference" playtest with the same cohort. Also: association disbursement votes (replacing S0.11's stub), and a second-preset visual pass on the shared component kit.
+Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; the rest commit to `main`. **∥** marks a card that can run beside the previous one in a worktree because it touches different crates.
+
+**What exists to reuse.** The one live proposal path (`ProposalKind::Admission` in `world.rs`, `bank.rs`'s propose/vote/close, tick phase 8j); `Offices`/`OfficeHolder`; `OfficeSpec` on the constitution and `Capabilities.offices`, already declared in `commune.toml`; `Policy` with the Commune's four levers and `validate_against`; `SetPolicy` from `Actor::System` (Q56); `VoteDefault` on `StandingPlan`, editable in the client, never executed; tunables `population.quorum_fraction`, `population.office_vacancy_absent_cycles`, `governance.coordinator_term_cycles`; `active_humans` in `metrics.rs`; `Citizen.contribution` and `CommonStore` in the engine with no server view; `planner::decide_system` for the sim's System round; channel access in `comms.rs`; `presets/copy/` holds only `freeport/` (a Commune society cannot load Chronicle copy today); `presets/lexicon/commune.json` is all TODO; `web/src/screens/roles/` does not exist. §5.2 specifies `proposal_kinds` on the constitution; `constitution.rs` lacks it.
+
+#### S2.1 — Typed proposals, ballots, quorum, cycle-end close *(engine, PR)*
+- **Goal.** One proposal machine for every society: typed proposals, one-citizen-one-vote ballots, quorum from params, close at 8j, `vote_default` executed at close.
+- **Read.** GDD §8.1, §6.2 Governance; TDD §5.2 (`proposal_kinds`), §5.3, §5.5 step 8j, T8; `world.rs` (Offices, Proposal), `bank.rs` (the admission vote), `plan.rs` (`VoteDefault`); Q116, Q117, Q119, Q121.
+- **Build.** Constitution gains `proposal_kinds: BTreeSet<ProposalKindTag>` and `proposers: Anyone | OfficeHolders` (`serde(default)`; populate `commune.toml`); both on `Capabilities`. `ProposalKind` gains `PolicyChange { patch: PolicyPatch }`, `Resolution`, and declared-only `Election`, `Recall`, `Honor`, `Disbursement`; `Proposal` gains `text`, `closes_cycle`, `ballots: BTreeMap<CitizenId, Ballot>` (Admission migrates onto it). New `governance.rs`: `Propose` (`NotInThisSociety` for a tag outside the set or an excluded proposer; householders and dormant citizens rejected; a cap of open proposals per citizen), `Vote` (one ballot, replaceable until close). 8j: fill missing ballots from `vote_default` (`Follow` one hop); quorum = ceil(`quorum_fraction` × active humans) over ballots cast including Abstain; pass = yes > no; `ProposalClosed` gains `tally`; `PolicyChange` → `PolicyChanged` after `validate_against`; `Resolution` is the record only. Commands `Propose`, `Vote`; events `Proposed`, `Voted`; §5.3/§5.4 rows; goldens regenerated.
+- **Out of scope.** Elections, recall, offices, honors' effect, coordinator powers, routes, the sim assembly.
+- **Done gate.** `make check`; proptests (ballots never exceed eligible; quorum monotone in `quorum_fraction`); tests: a quorum miss fails regardless of tally, `Follow` copies exactly one hop, an out-of-constitution `PolicyChange` is refused at `Propose`, conservation across a `PolicyChanged` that flips `rationing`, a determinism golden for a cycle with three proposals. New tunable `governance.open_proposals_per_citizen` (`# [new tunable] S2.1`).
+- **Hand-off.** The tag set and `proposers` are the gate; S2.2 adds the office effects; S2.5 puts the tally on the wire.
+
+#### S2.2 — Offices: elections, terms, rotation, recall, vacancy *(engine, PR)*
+- **Goal.** Office-holders come from elections closed at 8j, serve terms, respect no-consecutive, can be recalled, and vacate on absence.
+- **Read.** GDD §8.2 (Coordinator row), §8.3; `constitution.rs` (`OfficeSpec`); `world.rs` (`Offices`); `_base.toml` office tunables; Q118.
+- **Build.** `Stand { office }` / `Withdraw`; `Election { office, candidates, seats }` with approval ballots, winners the top `seats` by approvals, ties by fewer past terms then lower id. 8j order: term expiry → `ElectionOpened`; absence auto-vacate (`OfficeVacated { reason: Absence }`); close elections (`OfficeTaken`); no-candidate re-run (`ElectionRerun`); after `unfilled_office_headline_cycles` emit `OfficeUnfilled` once per cycle. `Recall` by the `OfficeSpec.recall` threshold → `OfficeVacated { reason: Recalled }` and an election. `consecutive = false` refuses `Stand` from a just-ended holder; `Offices.past_terms`. A helper `holds(world, citizen, kind)`. The first election opens at epoch start.
+- **Out of scope.** Coordinator powers, honors, office rules beyond `OfficeSpec`, Chronicle text.
+- **Done gate.** `make check`; proptests (seats never exceed `OfficeSpec.seats`; no holder past `term_ends_cycle`); tests: no-consecutive refusal, auto-vacate at exactly 3 cycles, majority vs two-thirds recall, no-candidate re-run, tie-break determinism. New tunable `governance.unfilled_office_headline_cycles = 5` (`# [new tunable] S2.2`).
+- **Hand-off.** The five office events are what S2.5 and S2.9 project.
+
+#### S2.3 — The coordinator's three powers and honors *(engine, PR)*
+- **Goal.** A coordinator publishes the Plan, opens and closes workplaces on land slots, and proposes the rationing rule; the assembly honors a citizen and it sits on the record.
+- **Read.** GDD §6.2 (Labor, Investment, Governance, Scoreboard), §8.2, §8.4; `planning.rs` (`SetPlan`), `orgs.rs` (slots, `add_workplace`); Q116, Q119, Q120.
+- **Build.** `SetPlan { targets }` from a Coordinator under `Governance::Direct` (advisory: no bonus, no ratchet; `PlanPublished { by }`). `OpenWorkplace { kind, slot }` / `CloseWorkplace { workplace }` on the collective: opening spends the founding Materials from the Common Store, closing unassigns workers that tick and frees the slot; `WorkplaceOpened/Closed { by }`. A `PolicyChange` touching `rationing` is proposable only by a coordinator. `Honor` effect: `Honored`, `Citizen.honors`, the scoreboard's `honors` reads it. `SetPolicy` from `System` refused under `Governance::Direct` outside the sim. The refusal code for a non-holder is chosen in the card and written into the §5.3 row.
+- **Out of scope.** Directorate assignment, punishments (GDD §8.2 "cannot"), UI, honors on the Chronicle.
+- **Done gate.** `make check`; tests: a non-holder's `SetPlan` refused; close-with-workers emits their unassignments and conserves the Materials moved; a non-coordinator's rationing proposal refused; an honor lands on the record. Reuse the org founding Materials figure; a new tunable only if it must differ.
+- **Hand-off.** S2.8 builds the workspace on these five commands.
+
+#### S2.4 — Association disbursement votes and the sim assembly *(engine + sim, PR)*
+- **Goal.** Member votes replace the manager-only disbursement; the simulator gets a scripted assembly so `sim-check commune` exercises governance.
+- **Read.** GDD §7.1, §6.2; TDD §18.3 S0.15 ("set by System in sim"); `credit.rs` (associations), `orgs.rs` (`appoint_manager`), `planner.rs`, `isms-sim`'s seeding, `tests/sim.rs`; Q122.
+- **Build.** `ProposalKind::Disbursement { org, to, what }` for associations and coops, majority of members, effect a `Transferred` with an `Explain`; a manager's direct treasury `Transfer` from a member-owned org is refused. Sim assembly: `sim.assembly_size` scripted human citizens seeded by `isms-sim` only (`Seen` each cycle; propose the split nudged toward the scarcest good, stand when a seat opens, vote Yes on a split, approve every candidate, honor the top contributor every 10 cycles) as pure functions of `World` in `planner.rs`. New invariants in `tests/invariants.rs`: at least one `PolicyChanged` from a proposal per epoch, three coordinators from cycle 1, no proposal outlives `closes_cycle`. Retune `docs/tuning/commune-0N.md` if stability moves.
+- **Out of scope.** LLM voters, coop manager election (Phase 4), the Republic legislature.
+- **Done gate.** `make check`; `make sim-check PRESET=commune` green with the assembly; `make sim-all` unchanged for the other four (`assembly_size = 0`). New tunable `sim.assembly_size` (`# [new tunable] S2.4, sim only`).
+- **Hand-off.** The assembly script is the reference for S2.10's scripted personas.
+
+#### S2.5 ∥ — Proposal, ballot and office endpoints; the assembly floor *(server)*
+- **Goal.** Everything the engine now decides is reachable over the public API, and each proposal has a thread.
+- **Read.** TDD §10, §12, D12; `society_api.rs` (the orgs block as the pattern), `comms.rs`, `views.rs`, `viewer.rs`, `names.rs`.
+- **Build.** `GET/POST /s/{id}/proposals`, `GET /s/{id}/proposals/{pid}`, `PUT /s/{id}/proposals/{pid}/ballot`, `GET /s/{id}/offices`, `POST/DELETE /s/{id}/offices/{kind}/candidacy`, `POST /s/{id}/orgs/{oid}/disbursements`. Channel `assembly:<proposal_id>`: readable by every citizen, postable while open and one cycle after, `NotInThisSociety` when `assembly` is not in `communication`. `CapabilitiesView` gains `proposal_kinds`, `proposers`; the new events named through `names.rs`; the away-digest lists proposals closed while away and the ballot cast for you by default. `make api-types`.
+- **Out of scope.** Screens, Chronicle text, agent tools.
+- **Done gate.** Server tests: propose/vote/close round-trip through the actor; a post after the window refused; a householder id in `Vote` answers 422; `make check`.
+- **Hand-off.** Route names and view shapes frozen for S2.6–S2.8 and S2.10. Depends on S2.1–S2.2 merged; S2.3/S2.4 types land in a follow-up commit. ∥ with S2.3/S2.4.
+
+#### S2.6 — The Assembly screen and the ballot builder *(web)*
+- **Goal.** A citizen reads open proposals, deliberates on the floor, casts a ballot, and writes a proposal from a typed builder.
+- **Read.** GDD §6.2 Governance, §12, §15; TDD §4 (`roles/`); `Plan.tsx`, `Talk.tsx`, `Org.tsx`, `hooks.ts`.
+- **Build.** `screens/Assembly.tsx` at `/s/$id/assembly`, mounted on `caps.governance !== "none"`: open proposals with tally, a quorum bar (`Meter`), closes-at via `lib/when`, my ballot; closed proposals as a ledger with outcome and the `PolicyChanged` diff; an offices panel with stand/withdraw. `screens/roles/BallotBuilder.tsx`: one form per enabled kind, rejections through `names.inText`. A floor thread per proposal via `Talk` on `assembly:<pid>`. `Plan.tsx`: `Follow` picks a citizen by name. `scripts/e2e/web.sh` seeds a lab Commune beside Freeport; `web/e2e/assembly.spec.ts` (propose as a coordinator, vote, step to cycle end, see `PolicyChanged`); a spec that a Freeport citizen has no Assembly nav.
+- **Out of scope.** Coordinator powers, the Store and Ledger screens, lexicon text (key names until S2.9).
+- **Done gate.** `pnpm typecheck/lint/test`; Playwright `assembly.spec.ts` green in CI; the nav absent in Freeport.
+- **Hand-off.** Builder components reused by S2.8's rationing form. Depends on S2.5. ∥ with S2.4.
+
+#### S2.7 ∥ — Common Store and Ledger of Contribution screens *(server + web)*
+- **Goal.** A Commune citizen's day is the Store's stock and the Ledger, on two screens.
+- **Read.** GDD §6.2 (Production and the Common Store, Labor, Scoreboard), §15; `store.rs`, `norms.rs`, `world.rs` (`ContributionRecord`, `CommonStore`); `Market.tsx` (the per-good page as the pattern), `Work.tsx`.
+- **Build.** `GET /s/{id}/store` (`StoreView`: stock per good, this tick's requests, the rule in force, served/short last cycle, my entitlement and pending draw, surplus shares) and `GET /s/{id}/ledger` (`ContributionView`: hours exact, output as attributed with σ stated, norm cycles met, honors; my row marked). `screens/Store.tsx` on `caps.common_store`, `screens/Ledger.tsx` on `caps.labor === "norm"`; Home tiles for stock and my draw; honors on `Profile.tsx` and the citizens list; the Commune scoreboard fields. Playwright `commune.spec.ts` (stock shown, a draw lands in the pantry, my ledger row shows today's hours).
+- **Out of scope.** Ballots; the rationing algorithms; the Materials split UI (S2.8).
+- **Done gate.** View tests (entitlement matches `store::entitlement`; the ledger never shows exact output when σ > 0); Playwright green; `make check`.
+- **Hand-off.** `StoreView.rule` and `ContributionView` are what S2.10's personas read. Depends on S0.15 only. ∥ with S2.2–S2.4; sequence after S2.5 when one agent holds `society_api.rs`.
+
+#### S2.8 — The Coordinator workspace *(server + web)*
+- **Goal.** A coordinator publishes the Plan, opens and closes workplaces, and proposes the rationing rule from one role workspace; everyone sees who holds office.
+- **Read.** GDD §6.2, §8.2, §8.4; `Plan.tsx`, `Org.tsx`; S2.3's events.
+- **Build.** `PUT /s/{id}/offices/coordinator/plan`, `POST /s/{id}/workplaces`, `DELETE /s/{id}/workplaces/{wid}`, `GET /s/{id}/plan/published`; non-holders refused with the refusal named. `screens/roles/Coordinator.tsx` at `/s/$id/coordinator`, mounted when `/offices` lists me: a plan editor with last output beside targets, land slots with open/close and the Materials cost, "propose the rationing rule" reusing S2.6's builder. A Society-screen Offices tile; the Work screen shows the advisory target. Playwright `coordinator.spec.ts` (the seed elects the first citizen with one candidate stepped to cycle end).
+- **Out of scope.** The Directorate plan editor, assignment, punishment.
+- **Done gate.** Playwright green; a non-holder gets the refusal page; `make check`.
+- **Hand-off.** `roles/` exists with the holder-check mounting pattern Phase 3's legislature reuses. Depends on S2.3 merged and S2.6. Sequence with S2.7.
+
+#### S2.9 ∥ — The Commune's voice: lexicon, Welcome Brief, Chronicle *(copy + server)*
+- **Goal.** A Commune society loads and reads in its own words, and governance events make headlines.
+- **Read.** GDD §6.2 Felt experience, §12, §15, §17 item 4; `presets/lexicon/KEYS.txt`, `presets/copy/freeport/*`, `chronicle.rs`.
+- **Build.** `presets/lexicon/commune.json` real entries plus new shared keys (`assembly`, `proposal`, `ballot`, `office`, `honor`, `store_screen`, `ledger_screen`) filled in all five lexicons. `presets/copy/commune/welcome.md` with `{{open_slots}}`, `{{norm_hours}}`, `{{rationing}}`. `presets/copy/commune/chronicle.toml` for every governance event (passed/failed variants of `ProposalClosed`, one line per moved field of `PolicyChanged`, `OfficeUnfilled` as "The Commune has no coordinators"), plus stock-outs and the need-fulfillment rate; Freeport gains only the admission-vote templates. `chronicle.rs`: a template may key on a payload field; a missing copy dir fails at seed, not first tick. A neutrality read against `docs/tuning/neutrality-00.md`.
+- **Out of scope.** The other presets' copy (Phases 3–4); keys no screen uses.
+- **Done gate.** The lexicon key test green for five files; a chronicle template test renders every governance event from fixtures; `make check`.
+- **Hand-off.** The keys the S2.6–S2.8 screens use; the Welcome fields the harness reads. Depends on S2.1–S2.3's event names. ∥ with S2.6–S2.8.
+
+#### S2.10 ∥ — Commune personas and tools for the agents harness
+- **Goal.** `make e2e-agents PRESET=commune` plays a Commune day: proposing, voting, standing, drawing, reading the Ledger.
+- **Read.** `agents/README.md`, `agents/personas/*.md`, `agents/src/tools/`, `agents/src/brain/scripted/strategies.ts`, `scripts/agents/run.sh`; ADR-0010; S2.5's routes.
+- **Build.** Read tools `proposals`, `proposal`, `offices`, `store`, `ledger`; act tools `propose`, `vote`, `stand`, `withdraw_candidacy`, `set_plan`, `open_workplace`, `close_workplace`, `post_floor`. Personas `steward`, `rationer`, `free-rider`, `chronicler`; `rule-prober` gains governance probes (vote twice, vote as a householder id, propose a Directorate field). `run.sh` takes `PRESET`; `make e2e-agents` runs Freeport then Commune with `ASSERT_CLEAN=1`. The report gains a governance paragraph.
+- **Out of scope.** A model-driven run at cost (ADR-0011: Chris's call); coop personas.
+- **Done gate.** `pnpm --dir agents test` with fixtures for the new tools; `make e2e-agents` green on both presets in CI; no accepted probe.
+- **Hand-off.** The Commune e2e transcript fixture; the governance paragraph feeds the exit run. Depends on S2.5 and S2.7. ∥ with S2.8/S2.9.
+
+#### S2.11 — Second-preset visual pass and the Phase 2 exit run *(web)*
+- **Goal.** The shared component kit reads right in a society with no money, and the automated exit gate runs end to end on one sha.
+- **Read.** GDD §15, §17 item 4; TDD §11; `web/src/components/*`, `Gallery.tsx`, `SocietyScreen.tsx`, `Home.tsx`.
+- **Build.** Kit pass (`Num` without a currency, `Ledger` rows for draws and contributions, `Meter` as quorum and stock bars, the header without a balance where `!caps.money`, `DiffSinceLastSeen` for draws and default ballots); Gallery pages for the Commune states; every Commune-mounted screen reviewed against its Freeport sibling, with `[H]` marks in `docs/playtest/phase2-visual.md` for Phase 5. The exit run recorded in `docs/SESSIONS.md`.
+- **Out of scope.** New mechanics, engine changes, copy beyond a label.
+- **Done gate.** **Phase 2 exit** (below); web unit tests for the money-less variants; Playwright green in CI on both seeds.
+- **Hand-off.** Phase 3 starts from a kit that carries two presets. Depends on S2.6–S2.10.
+
+**Sequencing.** The engine chain S2.1 → S2.2 → S2.3 → S2.4 runs in `../Isms-p1`. S2.5 starts when S2.2 merges and runs beside S2.3/S2.4 on `main`; S2.7 any time after S2.5; S2.9 beside S2.6–S2.8; S2.10 beside S2.8/S2.9; S2.6 → S2.8 → S2.11 sequential. About seven sequential slots for eleven cards with two agents; eleven with one.
+
+**Phase 2 exit.** Automated only, on one sha of `main`: (1) `make sim-check PRESET=commune` is green with the sim assembly, and the governance invariants hold every epoch (a `PolicyChanged` from a proposal, three coordinators from cycle 1, every proposal closed at its `closes_cycle`, conservation and determinism unchanged); `make sim-all` is unchanged for the other four presets. (2) Playwright is green on both seeds: a Freeport citizen sees no Assembly; a Commune citizen proposes, votes, draws and reads the Ledger; a coordinator publishes a plan. (3) `make e2e-agents` plays a Commune day and a Freeport day clean, and the Commune report shows proposals opened and closed, turnout above quorum, no accepted probe. (4) The Commune's copy passes the lexicon key test and the Chronicle template test. (5) `docs/playtest/phase2-visual.md` carries the `[H]` marks for Phase 5.
 
 **Phase 3 — Observatory and the Republic (≈10–12 sessions).** Legislature (5 seats, 10-cycle terms, policy-parameter proposals: tax brackets, need floor, minimum wage, public dwellings, public bank funding); unions and strikes UI; the Republic's lexicon and copy; the public Observatory site (`/observatory`: side-by-side common metrics with the per-society scoreboards alongside, copy on what each metric can't tell you, no ranking); epoch archives with closing statements; the export job (§13) and the consent text v2; second identity signal (T4); in-app moderation reporting; the first canonical-society designation.
 
-**Phase 4 — The Directorate and the Commonwealth, community societies, agents flag (≈12–15 sessions).** Planning Committee role workspace (plan editor: targets, price list, wage grades, ration cards, assignments and transfer requests); committee election and the seeded-vs-elected decision (T10); state store and queue screens; coop workspace (books, admission votes, manager election, share-out rule) and the Public Investment Bank board; community societies (custom axis vectors, amendments as constitutional proposals with the "drifted" label, permanence option); `agents_allowed` flag and the API-share reporting on the Observatory; org-level monitoring upgrade for market systems (T14); the neutrality review pass over all five presets' copy with named partisan reviewers.
+**Phase 4 — The Directorate and the Commonwealth, community societies, agents flag (≈12–15 sessions).** Planning Committee role workspace (plan editor: targets, price list, wage grades, ration cards, assignments and transfer requests); committee election and the seeded-vs-elected decision (T10); state store and queue screens; coop workspace (books, admission votes, manager election, share-out rule) and the Public Investment Bank board; community societies (custom axis vectors, amendments as constitutional proposals with the "drifted" label, permanence option); `agents_allowed` flag and the API-share reporting on the Observatory; org-level monitoring upgrade for market systems (T14); the neutrality review pass over all five presets' copy with named partisan reviewers. Exit: automated gates only (ADR-0012); `[H]` marks in `docs/playtest/phase4-visual.md`.
+
+**Phase 5 — The playtest (ADR-0012).** One to three humans play consecutive short epochs in each of the five canonical presets on one build, keep a diary a day, and are interviewed once per preset from a guide that generalises `docs/playtest/phase1.md` (the Freeport section as written; four more in the same shape); the "felt difference" comparison runs across all five, and the `[H]` marks from Phases 2–4 are read first. S1.14 (deployment) is taken up here if a second human is remote. Exit: the guide filled in for every player and every preset, defects filed with severities, and a "what v2 must answer" list.
 
 ### 18.6 Dependency sketch
 
@@ -991,11 +1087,18 @@ flowchart LR
   S113 --> S116[S1.16] --> S115[S1.15]
   S113 -.-> S114[S1.14 parked]
   S16 --> S115
-  S018 -.-> P2[Phase 2]
-  S115 --> P2
+  S018 -.-> S21
+  S115 --> S21[S2.1] --> S22[S2.2] --> S23[S2.3] --> S24[S2.4]
+  S22 --> S25[S2.5] --> S26[S2.6] --> S28[S2.8] --> S211[S2.11]
+  S25 --> S27[S2.7] --> S210[S2.10] --> S211
+  S23 --> S28
+  S23 --> S29[S2.9] --> S211
+  S24 --> S211
+  S211 --> P3[Phase 3] --> P4[Phase 4] --> P5[Phase 5 playtest]
+  S114 -.-> P5
 ```
 
-Two agents can work concurrently from S0.14 onward: one on Phase 0b (engine only), one on Phase 1 (store, server, web). From S1.3 onward, the server track (S1.4, S1.5) and the web track (S1.7–S1.13) can also split, with the web track stubbing against the OpenAPI spec until S1.4 lands.
+Two agents can work concurrently from S0.14 onward: one on Phase 0b (engine only), one on Phase 1 (store, server, web). From S1.3 onward, the server track (S1.4, S1.5) and the web track (S1.7–S1.13) can also split, with the web track stubbing against the OpenAPI spec until S1.4 lands. In Phase 2 the engine chain (S2.1–S2.4, PRs) and the server/web chain (S2.5 onward, main) split once S2.2 has merged; the ∥ marks on the cards say which may run beside which.
 
 
 ---

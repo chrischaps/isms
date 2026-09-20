@@ -61,7 +61,7 @@ Everything the playtests so far have left to do, gathered from this file, the ru
 **S1.15 proper (the card in `docs/tdd.md` §18.4)**
 16. The epoch-end sequence, the archive that Phase 3 consumes, the load test with the TDD §17 budget assertions, and the `events` size measurement (T5).
 17. The interview guide, `docs/playtest/phase1.md`, written for a cohort of one to three, from GDD §18/§19 ("what did you feel", not "was it fun").
-18. Chris plays a Freeport epoch and writes down what it was like in the guide's terms. This is the exit criterion nothing else can stand in for (ADR-0009).
+18. ~~Chris plays a Freeport epoch and writes down what it was like in the guide's terms~~ moved to Phase 5 with every other human playtest (ADR-0012, 2026-09-19); Phase 1 closed on items 1–17.
 
 **Already fixed, for the record**
 - From Chris's day of play (S1.13f, web): rejections printed with raw ids on screen (now named on the way in), a price history drawn from the previous epoch, a job taken with no confirmation, an ask side that looked empty because it sold out each hour.

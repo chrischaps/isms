@@ -2,6 +2,8 @@
 
 Written 2026-09-18 (S1.15). GDD §18 makes Phase 1's exit "retention and interviews"; ADR-0009 and ADR-0011 shrank the cohort to the people at hand. This guide is for that: one to three players, one Freeport epoch, one conversation each afterwards. It is also the record: fill in the parts marked **[fill in]** and the guide becomes the report.
 
+**When this runs (ADR-0012, 2026-09-19).** Not now. Phase 1 closed on its automated gates, and every human playtest is Phase 5, after all five societies are built: the same one to three people live consecutive epochs in each preset on one build, and this guide is the Freeport section of the five-part guide written then. Nothing below is filled in until Phase 5; the `[H]` marks in `docs/playtest/phase<N>-visual.md` are read before it starts.
+
 The rule from GDD §19, kept front and centre: ask **what did you feel**, never **was it fun**. "Fun" gets a verdict; a feeling gets a moment, and moments are what the next phase is designed from.
 
 ## 1. The epoch
@@ -14,7 +16,7 @@ The rule from GDD §19, kept front and centre: ask **what did you feel**, never 
 
 ## 2. What to record without asking
 
-Retention is the other half of the exit criterion. From the server, per player, at the end (the numbers are all in the log; `docs/playtest/runs/` reports show how the harness pulls them):
+Retention is not a criterion (ADR-0012: three people cannot measure it), but the days seen say when a person stopped, and that is a moment to ask about. From the server, per player, at the end (the numbers are all in the log; `docs/playtest/runs/` reports show how the harness pulls them):
 
 | signal | where | why it matters |
 |---|---|---|
@@ -98,9 +100,9 @@ For each player, **[fill in]** one paragraph per section 3.1 to 3.9, in their wo
 
 Then, across players:
 
-- **Retention.** Days seen out of 42, and the day each person stopped if they stopped.
+- **Days seen.** Days seen out of the epoch, and the day each person stopped if they stopped (a moment to ask about, not a criterion).
 - **Defects filed.** New rows in `docs/playtest/phase1-defects.md`, one per gap, with a severity.
-- **What Phase 2 must answer.** Three to five design questions the interviews raised, for the Commune cards. Q25's answers go here verbatim; they are the baseline for the "felt difference" interview at the end of Phase 2.
+- **What v2 must answer.** Three to five design questions the interviews raised. Q25's answers go here verbatim; they are the Freeport baseline for the "felt difference" comparison across the other four sections of the Phase 5 guide.
 - **The comparison to the synthetic cohort.** What the humans did that no persona did, and the reverse (the personas are in `agents/personas/`; their arcs are in `docs/playtest/runs/`).
 
 ## 5. The run itself
@@ -114,4 +116,4 @@ Then, across players:
 
 ## 6. Done means
 
-The S1.15 done gate (TDD §18.4) reads "Chris has played a Freeport epoch and filled in `docs/playtest/phase1.md`". That is: §2's table has a row per player, §3 was asked of each player and §4 is written for each, §5 says which run this was. A guide with the questions but no answers is not the exit.
+For the Freeport section of Phase 5 (TDD §18.5, ADR-0012): §2's table has a row per player, §3 was asked of each player and §4 is written for each, §5 says which run this was. A guide with the questions but no answers is not done.

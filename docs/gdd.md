@@ -579,10 +579,11 @@ What we hope to see, and which primitive permits it. If a row lacks a primitive,
 | Phase | Goal | Content | Exit criterion |
 |---|---|---|---|
 | 0. Sim | tuning + engine validation | tick engine, 6 goods, 7 workplaces, needs, labor, householders, all 5 preset configs (no UI) | 5 stable householder epochs per preset |
-| 1. Freeport prototype | first humans | Pure Capitalism, firms, order books, employment/credit/lease contracts, standing plan, Chronicle, basic stats, API | 10–20 humans, 1-week epoch, retention & interviews |
-| 2. Commune prototype | the contrast | Pure Communism, Common Store, assembly, coordinators, Ledger | same cohort lives a week here; the "felt difference" interview |
+| 1. Freeport prototype | the first playable society | Pure Capitalism, firms, order books, employment/credit/lease contracts, standing plan, Chronicle, basic stats, API | automated gates: budget assertions, an archived epoch, the synthetic cohort's findings closed (ADR-0009, 0011, 0012) |
+| 2. Commune prototype | the contrast | Pure Communism, Common Store, assembly, coordinators, Ledger | Commune governance live in engine and client; a lab Commune plays an epoch clean under the scripted cohort |
 | 3. Observatory + Republic | comparison and the middle | Social Democracy, legislature, unions, Observatory v1, epoch archive | first public cross-society page |
 | 4. Directorate + Commonwealth | full v1 set | Central Planning, Market Socialism, community societies, agents flag | five canonical societies live |
+| 5. Playtest | first humans | one to three people, consecutive epochs in all five societies on one build, a diary a day | the "felt difference" interviews, one per society, written up (ADR-0012) |
 
 v1 non-goals restated: no world, no war, no inter-society trade, no monetization, no mobile-native app, no historical scenarios, no Care good, no self-reported output, no restricted-comms variants.
 

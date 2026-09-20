@@ -3,7 +3,7 @@
 You are implementing the game described in docs/gdd.md according to docs/tdd.md.
 Work one session card at a time (docs/tdd.md §18). Read: this file → your card → only the sections the card lists.
 Provisional answers to spec gaps live in docs/QUESTIONS.md; deviations from the TDD in docs/decisions/. Read both before an engine card.
-Card order since ADR-0009 (2026-09-17): S1.16 (synthetic players) → S1.15 (trimmed) → Phase 2. S1.14 (deployment) is parked until a second human player is real.
+Card order since ADR-0012 (2026-09-19): Phase 1 is closed; S2.1 → S2.11 in order (docs/tdd.md §18.5; kickoff plan in docs/plans/phase2.md); every human playtest is Phase 5, after Phase 4. S1.14 (deployment) is parked until a second human player is real.
 
 ## Non-negotiables
 - isms-core is pure: no I/O, no async, no clock, no unseeded randomness. State changes only via `apply(event)`.
