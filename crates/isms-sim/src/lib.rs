@@ -1,6 +1,7 @@
 //! `isms-sim`: the headless simulator (TDD §18.2 S0.13, GDD §17). Links
 //! `isms-core` directly, never touches the network or a database, and runs
-//! householders only. Its metrics are the engine's own `CycleAggregates`.
+//! householders plus, where the preset asks for them, `sim.assembly_size`
+//! scripted humans (S2.4). Its metrics are the engine's own `CycleAggregates`.
 //!
 //! The GDD §17 targets live here as `StabilityTargets` rather than in
 //! `presets/*.toml`: they are the tuning gate the simulator applies to a
@@ -8,7 +9,9 @@
 //! from the preset's `Capabilities` (S0.14d): a price band only where order
 //! books exist, and "stock-out" measured on whatever holds the society's Food.
 //! In an administered society the System's scripted planner runs before the
-//! householders each round (S0.16c).
+//! householders each round (S0.16c); the scripted assembly runs between the
+//! two (S2.4), so `sim-check commune` exercises quorum, offices and the
+//! split vote with real humans on the rolls.
 
 use isms_core::apply::apply;
 use isms_core::capabilities::Capabilities;
@@ -17,7 +20,7 @@ use isms_core::event::Event;
 use isms_core::householder::run_round;
 use isms_core::kinds::Good;
 use isms_core::market::depth;
-use isms_core::planner::run_system_round;
+use isms_core::planner::{run_assembly_round, run_system_round};
 use isms_core::rules::Rules;
 use isms_core::tick::{TickInput, start_epoch, tick};
 use isms_core::world::{Instrument, Side, World};
@@ -256,10 +259,37 @@ fn make_row(
     }
 }
 
-/// Run a householder-only society for `epochs` epochs. Collapse is off (the
-/// simulator never has humans). Between ticks the householder scripts run once.
+/// Run a scripted society for `epochs` epochs. Collapse is off (the
+/// simulator's humans never leave). Between ticks the scripts run once each.
 pub fn run(presets_dir: &Path, spec: &RunSpec) -> Result<RunResult, ConfigError> {
     run_with(presets_dir, spec, &mut NoObserver)
+}
+
+/// The scripted assembly joins before the first epoch is seeded, so the
+/// householder fill counts them toward the floor and the society's dwellings
+/// reach them (S2.4). Returns the events applied; a refusal is a preset bug.
+fn seed_assembly(world: &mut World, rules: &Rules, preset: &str) -> Result<u64, ConfigError> {
+    let mut events = 0;
+    for i in 0..world.params.sim.assembly_size {
+        let env = isms_core::command::Envelope::system(
+            isms_core::command::Command::Join {
+                handle: format!("A-{i}"),
+                kind: isms_core::kinds::CitizenKind::Human,
+            },
+            0,
+        );
+        let joined = isms_core::command::handle(world, rules, &env).map_err(|e| {
+            ConfigError::Constraint {
+                name: preset.to_owned(),
+                reason: format!("seeding the assembly: {e}"),
+            }
+        })?;
+        for e in &joined {
+            apply(world, e);
+            events += 1;
+        }
+    }
+    Ok(events)
 }
 
 /// `run` with an [`Observer`] called after each applied step (S0.14e). The
@@ -287,7 +317,7 @@ pub fn run_with(
     let rules = Rules::from_world(&world);
     let caps = rules.capabilities.clone();
     let mut rows = Vec::new();
-    let mut events: u64 = 1;
+    let mut events: u64 = 1 + seed_assembly(&mut world, &rules, &spec.preset)?;
     let mut rejected_total = 0u32;
     for epoch in 0..spec.epochs {
         let started = start_epoch(&world, &rules, epoch);
@@ -300,12 +330,25 @@ pub fn run_with(
         let mut unfilled_cycle = 0u32;
         loop {
             let now = world.meta.tick;
-            // The System's script first (the sim's Committee), then the householders.
+            // The System's script first (the sim's Committee), then the
+            // assembly's humans, then the householders.
             let (system_events, system_rejected) = run_system_round(&mut world, &rules, now);
             events += system_events.len() as u64;
-            let (round, rejected) = run_round(&mut world, &rules, now);
-            events += round.len() as u64;
-            let n = u32::try_from(rejected.len() + system_rejected.len()).unwrap_or(u32::MAX);
+            let (assembly_events, assembly_rejected) = run_assembly_round(&mut world, &rules, now);
+            events += assembly_events.len() as u64;
+            let (householder_events, rejected) = run_round(&mut world, &rules, now);
+            events += householder_events.len() as u64;
+            let n = u32::try_from(rejected.len() + system_rejected.len() + assembly_rejected.len())
+                .unwrap_or(u32::MAX);
+            for r in &assembly_rejected {
+                eprintln!(
+                    "{} seed {} tick {now}: assembly {r}",
+                    spec.preset, spec.seed
+                );
+            }
+            // The observer sees the round as one slice, assembly first.
+            let mut round = assembly_events;
+            round.extend(householder_events);
             rejected_cycle += n;
             rejected_total += n;
             let input = TickInput::next_for(&world);

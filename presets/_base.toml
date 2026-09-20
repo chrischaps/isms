@@ -142,6 +142,12 @@ legislature_term_cycles = 10
 sim_planner_target_growth = 1.05         # sim only, S0.16
 ratchet_mult = 1.0                       # [new tunable] S0.16b (Q70): overfulfilment sets next target = output x this
 
+[params.sim]
+# The headless simulator's scripted assembly (S2.4; TDD §18.5); the engine never reads these.
+assembly_size = 0          # [new tunable] S2.4, sim only: scripted humans isms-sim joins before epoch 0 (presets/commune.toml sets it)
+split_nudge = 0.05         # [new tunable] S2.4, sim only: each cycle's split proposal moves this much toward the scarcest sink
+honor_every_cycles = 10    # [new tunable] S2.4, sim only: the assembly honors the top contributor every N cycles
+
 [params.seeding]
 # [new tunable] S0.14b (ADR-0004): stock the legacy orgs so the first cycle is not a famine.
 # One cycle of Food for 40 citizens is 960; three Mills hold 320 each. Inputs let the

@@ -490,6 +490,14 @@ impl Reject {
 }
 
 impl Capabilities {
+    /// Whether any member-owned org kind exists here (GDD §7.1; S2.4).
+    #[must_use]
+    pub fn member_orgs(&self) -> bool {
+        [OrgKind::Association, OrgKind::Cooperative, OrgKind::Union]
+            .iter()
+            .any(|k| self.allows_org(*k))
+    }
+
     /// Whether the constitution enables this command at all (TDD §5.2).
     #[must_use]
     pub fn allows(&self, cmd: &Command) -> bool {
@@ -572,10 +580,14 @@ impl Capabilities {
                 self.labor == crate::constitution::LaborMode::Assigned
             }
             Command::SetShareRule { .. } => self.allows_org(OrgKind::Cooperative),
+            // A disbursement is a member-owned org's vote, gated by the org
+            // kinds rather than the assembly's `proposal_kinds` (S2.4).
+            Command::Propose {
+                kind: crate::world::ProposalKind::Disbursement { asset, .. },
+                ..
+            } => self.member_orgs() && (self.money || matches!(asset, Asset::Good(..))),
             Command::Propose { kind, .. } => self.proposal_kinds.contains(&kind.tag()),
-            Command::Vote { .. } => {
-                !self.proposal_kinds.is_empty() || self.allows_org(OrgKind::Cooperative)
-            }
+            Command::Vote { .. } => !self.proposal_kinds.is_empty() || self.member_orgs(),
             Command::Stand { office } | Command::Withdraw { office } | Command::Approve { office, .. } => {
                 self.offices.iter().any(|o| o.kind == *office)
             }

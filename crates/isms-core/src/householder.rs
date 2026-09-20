@@ -99,7 +99,9 @@ pub fn decide(world: &World, id: CitizenId) -> Vec<Command> {
     let Some(c) = world.citizens.get(&id) else {
         return Vec::new();
     };
-    if c.dormant || c.kind != CitizenKind::Householder {
+    // The simulator's scripted humans live by this script too (S2.4);
+    // `run_round` is what keeps it to householders.
+    if c.dormant {
         return Vec::new();
     }
     let mut cmds = Vec::new();

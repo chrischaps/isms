@@ -66,11 +66,15 @@ pub enum RuleId {
     ProvisionRation,
     CapitalLevy,
     StrikePay,
+    // Phase 2 (appended)
+    /// A member-owned org's disbursement vote carried (S2.4).
+    Disbursement,
 }
 
 impl RuleId {
     /// The GDD section and one plain sentence, for the Explain popover.
     #[must_use]
+    #[allow(clippy::too_many_lines)] // one arm per rule
     pub const fn doc(self) -> (&'static str, &'static str) {
         match self {
             RuleId::LaborOutput => (
@@ -166,6 +170,10 @@ impl RuleId {
             RuleId::StrikePay => (
                 "GDD §6.4",
                 "A striking member is paid from the union's dues, up to the strike pay rate.",
+            ),
+            RuleId::Disbursement => (
+                "GDD §7.1",
+                "A majority of the org's members voted to move this from its treasury or pantry.",
             ),
             RuleId::CapitalLevy => (
                 "GDD §6.5",

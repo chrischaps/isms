@@ -944,8 +944,9 @@ pub struct Proposal {
 }
 
 /// What a proposal decides. `Admission` is a cooperative's members' vote
-/// (S0.17c); the rest are the assembly's (S2.1). `Election`, `Recall`, `Honor`
-/// and `Disbursement` are declared here and given their effects by S2.2-S2.4.
+/// (S0.17c) and `Disbursement` a member-owned org's (S2.4, Q122); the rest
+/// are the assembly's (S2.1). `Election`, `Recall` and `Honor` were declared
+/// in S2.1 and given their effects by S2.2 and S2.3.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProposalKind {
@@ -967,8 +968,12 @@ pub enum ProposalKind {
     Honor {
         citizen: CitizenId,
     },
+    /// The members of `org` move `asset` from its treasury or pantry to
+    /// `to` (S2.4; GDD §7.1 "member-voted rules on disbursement").
     Disbursement {
         org: OrgId,
+        to: Party,
+        asset: Asset,
     },
 }
 

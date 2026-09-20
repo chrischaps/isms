@@ -4,8 +4,9 @@
 //! filled from each citizen's standing `vote_default`, the quorum is checked
 //! against the active humans, and a proposal that carries passes by yes > no.
 //! A passed `PolicyChange` becomes a `PolicyChanged`; a `Resolution` is only
-//! its record (Q119). Admission votes (S0.17c) ride the same `Proposal` and
-//! close here too, by the cooperative's own rule in `bank.rs`.
+//! its record (Q119). Admission votes (S0.17c) and disbursement votes (S2.4)
+//! ride the same `Proposal` and close here too, by the members' own rule in
+//! `bank.rs` and `credit.rs`.
 //!
 //! The constitution gates the machine: `proposal_kinds` is the set of kinds
 //! the society may open (checked in `Capabilities::allows`) and `proposers`
@@ -123,6 +124,17 @@ pub fn propose(
     kind: ProposalKind,
 ) -> Result<Vec<Event>, Reject> {
     let actor = assembly_citizen(world, envelope)?;
+    // The members' votes (an admission, a disbursement) are the org's own,
+    // not the assembly's: `proposers` and the title do not apply (Q133).
+    match kind {
+        ProposalKind::Admission { org, citizen } => {
+            return crate::bank::propose_admission(world, envelope, org, citizen);
+        }
+        ProposalKind::Disbursement { org, to, asset } => {
+            return crate::credit::propose_disbursement(world, envelope, org, to, asset);
+        }
+        _ => {}
+    }
     if world.constitution.proposers == Proposers::OfficeHolders
         && !holds_any_office(world, actor.id)
     {
@@ -145,9 +157,7 @@ pub fn propose(
         ));
     }
     match kind {
-        ProposalKind::Admission { org, citizen } => {
-            return crate::bank::propose_admission(world, envelope, org, citizen);
-        }
+        ProposalKind::Admission { .. } | ProposalKind::Disbursement { .. } => unreachable!(),
         ProposalKind::PolicyChange { patch } => {
             if patch.is_empty() {
                 return Err(Reject::new(
@@ -203,12 +213,6 @@ pub fn propose(
             }
         }
         ProposalKind::Honor { citizen } => check_honor(world, citizen)?,
-        ProposalKind::Disbursement { .. } => {
-            return Err(Reject::new(
-                RejectCode::NotImplemented,
-                "disbursement votes arrive with S2.4",
-            ));
-        }
     }
     Ok(vec![Event::Proposed {
         proposal: world.next.proposal,
@@ -260,6 +264,9 @@ pub fn vote(
     if matches!(p.kind, ProposalKind::Admission { .. }) {
         return crate::bank::vote_admission(world, envelope, proposal, ballot);
     }
+    if matches!(p.kind, ProposalKind::Disbursement { .. }) {
+        return crate::credit::vote_disbursement(world, envelope, proposal, ballot);
+    }
     Ok(vec![Event::Voted {
         proposal,
         citizen: actor.id,
@@ -294,7 +301,7 @@ pub fn cycle_end_8j_close_proposals(b: &mut TickBuilder) {
         .collect();
     for p in due {
         match p.kind {
-            ProposalKind::Admission { org, .. } => {
+            ProposalKind::Admission { org, .. } | ProposalKind::Disbursement { org, .. } => {
                 // The members did not reach a majority in the cycle: it lapses.
                 let tally = crate::bank::admission_tally(&p.ballots, &b.world.orgs[&org]);
                 b.emit(Event::ProposalClosed {
