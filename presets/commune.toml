@@ -31,5 +31,10 @@ materials_split = { wares = 0.5, machines = 0.3, dwellings = 0.2 }
 seeded_workplaces = { farm = 3, mine = 3, foundry = 3, mill = 3, workshop = 3, machine_shop = 1, builder = 2 }
 initial_dwellings = 40
 
+[params.sim]
+# S2.4: six scripted humans keep three coordinator seats filled across five-cycle terms with
+# no consecutive terms (two slates of three); they work like householders and vote like an assembly.
+assembly_size = 6
+
 [scoreboard]
 primary = ["contribution_record", "honors", "need_fulfillment"]

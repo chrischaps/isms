@@ -41,6 +41,24 @@ pub struct Params {
     pub coop: CoopParams,
     pub bank: BankParams,
     pub union: UnionParams,
+    /// The simulator's scripted assembly (S2.4); nothing in the engine reads it.
+    #[serde(default)]
+    pub sim: SimParams,
+}
+
+/// The headless simulator's scripted humans (S2.4; TDD §18.5). Sim only: the
+/// server never seeds them and the engine never reads these.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct SimParams {
+    /// Scripted human citizens `isms-sim` joins before the first epoch; they
+    /// keep the assembly and its offices real in `sim-check`. Zero for the
+    /// presets without an assembly.
+    pub assembly_size: u32,
+    /// How far each cycle's split proposal moves toward the scarcest sink.
+    pub split_nudge: f64,
+    /// The assembly honors the top contributor every this many cycles.
+    pub honor_every_cycles: u32,
 }
 
 /// Union dues and strike pay (GDD §6.4; S0.17d, Q101).

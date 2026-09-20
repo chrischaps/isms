@@ -192,6 +192,39 @@ fn all_five_presets_complete_one_epoch_and_conserve() {
     }
 }
 
+/// S2.4: the Commune runs with its scripted assembly on the rolls: six humans
+/// present every cycle, the split moved by vote, honors conferred, and not one
+/// scripted command refused. The other presets seed no assembly.
+#[test]
+fn the_commune_assembly_governs_without_a_refusal() {
+    let r = run(presets(), &RunSpec::new("commune", 2, 1)).unwrap();
+    assert_eq!(r.rejected, 0, "a refused scripted command is a bug");
+    assert!(
+        r.rows.iter().all(|row| row.active_humans == 6),
+        "six humans, every cycle"
+    );
+    let split = r
+        .world
+        .policy
+        .materials_split
+        .expect("the Commune has a split");
+    assert!(
+        (split.wares - 0.5).abs() > 1e-9,
+        "the assembly moved the split: {split:?}"
+    );
+    assert!((split.wares + split.machines + split.dwellings - 1.0).abs() < 1e-9);
+    let honors: u32 = r
+        .world
+        .citizens
+        .values()
+        .map(isms_core::metrics::honors_of)
+        .sum();
+    assert!(honors > 0, "the top contributor was honored");
+    println!("split after two epochs: {split:?}; honors conferred: {honors}");
+    let other = run(presets(), &RunSpec::new("freeport", 1, 1)).unwrap();
+    assert!(other.rows.iter().all(|row| row.active_humans == 0));
+}
+
 /// GDD §17 stability targets over seeds 1..=5. Ignored by default;
 /// `make sim-check PRESET=<preset>` runs one, `make sim-all` prints all five.
 fn stability(preset: &str) {

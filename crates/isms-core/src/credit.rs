@@ -5,14 +5,14 @@
 
 use crate::command::{Command, Envelope, Reject, RejectCode, acting_citizen};
 use crate::event::Event;
-use crate::explain::{Explain, RuleId};
+use crate::explain::{Explain, Num, RuleId};
 use crate::ids::{ContractId, OfferId, OrgId};
 use crate::kinds::OrgKind;
 use crate::ledger::{Asset, Party};
 use crate::money::Money;
 use crate::tick::TickBuilder;
 use crate::transfers::{acting_party, check_has};
-use crate::world::{Collateral, ContractBody, ContractStatus, OfferBody, World};
+use crate::world::{Ballot, Collateral, ContractBody, ContractStatus, OfferBody, World};
 
 /// Total interest and the installment schedule: `total = principal x rate x term`,
 /// `installment = floor(total / term)`, the last installment takes the remainder.
@@ -261,7 +261,8 @@ pub fn phase_7_defaults(b: &mut TickBuilder) {
 
 // ---------------------------------------------------------------------------
 // Associations (GDD §7.1): the catch-all org. Membership by request and
-// admission; disbursement by the manager until member votes arrive (Phase 2).
+// admission; the treasury and the pantry move only by the members' vote
+// (S2.4, Q122).
 
 fn association(world: &World, org: OrgId) -> Result<&crate::world::Org, Reject> {
     let o = world
@@ -342,6 +343,156 @@ pub fn leave_org(
     let mut events = crate::coop::leave_events(world, o, citizen.id);
     if o.manager == Some(citizen.id) {
         events.push(Event::ManagerAppointed { org, citizen: None });
+    }
+    Ok(events)
+}
+
+/// Whether `org`'s treasury or pantry is its members' to move by vote: the
+/// three member-owned kinds (GDD §7.1; S2.4). A manager's direct `Transfer`
+/// from such an org is refused.
+#[must_use]
+pub fn member_owned(o: &crate::world::Org) -> bool {
+    o.ownership == crate::world::Ownership::Members
+}
+
+/// `Propose { kind: Disbursement }` (S2.4, Q122): a member moves that the org
+/// pay `asset` to `to`. The org must be able to pay it now; a citizen
+/// recipient's pantry must have room. A one-member org carries on the
+/// proposer's yes, like an admission.
+pub fn propose_disbursement(
+    world: &World,
+    envelope: &Envelope<Command>,
+    org: OrgId,
+    to: Party,
+    asset: Asset,
+) -> Result<Vec<Event>, Reject> {
+    let actor = acting_citizen(world, envelope)?;
+    let o = association(world, org)?;
+    if !o.members.contains(&actor.id) {
+        return Err(Reject::new(RejectCode::NotParty, "only a member proposes"));
+    }
+    if to == Party::Org(org) {
+        return Err(Reject::new(
+            RejectCode::SelfDeal,
+            "an org cannot disburse to itself",
+        ));
+    }
+    match to {
+        Party::Citizen(c) if !world.citizens.contains_key(&c) => {
+            return Err(Reject::new(
+                RejectCode::UnknownCitizen,
+                format!("no citizen {c}"),
+            ));
+        }
+        Party::Org(x) if !world.orgs.contains_key(&x) => {
+            return Err(Reject::new(RejectCode::UnknownOrg, format!("no org {x}")));
+        }
+        _ => {}
+    }
+    payable(world, org, to, asset)?;
+    let proposal = world.next.proposal;
+    let kind = crate::world::ProposalKind::Disbursement { org, to, asset };
+    let mut events = vec![Event::Proposed {
+        proposal,
+        by: actor.id,
+        title: String::new(),
+        text: String::new(),
+        kind,
+        closes_cycle: world.cycle_of(world.meta.tick),
+    }];
+    if o.members.len() == 1 {
+        let tally = crate::bank::admission_tally(&[(actor.id, Ballot::Yes)].into(), o);
+        events.push(Event::ProposalClosed {
+            proposal,
+            passed: true,
+            tally,
+        });
+        events.push(disbursed(proposal, org, to, asset, tally));
+    }
+    Ok(events)
+}
+
+/// Whether `org` can pay `asset` to `to` right now.
+fn payable(world: &World, org: OrgId, to: Party, asset: Asset) -> Result<(), Reject> {
+    check_has(world, Party::Org(org), asset)?;
+    if let Asset::Good(g, q) = asset {
+        crate::transfers::check_pantry_room(world, to, g, q)?;
+    }
+    Ok(())
+}
+
+fn disbursed(
+    proposal: crate::ids::ProposalId,
+    org: OrgId,
+    to: Party,
+    asset: Asset,
+    tally: crate::world::Tally,
+) -> Event {
+    let amount: Num = match asset {
+        Asset::Money(m) => m.into(),
+        Asset::Good(_, q) => q.into(),
+    };
+    Event::Disbursed {
+        proposal,
+        org,
+        to,
+        asset,
+        explain: Explain::new(RuleId::Disbursement, "yes * 2 > members", amount)
+            .input("yes", tally.yes)
+            .input("members", tally.eligible),
+    }
+}
+
+/// `Vote` on a disbursement (S2.4): members only. A majority of the
+/// membership either way closes it at once; otherwise it lapses at the cycle
+/// end. A vote that carries after the org can no longer pay closes failed
+/// (Q132).
+pub fn vote_disbursement(
+    world: &World,
+    envelope: &Envelope<Command>,
+    proposal: crate::ids::ProposalId,
+    ballot: Ballot,
+) -> Result<Vec<Event>, Reject> {
+    let actor = acting_citizen(world, envelope)?;
+    let p = world.proposals.get(&proposal).ok_or_else(|| {
+        Reject::new(
+            RejectCode::UnknownProposal,
+            format!("no open proposal {proposal}"),
+        )
+    })?;
+    let crate::world::ProposalKind::Disbursement { org, to, asset } = p.kind else {
+        return Err(Reject::new(RejectCode::NotParty, "not a disbursement vote"));
+    };
+    let o = &world.orgs[&org];
+    if !o.members.contains(&actor.id) {
+        return Err(Reject::new(RejectCode::NotParty, "only a member votes"));
+    }
+    let mut events = vec![Event::Voted {
+        proposal,
+        citizen: actor.id,
+        ballot,
+        by_default: false,
+    }];
+    let mut ballots = p.ballots.clone();
+    ballots.insert(actor.id, ballot);
+    let tally = crate::bank::admission_tally(&ballots, o);
+    let members = tally.eligible;
+    if tally.yes * 2 > members {
+        let passed = payable(world, org, to, asset).is_ok();
+        events.push(Event::ProposalClosed {
+            proposal,
+            passed,
+            tally,
+        });
+        if passed {
+            events.push(disbursed(proposal, org, to, asset, tally));
+        }
+    } else if tally.no * 2 >= members {
+        events.push(Event::ProposalClosed {
+            proposal,
+            passed: false,
+            tally,
+        });
     }
     Ok(events)
 }

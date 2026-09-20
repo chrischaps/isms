@@ -129,14 +129,14 @@ fn the_constitution_gates_the_kind_and_the_proposer() {
         ))
         .is_ok()
     );
-    let mut d = WorldBuilder::new("commune")
-        .with_preset(|p| {
-            p.constitution
-                .proposal_kinds
-                .insert(ProposalKindTag::Disbursement);
-        })
-        .humans(2)
-        .build();
+    // A disbursement is a member-owned org's vote (S2.4): the assembly's
+    // `proposal_kinds` neither gates it nor is needed for it; the org is.
+    let mut d = WorldBuilder::new("commune").humans(2).build();
+    assert!(
+        !d.capabilities()
+            .proposal_kinds
+            .contains(&ProposalKindTag::Disbursement)
+    );
     let err = d
         .cmd(Envelope::citizen(
             nth(&d, 0),
@@ -145,12 +145,14 @@ fn the_constitution_gates_the_kind_and_the_proposer() {
                 text: String::new(),
                 kind: ProposalKind::Disbursement {
                     org: isms_core::ids::OrgId(0),
+                    to: isms_core::ledger::Party::Citizen(nth(&d, 1)),
+                    asset: isms_core::ledger::Asset::Good(isms_core::kinds::Good::Food, 1),
                 },
             },
             0,
         ))
         .unwrap_err();
-    assert_eq!(err.code, RejectCode::NotImplemented);
+    assert_eq!(err.code, RejectCode::UnknownOrg);
 
     // Office-holders only: nobody holds an office yet, so nobody proposes.
     let mut o = WorldBuilder::new("commune")

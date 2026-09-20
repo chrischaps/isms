@@ -107,6 +107,16 @@ pub fn transfer(
     memo: &str,
 ) -> Result<Vec<Event>, Reject> {
     let from = acting_party(world, envelope)?;
+    // A member-owned org's treasury and pantry move by its members' vote
+    // (`ProposalKind::Disbursement`), never at the manager's word (S2.4, Q122).
+    if let Party::Org(o) = from
+        && crate::credit::member_owned(&world.orgs[&o])
+    {
+        return Err(Reject::new(
+            RejectCode::NotAuthorized,
+            "a member-owned org disburses by its members' vote",
+        ));
+    }
     party_exists(world, to)?;
     if from == to {
         return Err(Reject::new(

@@ -12,7 +12,7 @@ use isms_core::ledger::{Asset, Holder, Party};
 use isms_core::money::Money;
 use isms_core::test_support::strategies::nth;
 use isms_core::test_support::{Harness, WorldBuilder};
-use isms_core::world::{Collateral, ContractStatus, Owner, Price, SaleAsset};
+use isms_core::world::{Ballot, Collateral, ContractStatus, Owner, Price, ProposalKind, SaleAsset};
 
 fn quiet(humans: u32) -> Harness {
     let mut b = WorldBuilder::new("freeport")
@@ -371,7 +371,8 @@ fn associations_admit_members_who_can_fund_the_pantry() {
         RejectCode::NotManager,
         "a non-manager cannot draw"
     );
-    h.cmd(
+    // Since S2.4 not even the manager draws: the members vote a disbursement.
+    let r = h.cmd_dry(
         Envelope::citizen(
             a,
             Command::Transfer {
@@ -382,8 +383,42 @@ fn associations_admit_members_who_can_fund_the_pantry() {
             0,
         )
         .on_behalf_of(org),
-    )
-    .unwrap();
+    );
+    assert_eq!(r.unwrap_err().code, RejectCode::NotAuthorized);
+    let ev = h
+        .cmd(Envelope::citizen(
+            a,
+            Command::Propose {
+                title: String::new(),
+                text: String::new(),
+                kind: ProposalKind::Disbursement {
+                    org,
+                    to: Party::Citizen(c),
+                    asset: Asset::Good(Good::Food, 4),
+                },
+            },
+            0,
+        ))
+        .unwrap();
+    let Event::Proposed { proposal, .. } = ev[0] else {
+        panic!("{:?}", ev[0].kind())
+    };
+    let yes = |who| {
+        Envelope::citizen(
+            who,
+            Command::Vote {
+                proposal,
+                ballot: Ballot::Yes,
+            },
+            0,
+        )
+    };
+    assert_eq!(h.cmd(yes(a)).unwrap().len(), 1, "one of two is no majority");
+    let ev = h.cmd(yes(b)).unwrap();
+    assert_eq!(
+        ev.iter().map(Event::kind).collect::<Vec<_>>(),
+        ["Voted", "ProposalClosed", "Disbursed"]
+    );
     assert_eq!(h.world.orgs[&org].inventory[&Good::Food], 6);
     // the manager leaving vacates the chair
     let ev = h

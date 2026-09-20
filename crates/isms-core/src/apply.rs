@@ -1203,6 +1203,10 @@ pub fn apply(world: &mut World, event: &Event) {
                 });
             }
         }
+        Event::Disbursed { org, to, asset, .. } => {
+            debit(world, Holder::Org(*org), *asset);
+            credit(world, Holder::from(*to), *asset);
+        }
         Event::UnionFormed { org, firm } => {
             if let Some(o) = world.orgs.get_mut(org) {
                 o.union = Some(crate::world::UnionState {

@@ -711,6 +711,15 @@ pub enum Event {
         proposal: crate::ids::ProposalId,
         cycle: Cycle,
     },
+    /// A member-owned org's disbursement vote carried: `asset` left the org's
+    /// treasury or pantry for `to` (S2.4, Q122). Folds like `Transferred`.
+    Disbursed {
+        proposal: crate::ids::ProposalId,
+        org: OrgId,
+        to: Party,
+        asset: Asset,
+        explain: Explain,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -971,6 +980,7 @@ impl Event {
             Event::WorkplaceOpened { .. } => "WorkplaceOpened",
             Event::WorkplaceClosed { .. } => "WorkplaceClosed",
             Event::Honored { .. } => "Honored",
+            Event::Disbursed { .. } => "Disbursed",
         }
     }
 
@@ -1089,5 +1099,6 @@ impl Event {
         "WorkplaceOpened",
         "WorkplaceClosed",
         "Honored",
+        "Disbursed",
     ];
 }
