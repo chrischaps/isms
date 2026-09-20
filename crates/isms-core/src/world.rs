@@ -214,6 +214,17 @@ pub struct Citizen {
     pub contribution: ContributionRecord,
     /// Income since the last tax assessment (tax-transfer systems, Q83).
     pub taxable_income: Money,
+    /// The assembly's honors, in the order conferred; never revoked (S2.3, Q119).
+    #[serde(default)]
+    pub honors: Vec<Honor>,
+}
+
+/// One honor the assembly conferred (S2.3): the proposal that carried it and
+/// the cycle it closed in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Honor {
+    pub proposal: ProposalId,
+    pub cycle: Cycle,
 }
 
 /// A citizen's public contribution record (GDD §6.2): hours exact, output as

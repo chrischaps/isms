@@ -9,7 +9,7 @@
 //! Phase 2 governance lands, Q56).
 
 use crate::command::{Command, Envelope, Reject, RejectCode, acting_citizen};
-use crate::constitution::{Compensation, LaborMode};
+use crate::constitution::{Compensation, Governance, LaborMode, OfficeKind};
 use crate::event::{Actor, Event};
 use crate::explain::{Explain, RuleId};
 use crate::ids::{CitizenId, WorkplaceId};
@@ -174,7 +174,24 @@ pub fn set_plan(
     wage_grades: Option<&[Money]>,
     ration_caps: Option<&BTreeMap<Good, u32>>,
 ) -> Result<Vec<Event>, Reject> {
-    if envelope.actor != Actor::System {
+    if world.constitution.governance == Governance::Direct {
+        // The Commune's Plan (GDD 6.2 Labor): a coordinator publishes targets
+        // and nothing else. It is advisory: no plan bonus is paid outside
+        // `Compensation::Scale` and no ratchet runs outside the Committee's
+        // policy, so a target here is a number the Ledger is read against.
+        // The split is the assembly's vote, not the coordinator's word.
+        crate::coordinator::office_holder(world, envelope, OfficeKind::Coordinator)?;
+        if materials_split.is_some()
+            || price_list.is_some()
+            || wage_grades.is_some()
+            || ration_caps.is_some()
+        {
+            return Err(Reject::new(
+                RejectCode::NotInThisSociety,
+                "the coordinators' Plan is targets only; the split is the assembly's vote",
+            ));
+        }
+    } else if envelope.actor != Actor::System {
         return Err(Reject::new(
             RejectCode::NotAuthorized,
             "the Plan is published by the Committee (System in Phase 0)",

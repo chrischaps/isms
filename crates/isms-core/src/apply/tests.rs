@@ -311,6 +311,9 @@ fn unimplemented_registry_matches_the_enum() {
         "OfficeVacated",
         "ElectionRerun",
         "OfficeUnfilled",
+        "WorkplaceOpened",
+        "WorkplaceClosed",
+        "Honored",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -329,9 +332,10 @@ fn unimplemented_registry_matches_the_enum() {
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
     // Phase 0b variants are appended after `CycleClosed` (Q64); Phase 2 after `EpochEnding`.
-    let last = Event::OfficeUnfilled {
-        office: crate::constitution::OfficeKind::Coordinator,
-        cycles: 5,
+    let last = Event::Honored {
+        citizen: CitizenId(0),
+        proposal: crate::ids::ProposalId(0),
+        cycle: 1,
     };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {

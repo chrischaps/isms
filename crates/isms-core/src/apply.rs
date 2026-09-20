@@ -1148,6 +1148,61 @@ pub fn apply(world: &mut World, event: &Event) {
             }
         }
         Event::OfficeUnfilled { .. } => {}
+        Event::WorkplaceOpened {
+            workplace,
+            org,
+            kind,
+            slot,
+            materials_consumed,
+            ..
+        } => apply_workplace_added(world, *workplace, *org, *kind, *slot, *materials_consumed),
+        Event::WorkplaceClosed {
+            workplace,
+            org,
+            slot,
+            machines_returned,
+            ..
+        } => {
+            // The machines go back to the collective's stock (Q120): the
+            // Store where there is one, the org's inventory otherwise.
+            if *machines_returned > 0 {
+                debit(
+                    world,
+                    Holder::Workplace(*workplace),
+                    Asset::Good(Good::Machines, *machines_returned),
+                );
+                let to = stock_holder(world, *org);
+                credit(world, to, Asset::Good(Good::Machines, *machines_returned));
+            }
+            if let Some(w) = world.workplaces.remove(workplace) {
+                // Its workers were unassigned by the events before this one; a
+                // fold of this event alone still leaves no dangling allocation.
+                for citizen in w.workers.keys() {
+                    if let Some(c) = world.citizens.get_mut(citizen) {
+                        c.labor.allocations.retain(|a| a.workplace != *workplace);
+                    }
+                }
+            }
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.workplaces.remove(workplace);
+            }
+            if let Some(s) = slot.and_then(|s| world.land.slots.get_mut(&s)) {
+                s.workplace = None;
+            }
+            world.transfer_requests.retain(|_, to| to != workplace);
+        }
+        Event::Honored {
+            citizen,
+            proposal,
+            cycle,
+        } => {
+            if let Some(c) = world.citizens.get_mut(citizen) {
+                c.honors.push(crate::world::Honor {
+                    proposal: *proposal,
+                    cycle: *cycle,
+                });
+            }
+        }
         Event::UnionFormed { org, firm } => {
             if let Some(o) = world.orgs.get_mut(org) {
                 o.union = Some(crate::world::UnionState {
@@ -1735,6 +1790,7 @@ fn join(
         cycle: crate::metrics::CitizenCycle::default(),
         contribution: crate::world::ContributionRecord::default(),
         taxable_income: Money::ZERO,
+        honors: Vec::new(),
     };
     world.ledger_meta.minted += endowment;
     if let Some(d) = dwelling
