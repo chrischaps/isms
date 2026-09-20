@@ -33,6 +33,8 @@ pub enum StoreError {
     SeqCollision { society: i64, seq: i64 },
     #[error("snapshot for society {society} at seq {seq} does not match its stored hash")]
     SnapshotHashMismatch { society: i64, seq: i64 },
+    #[error("snapshot for society {society} at seq {seq} was written by another World layout")]
+    SnapshotStale { society: i64, seq: i64 },
     #[error("society {0} has no events")]
     NoEvents(i64),
     #[error("society {0}: first event is not SocietyCreated")]
@@ -121,6 +123,10 @@ pub struct Snapshot {
 
 impl Snapshot {
     /// Decompress, decode, and verify against the stored hash.
+    ///
+    /// Bytes that match their hash and still do not decode, or decode to a
+    /// world that encodes differently, were written before `World` changed
+    /// shape: `SnapshotStale`, which a loader answers by folding the log.
     pub fn world(&self, society: i64) -> Result<World> {
         let bytes = zstd::decode_all(self.compressed.as_slice())?;
         if *blake3::hash(&bytes).as_bytes() != self.world_hash {
@@ -129,7 +135,13 @@ impl Snapshot {
                 seq: self.last_seq,
             });
         }
-        Ok(postcard::from_bytes(&bytes)?)
+        match postcard::from_bytes::<World>(&bytes) {
+            Ok(world) if world.hash() == self.world_hash => Ok(world),
+            _ => Err(StoreError::SnapshotStale {
+                society,
+                seq: self.last_seq,
+            }),
+        }
     }
 }
 
@@ -504,15 +516,36 @@ fn world_from_created(society: i64, first: &StoredEvent) -> Result<World> {
     }
 }
 
-/// Latest snapshot (verified against its hash) plus the tail of events after it.
+/// The latest snapshot's world, or `None` when there is no snapshot or it is
+/// stale. The log is the truth and a snapshot only a shortcut to it, so a
+/// stale one costs a full fold and nothing else; a corrupt one is still refused.
+fn usable(snap: Option<Snapshot>, society: i64) -> Result<Option<(World, i64)>> {
+    let Some(snap) = snap else { return Ok(None) };
+    match snap.world(society) {
+        Ok(world) => Ok(Some((world, snap.last_seq))),
+        Err(StoreError::SnapshotStale { seq, .. }) => {
+            tracing::warn!(
+                society,
+                seq,
+                "snapshot predates this World layout; folding the whole log"
+            );
+            Ok(None)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Latest snapshot (verified against its hash) plus the tail of events after
+/// it; the whole log when there is no usable snapshot.
 pub async fn load_world<S: EventStore>(store: &S, society: i64) -> Result<Loaded> {
-    let (mut world, from) = if let Some(snap) = store.latest_snapshot(society).await? {
-        (snap.world(society)?, snap.last_seq)
-    } else {
-        let first = store.read_from(society, -1, 1).await?;
-        let first = first.first().ok_or(StoreError::NoEvents(society))?;
-        (world_from_created(society, first)?, first.seq)
-    };
+    let (mut world, from) =
+        if let Some(found) = usable(store.latest_snapshot(society).await?, society)? {
+            found
+        } else {
+            let first = store.read_from(society, -1, 1).await?;
+            let first = first.first().ok_or(StoreError::NoEvents(society))?;
+            (world_from_created(society, first)?, first.seq)
+        };
     let last_seq = fold_tail(store, society, &mut world, from).await?;
     Ok(Loaded { world, last_seq })
 }
@@ -541,11 +574,15 @@ pub async fn replay_hash<S: EventStore>(
 }
 
 /// Verify the latest snapshot against a full replay. `Ok(None)` when there is
-/// no snapshot. Refuse to start a society on `Err(SnapshotHashMismatch)`.
+/// no snapshot, or only a stale one, which `load_world` will not use either.
+/// Refuse to start a society on `Err(SnapshotHashMismatch)`.
 pub async fn verify_latest_snapshot<S: EventStore>(store: &S, society: i64) -> Result<Option<i64>> {
     let Some(snap) = store.latest_snapshot(society).await? else {
         return Ok(None);
     };
+    if matches!(snap.world(society), Err(StoreError::SnapshotStale { .. })) {
+        return Ok(None);
+    }
     let replayed = replay_hash(store, society, snap.last_seq).await?;
     if replayed == snap.world_hash {
         Ok(Some(snap.last_seq))

@@ -185,6 +185,39 @@ async fn snapshot_plus_tail_equals_full_fold(pool: PgPool) {
     ));
 }
 
+/// A snapshot written before `World` changed shape: honest bytes (they match
+/// their hash) that today's `World` cannot decode. The log is the truth, so the
+/// load folds it from the start instead of refusing the society.
+#[sqlx::test]
+async fn stale_snapshot_falls_back_to_the_log(pool: PgPool) {
+    let store = PgEventStore::from_pool(pool);
+    store.create_society(&society_row()).await.unwrap();
+    let (live, batches) = simulate(1);
+    let last = append_all(&store, &batches).await;
+    store.write_snapshot(SOCIETY, &live, last).await.unwrap();
+    // An older layout, as far as postcard can tell: the same bytes cut short.
+    let bytes = live.canonical_bytes();
+    let old = &bytes[..bytes.len() / 2];
+    sqlx::query("UPDATE snapshots SET world_hash = $2, world = $3 WHERE society_id = $1")
+        .bind(SOCIETY)
+        .bind(blake3::hash(old).as_bytes().to_vec())
+        .bind(zstd::encode_all(old, 3).unwrap())
+        .execute(store.pool())
+        .await
+        .unwrap();
+
+    let snap = store.latest_snapshot(SOCIETY).await.unwrap().unwrap();
+    assert!(matches!(
+        snap.world(SOCIETY),
+        Err(StoreError::SnapshotStale { seq, .. }) if seq == last
+    ));
+    let loaded = load_world(&store, SOCIETY).await.unwrap();
+    assert_eq!(loaded.last_seq, last);
+    assert_eq!(loaded.world, live);
+    // Nothing to verify: a stale snapshot is not a lying one.
+    assert_eq!(verify_latest_snapshot(&store, SOCIETY).await.unwrap(), None);
+}
+
 #[sqlx::test]
 async fn load_without_snapshot_folds_from_society_created(pool: PgPool) {
     let store = PgEventStore::from_pool(pool);
