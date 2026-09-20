@@ -202,12 +202,7 @@ pub fn propose(
                 ));
             }
         }
-        ProposalKind::Honor { .. } => {
-            return Err(Reject::new(
-                RejectCode::NotImplemented,
-                "honors arrive with S2.3",
-            ));
-        }
+        ProposalKind::Honor { citizen } => check_honor(world, citizen)?,
         ProposalKind::Disbursement { .. } => {
             return Err(Reject::new(
                 RejectCode::NotImplemented,
@@ -223,6 +218,29 @@ pub fn propose(
         kind,
         closes_cycle: world.cycle_of(world.meta.tick),
     }])
+}
+
+/// An honor's subject (S2.3, Q119): one line on the record, at most one
+/// motion per subject per cycle, never revoked. The assembly may honor any
+/// citizen it likes, the mover included: that too is data.
+fn check_honor(world: &World, citizen: CitizenId) -> Result<(), Reject> {
+    if !world.citizens.contains_key(&citizen) {
+        return Err(Reject::new(
+            RejectCode::UnknownCitizen,
+            format!("no citizen {citizen}"),
+        ));
+    }
+    if world
+        .proposals
+        .values()
+        .any(|p| p.kind == ProposalKind::Honor { citizen })
+    {
+        return Err(Reject::new(
+            RejectCode::AlreadyExists,
+            format!("a motion to honor {citizen} is already before the assembly"),
+        ));
+    }
+    Ok(())
 }
 
 /// `Vote`: cast or replace a ballot on an open proposal.
@@ -358,6 +376,17 @@ fn close_assembly_proposal(b: &mut TickBuilder, p: &Proposal) {
                     office,
                     citizen,
                     reason: crate::world::VacancyReason::Recalled,
+                });
+            }
+        }
+        ProposalKind::Honor { citizen } => {
+            // The record is the citizen's; one gone since (an emigrated
+            // householder) has no record to write on.
+            if b.world.citizens.contains_key(&citizen) {
+                b.emit(Event::Honored {
+                    citizen,
+                    proposal: p.id,
+                    cycle: b.cycle,
                 });
             }
         }

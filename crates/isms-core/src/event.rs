@@ -682,6 +682,35 @@ pub enum Event {
         office: OfficeKind,
         cycles: u32,
     },
+    // --- the coordinator's powers and honors (S2.3, appended) --------------
+    /// A coordinator opened a workplace of the collective on a land slot; the
+    /// founding Materials came out of the Common Store (S2.3, Q120).
+    WorkplaceOpened {
+        workplace: WorkplaceId,
+        org: OrgId,
+        kind: WorkplaceKind,
+        slot: Option<crate::ids::SlotId>,
+        materials_consumed: u32,
+        by: CitizenId,
+    },
+    /// A coordinator closed a workplace of the collective: its workers were
+    /// unassigned by the `Unassigned` events just before this one, its
+    /// machines went back to the collective's stock, its slot is free
+    /// (S2.3, Q120).
+    WorkplaceClosed {
+        workplace: WorkplaceId,
+        org: OrgId,
+        slot: Option<crate::ids::SlotId>,
+        machines_returned: u32,
+        by: CitizenId,
+    },
+    /// The assembly honored a citizen: one line on their record, never
+    /// revoked (S2.3, Q119).
+    Honored {
+        citizen: CitizenId,
+        proposal: crate::ids::ProposalId,
+        cycle: Cycle,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -760,6 +789,9 @@ pub struct Standing {
     pub dormant: bool,
     pub net_worth: Money,
     pub self_made: Money,
+    /// Assembly honors on the record (S2.3; the Commune's scoreboard).
+    #[serde(default)]
+    pub honors: u32,
 }
 
 /// Per-cycle metrics snapshot (TDD §13), computed in the engine at step 8m.
@@ -936,6 +968,9 @@ impl Event {
             Event::OfficeVacated { .. } => "OfficeVacated",
             Event::ElectionRerun { .. } => "ElectionRerun",
             Event::OfficeUnfilled { .. } => "OfficeUnfilled",
+            Event::WorkplaceOpened { .. } => "WorkplaceOpened",
+            Event::WorkplaceClosed { .. } => "WorkplaceClosed",
+            Event::Honored { .. } => "Honored",
         }
     }
 
@@ -1051,5 +1086,8 @@ impl Event {
         "OfficeVacated",
         "ElectionRerun",
         "OfficeUnfilled",
+        "WorkplaceOpened",
+        "WorkplaceClosed",
+        "Honored",
     ];
 }

@@ -307,6 +307,13 @@ pub fn record_tick(
     }
 }
 
+/// The honors on a citizen's record: the Commune's scoreboard figure (S2.3;
+/// GDD §6.2 Scoreboard).
+#[must_use]
+pub fn honors_of(citizen: &crate::world::Citizen) -> u32 {
+    u32::try_from(citizen.honors.len()).unwrap_or(u32::MAX)
+}
+
 /// The frozen summary an `EpochEnded` carries (S1.15): the aggregates as just
 /// computed and every citizen ranked on the Freeport scoreboard (net worth,
 /// self-made), dormant citizens included, since the archive is a record.
@@ -322,6 +329,7 @@ pub fn epoch_summary(world: &World, aggregates: CycleAggregates) -> EpochSummary
             dormant: c.dormant,
             net_worth: crate::shares::net_worth(world, c.id),
             self_made: crate::shares::self_made(world, c.id),
+            honors: honors_of(c),
         })
         .collect();
     standings.sort_by(|a, b| {

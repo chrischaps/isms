@@ -107,20 +107,44 @@ fn the_constitution_gates_the_kind_and_the_proposer() {
     assert_eq!(err.code, RejectCode::NotInThisSociety);
     assert!(f.capabilities().proposal_kinds.is_empty());
 
-    let mut c = commune(3);
+    let c = commune(3);
     let caps = c.capabilities();
     assert!(caps.proposal_kinds.contains(&ProposalKindTag::PolicyChange));
     assert!(!caps.proposal_kinds.contains(&ProposalKindTag::Disbursement));
     assert_eq!(caps.proposers, Proposers::Anyone);
-    // A declared-only kind is refused as not yet implemented, not as absent.
-    let err = c
-        .cmd(Envelope::citizen(
+    // An honor is a real motion since S2.3 (`tests/coordinator.rs`); the one
+    // declared-only kind left, a disbursement, is refused as not yet
+    // implemented rather than as absent where its tag is enabled.
+    assert!(
+        c.cmd_dry(Envelope::citizen(
             nth(&c, 0),
             Command::Propose {
                 title: "honor".into(),
                 text: String::new(),
                 kind: ProposalKind::Honor {
                     citizen: nth(&c, 1),
+                },
+            },
+            0,
+        ))
+        .is_ok()
+    );
+    let mut d = WorldBuilder::new("commune")
+        .with_preset(|p| {
+            p.constitution
+                .proposal_kinds
+                .insert(ProposalKindTag::Disbursement);
+        })
+        .humans(2)
+        .build();
+    let err = d
+        .cmd(Envelope::citizen(
+            nth(&d, 0),
+            Command::Propose {
+                title: "pay out".into(),
+                text: String::new(),
+                kind: ProposalKind::Disbursement {
+                    org: isms_core::ids::OrgId(0),
                 },
             },
             0,

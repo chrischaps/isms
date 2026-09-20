@@ -6,6 +6,7 @@
 //! `NotInThisSociety` before any other validation (TDD §5.2).
 
 use crate::capabilities::Capabilities;
+use crate::constitution::Governance;
 use crate::event::{Actor, Event};
 use crate::explain::{Explain, RuleId};
 use crate::ids::{CitizenId, ContractId, OfferId, OrderId, OrgId, SlotId, Tick, WorkplaceId};
@@ -326,6 +327,18 @@ pub enum Command {
         office: crate::constitution::OfficeKind,
         candidates: std::collections::BTreeSet<crate::ids::CitizenId>,
     },
+    /// A coordinator opens a workplace of the collective on a land slot; the
+    /// founding Materials come out of the Common Store (S2.3, Q120).
+    OpenWorkplace {
+        kind: WorkplaceKind,
+        slot: Option<SlotId>,
+    },
+    /// A coordinator closes a workplace of the collective: its workers are
+    /// unassigned this tick, its machines return to the stock, its slot is
+    /// freed (S2.3, Q120).
+    CloseWorkplace {
+        workplace: WorkplaceId,
+    },
 }
 
 impl Command {
@@ -389,6 +402,8 @@ impl Command {
             Command::Stand { .. } => "Stand",
             Command::Withdraw { .. } => "Withdraw",
             Command::Approve { .. } => "Approve",
+            Command::OpenWorkplace { .. } => "OpenWorkplace",
+            Command::CloseWorkplace { .. } => "CloseWorkplace",
         }
     }
 }
@@ -543,8 +558,15 @@ impl Capabilities {
             Command::JoinWorkplace { .. } | Command::LeaveWorkplace { .. } => {
                 self.labor == crate::constitution::LaborMode::Norm
             }
-            Command::RequestStateStore { .. } | Command::SetPlan { .. } => {
-                self.administered_prices
+            Command::RequestStateStore { .. } => self.administered_prices,
+            // The Committee's Plan, or the Commune's advisory one (S2.3).
+            Command::SetPlan { .. } => {
+                self.administered_prices || self.governance == Governance::Direct
+            }
+            // The coordinator's land powers: a direct assembly with a
+            // collective to open the workplaces of (S2.3; GDD 6.2).
+            Command::OpenWorkplace { .. } | Command::CloseWorkplace { .. } => {
+                self.governance == Governance::Direct && self.allows_org(OrgKind::Collective)
             }
             Command::RequestTransfer { .. } | Command::DecideTransfer { .. } => {
                 self.labor == crate::constitution::LaborMode::Assigned
@@ -792,6 +814,12 @@ pub fn handle(
         Command::Approve { office, candidates } => {
             crate::offices::approve(world, envelope, *office, candidates)
         }
+        Command::OpenWorkplace { kind, slot } => {
+            crate::coordinator::open_workplace(world, envelope, *kind, *slot)
+        }
+        Command::CloseWorkplace { workplace } => {
+            crate::coordinator::close_workplace(world, envelope, *workplace)
+        }
     }
 }
 
@@ -921,6 +949,16 @@ fn set_policy(
         return Err(Reject::new(
             RejectCode::NotAuthorized,
             "policy is set by the society's authority (System in Phase 0)",
+        ));
+    }
+    // A direct assembly sets its own policy by vote (S2.1); the System's
+    // stand-in remains only for the headless simulator (S2.3).
+    if world.constitution.governance == Governance::Direct
+        && envelope.client_kind != ClientKind::Sim
+    {
+        return Err(Reject::new(
+            RejectCode::NotAuthorized,
+            "here policy changes by the assembly's vote: propose it",
         ));
     }
     policy

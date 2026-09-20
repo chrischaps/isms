@@ -11,6 +11,7 @@ pub mod command;
 pub mod config;
 pub mod constitution;
 pub mod coop;
+pub mod coordinator;
 pub mod credit;
 pub mod employment;
 pub mod event;
