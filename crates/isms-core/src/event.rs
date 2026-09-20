@@ -4,6 +4,7 @@
 //! both work.
 
 use crate::config::Preset;
+use crate::constitution::OfficeKind;
 use crate::explain::Explain;
 use crate::ids::{
     CitizenId, ContractId, Cycle, DwellingId, Epoch, OfferId, OrderId, OrgId, Tick, WorkplaceId,
@@ -14,10 +15,10 @@ use crate::money::Money;
 use crate::policy::Policy;
 use crate::world::{
     Allocation, Collateral, EpochEndReason, Instrument, LeaseAsset, Needs, OfferBody, Order,
-    Ownership, Pay, Price, SaleAsset, Skill, StandingPlan,
+    Ownership, Pay, Price, SaleAsset, Skill, StandingPlan, VacancyReason,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Who caused a command; `System` for the engine, the operator, and the sim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -625,6 +626,62 @@ pub enum Event {
         ballot: crate::world::Ballot,
         by_default: bool,
     },
+    // --- offices (S2.2, appended) ------------------------------------------
+    /// An election opened for `seats` seats of `office`, closing at the end
+    /// of `closes_cycle`: at epoch start, and at 8j for any vacancy or a term
+    /// that ends next cycle (S2.2).
+    ElectionOpened {
+        office: OfficeKind,
+        seats: u32,
+        closes_cycle: Cycle,
+    },
+    /// A citizen stands in the open election for `office` (S2.2).
+    CandidacyDeclared {
+        office: OfficeKind,
+        citizen: CitizenId,
+    },
+    CandidacyWithdrawn {
+        office: OfficeKind,
+        citizen: CitizenId,
+    },
+    /// An approval ballot cast or replaced in the open election (S2.2, Q118).
+    Approved {
+        office: OfficeKind,
+        citizen: CitizenId,
+        candidates: BTreeSet<CitizenId>,
+    },
+    /// An election closed with candidates: every candidate's approvals, in
+    /// rank order (S2.2). The `OfficeTaken` events that follow seat the winners.
+    ElectionClosed {
+        office: OfficeKind,
+        approvals: Vec<(CitizenId, u32)>,
+    },
+    /// A seat taken; the term runs through `term_ends_cycle` (S2.2).
+    OfficeTaken {
+        office: OfficeKind,
+        citizen: CitizenId,
+        term_ends_cycle: Cycle,
+        approvals: u32,
+    },
+    /// A seat emptied (S2.2; GDD 8.2, 8.3).
+    OfficeVacated {
+        office: OfficeKind,
+        citizen: CitizenId,
+        reason: VacancyReason,
+    },
+    /// An election with no candidate re-runs for one more cycle, for the
+    /// seats short by then (S2.2, GDD 8.3).
+    ElectionRerun {
+        office: OfficeKind,
+        seats: u32,
+        closes_cycle: Cycle,
+    },
+    /// An office short of holders for `cycles` cycles, once per cycle from
+    /// `governance.unfilled_office_headline_cycles` on (S2.2, GDD 8.3).
+    OfficeUnfilled {
+        office: OfficeKind,
+        cycles: u32,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -870,6 +927,15 @@ impl Event {
             Event::EpochEnding { .. } => "EpochEnding",
             Event::Proposed { .. } => "Proposed",
             Event::Voted { .. } => "Voted",
+            Event::ElectionOpened { .. } => "ElectionOpened",
+            Event::CandidacyDeclared { .. } => "CandidacyDeclared",
+            Event::CandidacyWithdrawn { .. } => "CandidacyWithdrawn",
+            Event::Approved { .. } => "Approved",
+            Event::ElectionClosed { .. } => "ElectionClosed",
+            Event::OfficeTaken { .. } => "OfficeTaken",
+            Event::OfficeVacated { .. } => "OfficeVacated",
+            Event::ElectionRerun { .. } => "ElectionRerun",
+            Event::OfficeUnfilled { .. } => "OfficeUnfilled",
         }
     }
 
@@ -976,5 +1042,14 @@ impl Event {
         "EpochEnding",
         "Proposed",
         "Voted",
+        "ElectionOpened",
+        "CandidacyDeclared",
+        "CandidacyWithdrawn",
+        "Approved",
+        "ElectionClosed",
+        "OfficeTaken",
+        "OfficeVacated",
+        "ElectionRerun",
+        "OfficeUnfilled",
     ];
 }

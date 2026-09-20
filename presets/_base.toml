@@ -135,6 +135,7 @@ mobility_window_cycles = 7
 [params.governance]
 # plan_bonus_fraction, ratchet and work_norm_hours are policy (presets/<name>.toml [policy]).
 open_proposals_per_citizen = 3           # [new tunable] S2.1: open proposals one citizen may hold at once
+unfilled_office_headline_cycles = 5     # [new tunable] S2.2: cycles an office may stand short before OfficeUnfilled headlines it each cycle (GDD 8.3)
 coordinator_term_cycles = 5
 committee_term_cycles = 10
 legislature_term_cycles = 10

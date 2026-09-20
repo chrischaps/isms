@@ -253,6 +253,9 @@ pub struct MetricsParams {
 pub struct GovernanceParams {
     /// Open proposals one citizen may hold at once (S2.1).
     pub open_proposals_per_citizen: u32,
+    /// Cycles an office may stand short of holders before the engine says
+    /// so once per cycle with `OfficeUnfilled` (S2.2; GDD 8.3).
+    pub unfilled_office_headline_cycles: u32,
     pub coordinator_term_cycles: u32,
     pub committee_term_cycles: u32,
     pub legislature_term_cycles: u32,

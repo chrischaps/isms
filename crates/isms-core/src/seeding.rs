@@ -267,6 +267,15 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
             }
         }
     }
+    // The first election of the epoch opens now and closes at the end of
+    // cycle 0, so an office is filled from cycle 1 when anyone stands (S2.2).
+    for spec in &world.constitution.offices {
+        events.push(Event::ElectionOpened {
+            office: spec.kind,
+            seats: spec.seats,
+            closes_cycle: 0,
+        });
+    }
     events
 }
 

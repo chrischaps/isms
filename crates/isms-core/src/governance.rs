@@ -12,7 +12,7 @@
 //! says who may open one. Householders never propose and never vote.
 
 use crate::command::{Command, Envelope, Reject, RejectCode};
-use crate::constitution::{OfficeKind, Proposers};
+use crate::constitution::{OfficeKind, Proposers, RecallRule};
 use crate::event::{Actor, Event};
 use crate::ids::{CitizenId, ProposalId};
 use crate::kinds::CitizenKind;
@@ -23,11 +23,7 @@ use std::collections::BTreeMap;
 /// Whether `citizen` holds a seat of `kind` right now.
 #[must_use]
 pub fn holds(world: &World, citizen: CitizenId, kind: OfficeKind) -> bool {
-    world
-        .offices
-        .holders
-        .get(&kind)
-        .is_some_and(|seats| seats.iter().any(|h| h.citizen == citizen))
+    world.offices.holds(citizen, kind)
 }
 
 /// Whether `citizen` holds any office.
@@ -90,6 +86,17 @@ pub fn assembly_tally(
 #[must_use]
 pub const fn carries(t: &Tally) -> bool {
     t.cast >= t.quorum && t.yes > t.no
+}
+
+/// Whether a recall carries under `rule` (GDD 8.2 "Removal"): the quorum as
+/// for any vote, then a simple majority of the yes and no ballots, or two
+/// thirds of them (S2.2).
+#[must_use]
+pub const fn recall_carries(t: &Tally, rule: RecallRule) -> bool {
+    match rule {
+        RecallRule::Majority => carries(t),
+        RecallRule::TwoThirds => t.cast >= t.quorum && t.yes > 0 && t.yes * 3 >= (t.yes + t.no) * 2,
+    }
 }
 
 /// A citizen who may take part in the assembly at all.
@@ -169,11 +176,31 @@ pub fn propose(
                 ));
             }
         }
-        ProposalKind::Election { .. } | ProposalKind::Recall { .. } => {
+        ProposalKind::Election { .. } => {
+            // Elections open by the calendar (epoch start, a vacancy, a term's
+            // last cycle), never by motion (S2.2, Q125).
             return Err(Reject::new(
-                RejectCode::NotImplemented,
-                "elections and recalls arrive with S2.2",
+                RejectCode::NotAuthorized,
+                "elections open by the calendar; stand for the office instead",
             ));
+        }
+        ProposalKind::Recall { office, citizen } => {
+            if !holds(world, citizen, office) {
+                return Err(Reject::new(
+                    RejectCode::NotAnOfficeHolder,
+                    format!("{citizen} does not hold that office"),
+                ));
+            }
+            if world
+                .proposals
+                .values()
+                .any(|p| p.kind == ProposalKind::Recall { office, citizen })
+            {
+                return Err(Reject::new(
+                    RejectCode::AlreadyExists,
+                    format!("a recall of {citizen} is already open"),
+                ));
+            }
         }
         ProposalKind::Honor { .. } => {
             return Err(Reject::new(
@@ -289,7 +316,19 @@ fn close_assembly_proposal(b: &mut TickBuilder, p: &Proposal) {
         u32::try_from(eligible.len()).unwrap_or(u32::MAX),
         b.world.params.population.quorum_fraction,
     );
-    let passed = carries(&tally);
+    let passed = match p.kind {
+        ProposalKind::Recall { office, .. } => {
+            let rule = b
+                .world
+                .constitution
+                .offices
+                .iter()
+                .find(|o| o.kind == office)
+                .map_or(RecallRule::Majority, |o| o.recall);
+            recall_carries(&tally, rule)
+        }
+        _ => carries(&tally),
+    };
     b.emit(Event::ProposalClosed {
         proposal: p.id,
         passed,
@@ -298,16 +337,30 @@ fn close_assembly_proposal(b: &mut TickBuilder, p: &Proposal) {
     if !passed {
         return;
     }
-    if let ProposalKind::PolicyChange { patch } = p.kind {
-        // Against the policy as it stands now, so an earlier close this 8j
-        // is already in it and the later proposal overwrites (Q121).
-        let policy = patch.apply_to(&b.world.policy);
-        if policy.validate_against(&b.world.constitution).is_ok() {
-            b.emit(Event::PolicyChanged {
-                policy: Box::new(policy),
-                by: Actor::Citizen(p.by),
-                proposal: Some(p.id),
-            });
+    match p.kind {
+        ProposalKind::PolicyChange { patch } => {
+            // Against the policy as it stands now, so an earlier close this 8j
+            // is already in it and the later proposal overwrites (Q121).
+            let policy = patch.apply_to(&b.world.policy);
+            if policy.validate_against(&b.world.constitution).is_ok() {
+                b.emit(Event::PolicyChanged {
+                    policy: Box::new(policy),
+                    by: Actor::Citizen(p.by),
+                    proposal: Some(p.id),
+                });
+            }
         }
+        ProposalKind::Recall { office, citizen } => {
+            // The seat may have emptied since (absence, or the term's end
+            // last cycle); a recall of an empty seat changes nothing.
+            if holds(&b.world, citizen, office) {
+                b.emit(Event::OfficeVacated {
+                    office,
+                    citizen,
+                    reason: crate::world::VacancyReason::Recalled,
+                });
+            }
+        }
+        _ => {}
     }
 }

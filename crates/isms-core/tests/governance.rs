@@ -13,7 +13,7 @@ use isms_core::ledger::conservation_check;
 use isms_core::policy::{MaterialsSplit, MonitoringPolicy, PolicyPatch, Rationing};
 use isms_core::test_support::strategies::nth;
 use isms_core::test_support::{Harness, WorldBuilder, assert_deterministic, check_golden};
-use isms_core::world::{Ballot, OfficeHolder, ProposalKind, Tally, VoteDefault};
+use isms_core::world::{Ballot, ProposalKind, Tally, VoteDefault};
 use proptest::prelude::*;
 
 fn commune(humans: u32) -> Harness {
@@ -65,19 +65,15 @@ fn set_default(h: &mut Harness, who: CitizenId, vote_default: VoteDefault) {
     });
 }
 
-/// Seat a coordinator directly: elections are S2.2, so no event seats one yet.
-/// The fold check is off afterwards; conservation is asserted by hand.
+/// Seat a coordinator through the event an election emits (S2.2), so the
+/// fold check stays on; the election itself is `tests/offices.rs`.
 fn seat_coordinator(h: &mut Harness, who: CitizenId) {
-    h.check_every_step = false;
-    h.world
-        .offices
-        .holders
-        .entry(OfficeKind::Coordinator)
-        .or_default()
-        .push(OfficeHolder {
-            citizen: who,
-            term_ends_cycle: 5,
-        });
+    h.apply(Event::OfficeTaken {
+        office: OfficeKind::Coordinator,
+        citizen: who,
+        term_ends_cycle: 5,
+        approvals: 1,
+    });
 }
 
 fn closed(events: &[Event], proposal: ProposalId) -> (bool, Tally) {
