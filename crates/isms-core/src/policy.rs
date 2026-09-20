@@ -106,6 +106,54 @@ pub struct Policy {
     pub lending_rule: Option<LendingRule>,
 }
 
+/// A proposal's change to the policy (S2.1): the levers an assembly moves,
+/// each `Some` where the proposal touches it. Applying the patch to the policy
+/// in force at close gives the new policy, which `validate_against` then
+/// checks (GDD 6.2: the rationing rule, the work norm, the Materials split, and
+/// whether output is metered).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyPatch {
+    #[serde(default)]
+    pub monitoring: Option<MonitoringPolicy>,
+    #[serde(default)]
+    pub work_norm_hours: Option<u8>,
+    #[serde(default)]
+    pub rationing: Option<Rationing>,
+    #[serde(default)]
+    pub materials_split: Option<MaterialsSplit>,
+}
+
+impl PolicyPatch {
+    /// A patch that moves nothing is not a proposal.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.monitoring.is_none()
+            && self.work_norm_hours.is_none()
+            && self.rationing.is_none()
+            && self.materials_split.is_none()
+    }
+
+    /// The policy with this patch applied.
+    #[must_use]
+    pub fn apply_to(&self, policy: &Policy) -> Policy {
+        let mut p = policy.clone();
+        if let Some(m) = self.monitoring {
+            p.monitoring = m;
+        }
+        if let Some(h) = self.work_norm_hours {
+            p.work_norm_hours = Some(h);
+        }
+        if let Some(r) = self.rationing {
+            p.rationing = Some(r);
+        }
+        if let Some(s) = self.materials_split {
+            p.materials_split = Some(s);
+        }
+        p
+    }
+}
+
 impl Policy {
     /// Whether every field set is one the constitution's system uses, and the
     /// values are well-formed (S0.15b). Config loading and `SetPolicy` both

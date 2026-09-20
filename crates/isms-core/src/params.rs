@@ -251,6 +251,8 @@ pub struct MetricsParams {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GovernanceParams {
+    /// Open proposals one citizen may hold at once (S2.1).
+    pub open_proposals_per_citizen: u32,
     pub coordinator_term_cycles: u32,
     pub committee_term_cycles: u32,
     pub legislature_term_cycles: u32,

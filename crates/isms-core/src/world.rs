@@ -814,21 +814,84 @@ pub struct OfficeHolder {
     pub term_ends_cycle: Cycle,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// One citizen's ballot on a proposal (GDD 8.1: one citizen one vote).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Ballot {
+    Yes,
+    No,
+    Abstain,
+}
+
+/// The count a proposal closed on (S2.1). `cast` includes abstentions and the
+/// ballots `vote_default` cast; `quorum` is what the close required (Q117).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Tally {
+    pub yes: u32,
+    pub no: u32,
+    pub abstain: u32,
+    pub cast: u32,
+    pub quorum: u32,
+    pub eligible: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Proposal {
     pub id: ProposalId,
     pub by: CitizenId,
     pub opened_tick: Tick,
     pub title: String,
+    /// The proposer's case, free text; a `Resolution` is nothing but this.
+    pub text: String,
     pub kind: ProposalKind,
-    /// Votes cast so far: citizen -> approve.
-    pub votes: BTreeMap<CitizenId, bool>,
+    /// The cycle whose end (8j) closes the vote.
+    pub closes_cycle: Cycle,
+    /// Ballots cast so far, replaceable until close.
+    pub ballots: BTreeMap<CitizenId, Ballot>,
 }
 
-/// What a proposal decides. Admission votes arrive with S0.17c; the
-/// assembly's, committee's and legislature's kinds are Phase 2.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// What a proposal decides. `Admission` is a cooperative's members' vote
+/// (S0.17c); the rest are the assembly's (S2.1). `Election`, `Recall`, `Honor`
+/// and `Disbursement` are declared here and given their effects by S2.2-S2.4.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProposalKind {
-    Admission { org: OrgId, citizen: CitizenId },
+    Admission {
+        org: OrgId,
+        citizen: CitizenId,
+    },
+    PolicyChange {
+        patch: crate::policy::PolicyPatch,
+    },
+    Resolution,
+    Election {
+        office: OfficeKind,
+    },
+    Recall {
+        office: OfficeKind,
+        citizen: CitizenId,
+    },
+    Honor {
+        citizen: CitizenId,
+    },
+    Disbursement {
+        org: OrgId,
+    },
+}
+
+impl ProposalKind {
+    /// The constitution-level tag this kind is gated by.
+    #[must_use]
+    pub const fn tag(&self) -> crate::constitution::ProposalKindTag {
+        use crate::constitution::ProposalKindTag as T;
+        match self {
+            ProposalKind::Admission { .. } => T::Admission,
+            ProposalKind::PolicyChange { .. } => T::PolicyChange,
+            ProposalKind::Resolution => T::Resolution,
+            ProposalKind::Election { .. } => T::Election,
+            ProposalKind::Recall { .. } => T::Recall,
+            ProposalKind::Honor { .. } => T::Honor,
+            ProposalKind::Disbursement { .. } => T::Disbursement,
+        }
+    }
 }

@@ -219,7 +219,8 @@ pub struct Capabilities {
     pub redistribution: Redistribution,    // none | tax_transfer | provision | total
     pub monitoring_sigma: f64,             // A7
     pub governance: Governance,            // none | direct | representative | committee
-    pub proposal_kinds: EnumSet<ProposalKind>,
+    pub proposal_kinds: EnumSet<ProposalKind>,   // the tags the society may open (S2.1)
+    pub proposers: Proposers,                    // anyone | office_holders (S2.1)
     pub offices: Vec<OfficeSpec>,
     pub land_slots: BTreeMap<WorkplaceKind, Option<u32>>,   // from Params, carried here for convenience
     pub rate_limit: RateLimit,                              // from Params; published so the "HFT ceiling" is public
@@ -271,7 +272,7 @@ Grouped by the GDD section that motivates them. Later phases add governance and 
 | Authority | `SetPolicy { patch }` | office-holder / `System` in sim | validated against constitution |
 | Admin | `EndEpoch { reason }` | system (operator) | the only operator-initiated command; never from clients |
 
-Phase 0b adds: `RequestStoreDraw` (Common Store, usually issued by the standing plan), `RequestStateStore { good, qty }`, `RequestTransfer { to_workplace }` and `DecideTransfer` (Directorate), `SetPlan { targets, materials_split, price_list, wage_grades }` (a typed `SetPolicy`), `ProposeAdmission`/`VoteAdmission` (coops), `SetShareRule` (coops), `FormUnion`/`CallStrike`/`OfferCollectiveAgreement`. Governance commands (`Propose`, `Vote`, `Recall`, `RunForOffice`) are Phase 2.
+Phase 0b adds: `RequestStoreDraw` (Common Store, usually issued by the standing plan), `RequestStateStore { good, qty }`, `RequestTransfer { to_workplace }` and `DecideTransfer` (Directorate), `SetPlan { targets, materials_split, price_list, wage_grades }` (a typed `SetPolicy`), `ProposeAdmission`/`VoteAdmission` (coops), `SetShareRule` (coops), `FormUnion`/`CallStrike`/`OfferCollectiveAgreement`. Governance commands are Phase 2. S2.1 adds `Propose { title, text, kind }` (a human citizen; `NotInThisSociety` when the kind's tag is outside `proposal_kinds` or the citizen is outside `proposers`; householders and dormant citizens refused; at most `governance.open_proposals_per_citizen` open at once; a `PolicyChange` patch is validated against the constitution at `Propose`, and one touching `rationing` is a coordinator's to open (Q116); it closes at the end of the cycle it opens in) and `Vote { proposal, ballot: Yes | No | Abstain }` (one ballot per citizen, replaceable until the close; on an admission proposal it is the members' vote by the cooperative's rule). `Stand`, `Withdraw` and `Recall` are S2.2.
 
 Not in v1: `SetProductionMix` — no v1 workplace has more than one output, so there is nothing to mix.
 
@@ -297,11 +298,12 @@ Discrete events are emitted by `handle` and by `tick` for things that *happened*
 | `Produced { workplace, outputs, inputs_consumed, per_worker: [{citizen, hours, true_output, attributed_output, explain}] }` | tick | `true_output` is visible only to the worker (API filters); attribution includes monitoring noise |
 | `Drew { citizen, goods, explain }` | tick | Common Store draws (Phase 0b) |
 | `HardshipBegan/Ended`, `DestitutionBegan/Ended` | tick | public flags |
-| `PolicyChanged { patch, by }` | handle | |
+| `PolicyChanged { policy, by, proposal }` | handle / tick | the whole policy after the change; `proposal` is the passed `PolicyChange` that made it at 8j (S2.1), `None` for `SetPolicy` and `SetPlan` |
 | `TickResolved { tick, cycle, price_index, last_prices, citizen_deltas: [...], workplace_deltas: [...] }` | tick | continuous bookkeeping only: need meters, food/wares consumed from pantry, skill, fatigue, output multipliers, hardship counters, output remainders, machine wear. **Never** money or goods movements between holders — those are discrete events above. Emitted last, as the tick's commit marker. |
 | `CycleClosed { cycle, aggregates }` | tick | the per-cycle metrics snapshot (§13) |
 | `EpochEnded { reason: Scheduled \| Collapse \| Operator, cycle, summary }` | tick / handle | `summary: EpochSummary` (S1.15, GDD §11.5): the last cycle's aggregates and every citizen's standing (net worth, self-made, ranked), frozen in the ending tick so the archive replays byte for byte; an operator's end carries the running cycle's figures |
 | `EpochEnding { final_cycle }` | tick | two cycles remain (GDD §11.5): emitted at the close of the cycle two before the last, only when `epoch_cycles ≥ 3` (Q115); collapse and an operator's end give no warning; appended after `OfferWithdrawn` (S1.15) |
+| `Proposed { proposal, by, title, text, kind, closes_cycle }`, `Voted { proposal, citizen, ballot, by_default }` | handle / tick | S2.1, appended after `EpochEnding`. A `Voted` with `by_default` is the ballot 8j cast from the citizen's standing `vote_default` (`Follow` copies one hop, Q121). `ProposalClosed { proposal, passed, tally }` gains the tally `{ yes, no, abstain, cast, quorum, eligible }`: quorum is `ceil(quorum_fraction × active humans)` over every ballot cast, abstentions included, and a vote carries by yes > no (Q117) |
 
 Event `seq` is a per-society monotonically increasing integer assigned by the actor at persistence time; it is the total order of the society's history.
 
@@ -975,7 +977,7 @@ Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; t
 
 **What exists to reuse.** The one live proposal path (`ProposalKind::Admission` in `world.rs`, `bank.rs`'s propose/vote/close, tick phase 8j); `Offices`/`OfficeHolder`; `OfficeSpec` on the constitution and `Capabilities.offices`, already declared in `commune.toml`; `Policy` with the Commune's four levers and `validate_against`; `SetPolicy` from `Actor::System` (Q56); `VoteDefault` on `StandingPlan`, editable in the client, never executed; tunables `population.quorum_fraction`, `population.office_vacancy_absent_cycles`, `governance.coordinator_term_cycles`; `active_humans` in `metrics.rs`; `Citizen.contribution` and `CommonStore` in the engine with no server view; `planner::decide_system` for the sim's System round; channel access in `comms.rs`; `presets/copy/` holds only `freeport/` (a Commune society cannot load Chronicle copy today); `presets/lexicon/commune.json` is all TODO; `web/src/screens/roles/` does not exist. §5.2 specifies `proposal_kinds` on the constitution; `constitution.rs` lacks it.
 
-#### S2.1 — Typed proposals, ballots, quorum, cycle-end close *(engine, PR)*
+#### S2.1 — Typed proposals, ballots, quorum, cycle-end close *(engine, PR; done 2026-09-19)*
 - **Goal.** One proposal machine for every society: typed proposals, one-citizen-one-vote ballots, quorum from params, close at 8j, `vote_default` executed at close.
 - **Read.** GDD §8.1, §6.2 Governance; TDD §5.2 (`proposal_kinds`), §5.3, §5.5 step 8j, T8; `world.rs` (Offices, Proposal), `bank.rs` (the admission vote), `plan.rs` (`VoteDefault`); Q116, Q117, Q119, Q121.
 - **Build.** Constitution gains `proposal_kinds: BTreeSet<ProposalKindTag>` and `proposers: Anyone | OfficeHolders` (`serde(default)`; populate `commune.toml`); both on `Capabilities`. `ProposalKind` gains `PolicyChange { patch: PolicyPatch }`, `Resolution`, and declared-only `Election`, `Recall`, `Honor`, `Disbursement`; `Proposal` gains `text`, `closes_cycle`, `ballots: BTreeMap<CitizenId, Ballot>` (Admission migrates onto it). New `governance.rs`: `Propose` (`NotInThisSociety` for a tag outside the set or an excluded proposer; householders and dormant citizens rejected; a cap of open proposals per citizen), `Vote` (one ballot, replaceable until close). 8j: fill missing ballots from `vote_default` (`Follow` one hop); quorum = ceil(`quorum_fraction` × active humans) over ballots cast including Abstain; pass = yes > no; `ProposalClosed` gains `tally`; `PolicyChange` → `PolicyChanged` after `validate_against`; `Resolution` is the record only. Commands `Propose`, `Vote`; events `Proposed`, `Voted`; §5.3/§5.4 rows; goldens regenerated.
@@ -1134,6 +1136,7 @@ All live in `presets/_base.toml` alongside GDD Appendix A; starting values only.
 | Lease grace period | 1 cycle | S0.11 | |
 | `comfort_affects_output` | false | T7 | config flip for GDD Q3 |
 | Sim planner (Directorate) target growth | 1.05 × last output | S0.16 | sim only |
+| `governance.open_proposals_per_citizen` | 3 | S2.1 | open proposals one citizen may hold at once |
 
 ## Appendix B. Tick phase order (quick reference)
 

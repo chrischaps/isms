@@ -300,6 +300,18 @@ pub enum Command {
         union: OrgId,
         cycles: u32,
     },
+    // --- Phase 2 (appended) ---------------------------------------------------
+    /// Open a proposal before the assembly (S2.1; GDD 8.1).
+    Propose {
+        title: String,
+        text: String,
+        kind: crate::world::ProposalKind,
+    },
+    /// Cast or replace a ballot on an open proposal (S2.1).
+    Vote {
+        proposal: crate::ids::ProposalId,
+        ballot: crate::world::Ballot,
+    },
 }
 
 impl Command {
@@ -358,6 +370,8 @@ impl Command {
             Command::OfferCollectiveAgreement { .. } => "OfferCollectiveAgreement",
             Command::AcceptCollectiveAgreement { .. } => "AcceptCollectiveAgreement",
             Command::CallStrike { .. } => "CallStrike",
+            Command::Propose { .. } => "Propose",
+            Command::Vote { .. } => "Vote",
         }
     }
 }
@@ -411,6 +425,11 @@ pub enum RejectCode {
     NoRequestPending,
     /// An employment offer below the society's wage floor.
     BelowMinimumWage,
+    // Phase 2 (appended)
+    /// The citizen already holds `governance.open_proposals_per_citizen` open proposals.
+    TooManyProposals,
+    /// No open proposal with this id.
+    UnknownProposal,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -506,6 +525,10 @@ impl Capabilities {
                 self.labor == crate::constitution::LaborMode::Assigned
             }
             Command::SetShareRule { .. } => self.allows_org(OrgKind::Cooperative),
+            Command::Propose { kind, .. } => self.proposal_kinds.contains(&kind.tag()),
+            Command::Vote { .. } => {
+                !self.proposal_kinds.is_empty() || self.allows_org(OrgKind::Cooperative)
+            }
         }
     }
 }
@@ -703,7 +726,12 @@ pub fn handle(
             crate::bank::propose_admission(world, envelope, *org, *citizen)
         }
         Command::VoteAdmission { proposal, approve } => {
-            crate::bank::vote_admission(world, envelope, *proposal, *approve)
+            let ballot = if *approve {
+                crate::world::Ballot::Yes
+            } else {
+                crate::world::Ballot::No
+            };
+            crate::bank::vote_admission(world, envelope, *proposal, ballot)
         }
         Command::FormUnion { firm, name } => crate::union::form_union(world, envelope, *firm, name),
         Command::OfferCollectiveAgreement {
@@ -724,6 +752,12 @@ pub fn handle(
         }
         Command::CallStrike { union, cycles } => {
             crate::union::call_strike(world, envelope, *union, *cycles)
+        }
+        Command::Propose { title, text, kind } => {
+            crate::governance::propose(world, envelope, title, text, *kind)
+        }
+        Command::Vote { proposal, ballot } => {
+            crate::governance::vote(world, envelope, *proposal, *ballot)
         }
     }
 }
@@ -862,6 +896,7 @@ fn set_policy(
     Ok(vec![Event::PolicyChanged {
         policy: Box::new(policy.clone()),
         by: envelope.actor,
+        proposal: None,
     }])
 }
 

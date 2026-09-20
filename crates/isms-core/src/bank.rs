@@ -17,7 +17,7 @@ use crate::kinds::{Good, OrgKind};
 use crate::ledger::Party;
 use crate::money::Money;
 use crate::tick::TickBuilder;
-use crate::world::{ContractBody, ContractStatus, Instrument, OfferBody, Ownership, World};
+use crate::world::{Ballot, ContractBody, ContractStatus, Instrument, OfferBody, Ownership, World};
 
 /// The bank: the society-owned association seeded when capital is `public_bank`.
 #[must_use]
@@ -251,7 +251,10 @@ pub fn loans_outstanding(world: &World) -> Money {
 }
 
 // ---------------------------------------------------------------------------
-// Admission by vote (GDD §6.5 "coops admit new members by vote"; Q95).
+// Admission by vote (GDD §6.5 "coops admit new members by vote"; Q95). The
+// proposal rides the assembly's machine (S2.1): the same `Proposal`, the same
+// ballots, the same 8j close; only the electorate (the members) and the pass
+// rule (a majority of the membership, not of ballots) are the coop's own.
 
 /// `ProposeAdmission`: a member proposes a candidate; the proposer's vote is a yes.
 pub fn propose_admission(
@@ -303,55 +306,78 @@ pub fn propose_admission(
         events.push(Event::ProposalClosed {
             proposal,
             passed: true,
+            tally: admission_tally(&[(actor.id, Ballot::Yes)].into(), o),
         });
         events.extend(admit_events(world, o, citizen));
     }
     Ok(events)
 }
 
-/// `VoteAdmission`: a member votes; a majority of the members admits.
+/// A member's ballot on an admission: a majority of the members admits, a
+/// blocking share of noes closes it, otherwise it stays open until cycle end.
 pub fn vote_admission(
     world: &World,
     envelope: &Envelope<Command>,
     proposal: crate::ids::ProposalId,
-    approve: bool,
+    ballot: Ballot,
 ) -> Result<Vec<Event>, Reject> {
     let actor = crate::command::acting_citizen(world, envelope)?;
     let p = world.proposals.get(&proposal).ok_or_else(|| {
         Reject::new(
-            RejectCode::UnknownOffer,
+            RejectCode::UnknownProposal,
             format!("no open proposal {proposal}"),
         )
     })?;
-    let crate::world::ProposalKind::Admission { org, citizen } = p.kind;
+    let crate::world::ProposalKind::Admission { org, citizen } = p.kind else {
+        return Err(Reject::new(RejectCode::NotParty, "not an admission vote"));
+    };
     let o = &world.orgs[&org];
     if !o.members.contains(&actor.id) {
         return Err(Reject::new(RejectCode::NotParty, "only a member votes"));
     }
-    if p.votes.contains_key(&actor.id) {
-        return Err(Reject::new(RejectCode::AlreadyExists, "already voted"));
-    }
     let mut events = vec![Event::AdmissionVoted {
         proposal,
         citizen: actor.id,
-        approve,
+        approve: ballot == Ballot::Yes,
     }];
-    let yes = p.votes.values().filter(|v| **v).count() + usize::from(approve);
-    let no = p.votes.values().filter(|v| !**v).count() + usize::from(!approve);
-    let members = o.members.len();
-    if yes * 2 > members {
+    let mut ballots = p.ballots.clone();
+    ballots.insert(actor.id, ballot);
+    let tally = admission_tally(&ballots, o);
+    let members = tally.eligible;
+    if tally.yes * 2 > members {
         events.push(Event::ProposalClosed {
             proposal,
             passed: true,
+            tally,
         });
         events.extend(admit_events(world, o, citizen));
-    } else if no * 2 >= members {
+    } else if tally.no * 2 >= members {
         events.push(Event::ProposalClosed {
             proposal,
             passed: false,
+            tally,
         });
     }
     Ok(events)
+}
+
+/// The count of an admission vote: the electorate is the membership.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn admission_tally(
+    ballots: &std::collections::BTreeMap<crate::ids::CitizenId, Ballot>,
+    o: &crate::world::Org,
+) -> crate::world::Tally {
+    let count = |b: Ballot| ballots.values().filter(|x| **x == b).count() as u32;
+    let members = o.members.len() as u32;
+    crate::world::Tally {
+        yes: count(Ballot::Yes),
+        no: count(Ballot::No),
+        abstain: count(Ballot::Abstain),
+        cast: ballots.len() as u32,
+        quorum: members / 2 + 1,
+        eligible: members,
+    }
 }
 
 fn admit_events(
@@ -369,23 +395,5 @@ fn admit_events(
             },
         ],
         _ => Vec::new(),
-    }
-}
-
-/// Step 8j: admission proposals still open at cycle end lapse (votes close
-/// each cycle).
-pub fn cycle_end_8j_close_proposals(b: &mut TickBuilder) {
-    let open: Vec<crate::ids::ProposalId> = b
-        .world
-        .proposals
-        .values()
-        .filter(|p| matches!(p.kind, crate::world::ProposalKind::Admission { .. }))
-        .map(|p| p.id)
-        .collect();
-    for proposal in open {
-        b.emit(Event::ProposalClosed {
-            proposal,
-            passed: false,
-        });
     }
 }

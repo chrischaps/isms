@@ -223,6 +223,7 @@ pub fn set_plan(
         events.push(Event::PolicyChanged {
             policy: Box::new(policy),
             by: envelope.actor,
+            proposal: None,
         });
     }
     Ok(events)
