@@ -1021,7 +1021,7 @@ Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; t
 - **Done gate.** Server tests: propose/vote/close round-trip through the actor; a post after the window refused; a householder id in `Vote` answers 422; `make check`.
 - **Hand-off.** Route names and view shapes frozen for S2.6–S2.8 and S2.10. Depends on S2.1–S2.2 merged; S2.3/S2.4 types land in a follow-up commit. ∥ with S2.3/S2.4.
 
-#### S2.6 — The Assembly screen and the ballot builder *(web)*
+#### S2.6 — The Assembly screen and the ballot builder *(web; done 2026-09-20)*
 - **Goal.** A citizen reads open proposals, deliberates on the floor, casts a ballot, and writes a proposal from a typed builder.
 - **Read.** GDD §6.2 Governance, §12, §15; TDD §4 (`roles/`); `Plan.tsx`, `Talk.tsx`, `Org.tsx`, `hooks.ts`.
 - **Build.** `screens/Assembly.tsx` at `/s/$id/assembly`, mounted on `caps.governance !== "none"`: open proposals with tally, a quorum bar (`Meter`), closes-at via `lib/when`, my ballot; closed proposals as a ledger with outcome and the `PolicyChanged` diff; an offices panel with stand/withdraw. `screens/roles/BallotBuilder.tsx`: one form per enabled kind, rejections through `names.inText`. A floor thread per proposal via `Talk` on `assembly:<pid>`. `Plan.tsx`: `Follow` picks a citizen by name. `scripts/e2e/web.sh` seeds a lab Commune beside Freeport; `web/e2e/assembly.spec.ts` (propose as a coordinator, vote, step to cycle end, see `PolicyChanged`); a spec that a Freeport citizen has no Assembly nav.

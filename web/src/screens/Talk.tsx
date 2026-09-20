@@ -1,6 +1,8 @@
 // Talk (GDD 12; S1.13): the Square, the channels of orgs you belong to,
-// and DMs. Everything here is logged and players are told so; the
-// informal economy is expected to live in the DMs.
+// DMs, and since S2.6 the floor of each proposal (`assembly:<pid>`), which
+// the Assembly screen mounts `embedded` under the proposal. Everything here
+// is logged and players are told so; the informal economy is expected to
+// live in the DMs.
 
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -8,9 +10,10 @@ import { ApiError } from "../api/client";
 import { useHome, useLexicon } from "../api/hooks";
 import { useOrgs } from "../api/market";
 import { useChannel, useCitizens, usePost } from "../api/civic";
+import { useProposals } from "../api/assembly";
 import { whenOfTick } from "../lib/when";
 
-export function Talk({ id, channel = "square" }: { id: number; channel?: string }) {
+export function Talk({ id, channel = "square", embedded = false }: { id: number; channel?: string; embedded?: boolean }) {
   const { t } = useLexicon(id);
   const home = useHome(id);
   const orgs = useOrgs(id);
@@ -18,6 +21,9 @@ export function Talk({ id, channel = "square" }: { id: number; channel?: string 
   const messages = useChannel(id, channel);
   const post = usePost(id, channel);
   const navigate = useNavigate();
+  const floor = channel.startsWith("assembly:") ? Number(channel.slice(9)) : null;
+  // Only a floor's page needs the proposal's title; the list is cached for the Assembly screen anyway.
+  const proposals = useProposals(id, floor !== null && !embedded);
   const [draft, setDraft] = useState("");
   const [dmTo, setDmTo] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -44,16 +50,22 @@ export function Talk({ id, channel = "square" }: { id: number; channel?: string 
       o.members.includes(me) ||
       h.labor.employment.some((k) => ((k.body as Record<string, unknown>).employment as Record<string, unknown> | undefined)?.org === o.id),
   );
+  const floorOf = floor === null ? undefined : [...(proposals.data?.open ?? []), ...(proposals.data?.closed ?? [])].find((p) => p.id === floor);
   const title =
     channel === "square"
       ? "The Square"
-      : channel.startsWith("org:")
-        ? (myOrgs.find((o) => `org:${o.id}` === channel)?.name ?? channel)
-        : `with ${handles.get(Number(channel.slice(3))) ?? "a citizen"}`;
+      : floor !== null
+        ? embedded
+          ? "The floor"
+          : `The floor on ${floorOf?.title ?? `proposal ${floor}`}`
+        : channel.startsWith("org:")
+          ? (myOrgs.find((o) => `org:${o.id}` === channel)?.name ?? channel)
+          : `with ${handles.get(Number(channel.slice(3))) ?? "a citizen"}`;
   const go = (ch: string) => void navigate({ to: "/s/$id/talk/$channel", params: { id: String(id), channel: ch } });
 
   return (
-    <div className="grid gap-8 md:grid-cols-[14rem_1fr]">
+    <div className={embedded ? "" : "grid gap-8 md:grid-cols-[14rem_1fr]"}>
+      {embedded ? null : (
       <aside className="flex flex-col gap-4 text-sm">
         <div>
           <h3 className="text-muted text-xs uppercase tracking-wide">Channels</h3>
@@ -96,9 +108,19 @@ export function Talk({ id, channel = "square" }: { id: number; channel?: string 
         </div>
         <p className="text-muted text-xs">Everything said here is logged and may be published, pseudonymously, as research data. You agreed to that on joining.</p>
       </aside>
+      )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-xl">{title}</h2>
+        {embedded ? <h5 className="text-muted text-xs uppercase tracking-wide">{title}</h5> : <h2 className="text-xl">{title}</h2>}
+        {floor !== null && !embedded && floorOf ? (
+          <p className="text-muted text-sm">
+            {floorOf.open ? "Open until the end of the day; " : "Decided; "}
+            <Link to="/s/$id/assembly" params={{ id: String(id) }} className="underline">
+              back to the assembly
+            </Link>
+            .
+          </p>
+        ) : null}
         {error ? (
           <p className="text-bad text-sm" role="alert">
             {error}

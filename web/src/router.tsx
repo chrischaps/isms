@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-router";
 import { Admin } from "./screens/Admin";
 import { PublicArchives, SocietyArchives } from "./screens/Archives";
+import { Assembly } from "./screens/Assembly";
 import { Contracts } from "./screens/Contracts";
 import { EventScreen } from "./screens/Event";
 import { Gallery } from "./screens/Gallery";
@@ -113,6 +114,11 @@ function SocietyContractsRoute() {
 function SocietySocietyRoute() {
   const { id } = useParams({ from: "/s/$id/society" });
   return <SocietyScreen id={Number(id)} />;
+}
+
+function SocietyAssemblyRoute() {
+  const { id } = useParams({ from: "/s/$id/assembly" });
+  return <Assembly id={Number(id)} />;
 }
 
 function SocietyTalkRoute() {
@@ -235,6 +241,12 @@ const societySocietyRoute = createRoute({
   component: SocietySocietyRoute,
 });
 
+const societyAssemblyRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/assembly",
+  component: SocietyAssemblyRoute,
+});
+
 const societyTalkRoute = createRoute({
   getParentRoute: () => societyRoute,
   path: "/talk",
@@ -278,6 +290,7 @@ const routeTree = rootRoute.addChildren([
     societyOrgRoute,
     societyContractsRoute,
     societySocietyRoute,
+    societyAssemblyRoute,
     societyTalkRoute,
     societyChannelRoute,
     societyEventRoute,

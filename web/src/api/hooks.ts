@@ -65,7 +65,12 @@ export function useLexicon(id: number) {
     staleTime: Infinity,
   });
   const entries = q.data?.entries ?? {};
-  const t = (key: string): string => entries[key] ?? key;
+  // A preset whose copy has not been written yet (the Commune until S2.9) carries
+  // "TODO" placeholders; the key itself reads better than that.
+  const t = (key: string): string => {
+    const v = entries[key];
+    return v === undefined || v === "TODO" ? key : v;
+  };
   return { ...q, t };
 }
 

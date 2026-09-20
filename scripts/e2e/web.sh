@@ -18,6 +18,8 @@ SQLX_OFFLINE=true cargo build -q -p isms-server
 "$SERVER" seed --preset freeport --name "web-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 # A second society for the operator test, which holds, ends and restarts a clock nobody else is using.
 "$SERVER" seed --preset freeport --name "operator-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
+# A lab Commune for the assembly test (S2.6): governance, offices and the Common Store; not public.
+"$SERVER" seed --preset commune --class lab --name "commune-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 ISMS_OPERATORS="admin@example.test" "$SERVER" serve --bind "127.0.0.1:$PORT" --base-url "$ISMS_API" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
@@ -35,5 +37,6 @@ ISMS_SESSION_LEND="$("$SERVER" session --email lend-$(date +%s)@example.test)"
 ISMS_SESSION_BORROW="$("$SERVER" session --email borrow-$(date +%s)@example.test)"
 ISMS_SESSION_CIVIC="$("$SERVER" session --email civic-$(date +%s)@example.test)"
 ISMS_SESSION_ADMIN="$("$SERVER" session --email admin@example.test)"
-export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND ISMS_SESSION_LEND ISMS_SESSION_BORROW ISMS_SESSION_CIVIC ISMS_SESSION_ADMIN
+ISMS_SESSION_ASSEMBLY="$("$SERVER" session --email assembly-$(date +%s)@example.test)"
+export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND ISMS_SESSION_LEND ISMS_SESSION_BORROW ISMS_SESSION_CIVIC ISMS_SESSION_ADMIN ISMS_SESSION_ASSEMBLY
 (cd web && pnpm exec playwright test "$@")

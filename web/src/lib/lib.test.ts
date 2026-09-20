@@ -6,6 +6,7 @@ import { buildNames, workplaceTitles } from "./names";
 import { needHints } from "./needs";
 import { payslipRows } from "./payslips";
 import { inputsText, producerNote, supplyOf, type OrgLike as SupplyOrg, type Recipe } from "./supply";
+import { diffText, kindSummary, policyDiff, policyValue, quorumBar, wouldCarry } from "./policy";
 import { dayOf, deadlineOfTick, epochEndingText, hourName, hourOfClock, whenOf, whenOfTick } from "./when";
 
 describe("when", () => {
@@ -203,5 +204,41 @@ describe("supplyOf", () => {
     expect(supplyOf("grain", recipes, orgs).madeBy).toEqual([]);
     expect(inputsText({})).toBe("nothing but labor");
     expect(inputsText({ materials: 2, ore: 1 })).toBe("2 materials and 1 ore");
+  });
+});
+
+describe("policy", () => {
+  it("reads a carried change as the patched fields, before and after", () => {
+    const patch = { work_norm_hours: 7, rationing: null };
+    const before = { work_norm_hours: 6, rationing: "need_first", monitoring: "inherit" };
+    const after = { work_norm_hours: 7, rationing: "need_first", monitoring: "inherit" };
+    expect(policyDiff(patch, before, after).map(diffText)).toEqual(["work norm hours 6 -> 7"]);
+    // The first change of the epoch has no earlier policy on record.
+    expect(policyDiff(patch, null, after).map(diffText)).toEqual(["work norm hours -> 7"]);
+  });
+
+  it("prints a split as percentages and an enum as words", () => {
+    expect(policyValue({ wares: 0.5, machines: 0.3, dwellings: 0.2 })).toBe("wares 50%, machines 30%, dwellings 20%");
+    expect(policyValue("equal_shortfall")).toBe("equal shortfall");
+    expect(policyValue(null)).toBe("unset");
+  });
+
+  it("says what a proposal would do, with the citizen named", () => {
+    const who = (id: number) => (id === 3 ? "noor" : `citizen no. ${id}`);
+    const org = (id: number) => `org ${id}`;
+    expect(kindSummary("resolution", who, org)).toMatch(/minutes/);
+    expect(kindSummary({ honor: { citizen: 3 } }, who, org)).toBe("Honors noor: one line on their record, never revoked.");
+    expect(kindSummary({ recall: { office: "coordinator", citizen: 3 } }, who, org)).toBe("Recalls noor from the office of coordinator.");
+    expect(kindSummary({ policy_change: { patch: { work_norm_hours: 7 } } }, who, org)).toBe("Sets work norm hours to 7.");
+  });
+
+  it("draws the quorum line where it is and knows a carry", () => {
+    const t = { yes: 1, no: 0, abstain: 0, cast: 1, eligible: 5, quorum: 1 };
+    expect(quorumBar(t)).toEqual({ value: 20, threshold: 20, met: true });
+    expect(wouldCarry(t)).toBe(true);
+    expect(wouldCarry({ ...t, cast: 0, yes: 0 })).toBe(false);
+    expect(wouldCarry({ ...t, no: 1, cast: 2 })).toBe(false);
+    // An empty electorate has no quorum to draw.
+    expect(quorumBar({ ...t, eligible: 0 })).toEqual({ value: 0, threshold: 100, met: false });
   });
 });
