@@ -5,7 +5,8 @@
 //! every client, from the same two directories: citizens and orgs.
 //!
 //! Tokens are a letter and a number (`isms-core` ids.rs): `c` citizen, `o` org,
-//! `w` workplace, `d` dwelling, `k` contract, `f` offer, `r` order, `s` slot.
+//! `w` workplace, `d` dwelling, `k` contract, `f` offer, `r` order, `s` slot,
+//! `p` proposal (S2.5).
 
 use isms_core::command::Reject;
 use isms_core::ids::CitizenId;
@@ -99,6 +100,7 @@ impl Directory {
             ),
             'd' => format!("dwelling no. {n}"),
             's' => format!("slot {n}"),
+            'p' => format!("proposal no. {n}"),
             'k' => "that contract".into(),
             'f' => "that offer".into(),
             _ => "that order".into(),
@@ -136,6 +138,18 @@ impl Directory {
         while i < words.len() {
             let w = words[i];
             let (core, tail) = split_punct(w);
+            // "no open proposal p3": the vote is over, or never was.
+            if core == "no"
+                && i + 3 < words.len()
+                && words[i + 1] == "open"
+                && NOUNS.contains(&words[i + 2])
+                && parse_token(split_punct(words[i + 3]).0).is_some()
+            {
+                let (_, tail3) = split_punct(words[i + 3]);
+                out.push(format!("there is no open {}{tail3}", words[i + 2]));
+                i += 4;
+                continue;
+            }
             // "no workplace w19": the id names nothing, so say so.
             if core == "no"
                 && i + 2 < words.len()
@@ -199,7 +213,7 @@ impl Directory {
     }
 }
 
-const NOUNS: [&str; 8] = [
+const NOUNS: [&str; 9] = [
     "citizen",
     "org",
     "workplace",
@@ -208,6 +222,7 @@ const NOUNS: [&str; 8] = [
     "offer",
     "order",
     "slot",
+    "proposal",
 ];
 
 /// `works` -> `work` after "you"; None for a word that is not such a verb.
@@ -269,7 +284,7 @@ fn unwrap_debug(text: &str) -> String {
 fn parse_token(word: &str) -> Option<(char, u32)> {
     let mut chars = word.chars();
     let letter = chars.next()?;
-    if !"cowdkfrs".contains(letter) {
+    if !"cowdkfrsp".contains(letter) {
         return None;
     }
     let digits = chars.as_str();
@@ -378,6 +393,18 @@ mod tests {
         );
         assert_eq!(mine.text("no order r1"), "There is no such order");
         assert_eq!(mine.text("no offer f81"), "There is no such offer");
+        assert_eq!(
+            mine.text("no open proposal p3"),
+            "There is no open proposal"
+        );
+        assert_eq!(
+            mine.text("a motion to honor c5 is already before the assembly"),
+            "A motion to honor otto is already before the assembly"
+        );
+        assert_eq!(
+            mine.text("p3 is not a members' vote"),
+            "Proposal no. 3 is not a members' vote"
+        );
         assert_eq!(
             mine.text("offer f81 was taken or withdrawn"),
             "That offer was taken or withdrawn"

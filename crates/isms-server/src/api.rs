@@ -950,6 +950,7 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(welcome))
         .routes(routes!(join))
         .merge(crate::society_api::routes())
+        .merge(crate::assembly::routes())
         .merge(crate::comms::routes())
 }
 

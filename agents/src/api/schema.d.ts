@@ -369,7 +369,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Everything that touched you since a tick */
+        /** Everything that touched you since a tick, the assembly's news included: proposals closed, the ballot cast for you by default, an honor, a seat */
         get: operations["digest"];
         put?: never;
         post?: never;
@@ -420,10 +420,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read the Square or an org channel */
+        /** Read the Square, an org channel, or a proposal's floor */
         get: operations["read_messages"];
         put?: never;
-        /** Post to the Square or an org channel */
+        /** Post to the Square, an org channel, or a proposal's floor (open, and one day after it closes) */
         post: operations["post_message"];
         delete?: never;
         options?: never;
@@ -755,6 +755,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/s/{id}/offices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every office: its rule, who sits, and the election open for it */
+        get: operations["offices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/offices/{kind}/ballot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Cast or replace your approval ballot: any subset of the candidates */
+        put: operations["approve"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/offices/{kind}/candidacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stand in the open election for an office */
+        post: operations["stand"];
+        /** Withdraw your candidacy */
+        delete: operations["withdraw"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/s/{id}/orders": {
         parameters: {
             query?: never;
@@ -818,6 +870,23 @@ export interface paths {
         get: operations["get_org"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/orgs/{oid}/disbursements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Member: move the org's money or goods to someone, subject to the members' vote */
+        post: operations["disburse"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1039,6 +1108,58 @@ export interface paths {
         /** Per-tick VWAP per instrument over a window of ticks */
         get: operations["prices"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The assembly: open proposals with their tallies and your ballot, and those closed this epoch with their outcomes */
+        get: operations["proposals"];
+        put?: never;
+        /** Open a proposal before the assembly; it closes at the end of this cycle */
+        post: operations["propose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/proposals/{pid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One proposal, open or closed this epoch */
+        get: operations["proposal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/proposals/{pid}/ballot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Cast or replace your ballot on an open proposal (a members' vote included) */
+        put: operations["ballot"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1303,6 +1424,10 @@ export interface components {
             /** Format: int32 */
             citizen?: number | null;
         };
+        /** @description An approval ballot: any subset of the candidates, the empty set included. */
+        ApproveRequest: {
+            candidates: number[];
+        };
         /**
          * @description What an ended epoch left behind (GDD §11.5): the engine's frozen summary
          *     and the citizens' closing statements, readable by anyone once written.
@@ -1350,6 +1475,19 @@ export interface components {
             archives: components["schemas"]["ArchiveView"][];
             clock: components["schemas"]["Clock"];
         };
+        /** @description Cast or replace a ballot; the last one before the close counts. */
+        BallotRequest: {
+            /** @description `yes`, `no` or `abstain`. */
+            ballot: string;
+        };
+        /** @description One ballot on the roll (Q135: the assembly votes openly). */
+        BallotView: {
+            /** @description `yes`, `no` or `abstain`. */
+            ballot: string;
+            /** Format: int32 */
+            citizen: number;
+            handle: string;
+        };
         BookSummary: {
             /** Format: int32 */
             ask_depth: number;
@@ -1377,6 +1515,16 @@ export interface components {
             /** Format: double */
             price_index?: number | null;
         };
+        CandidateView: {
+            /**
+             * Format: int32
+             * @description Approval ballots naming this candidate so far.
+             */
+            approvals: number;
+            /** Format: int32 */
+            citizen: number;
+            handle: string;
+        };
         /** @description The engine's `Capabilities` (TDD 5.2) on the wire: what exists in this society. */
         CapabilitiesView: {
             administered_prices: boolean;
@@ -1396,6 +1544,14 @@ export interface components {
             order_books: boolean;
             org_kinds: string[];
             pay: string;
+            /**
+             * @description The proposal kinds the assembly may open (S2.5): `policy_change`,
+             *     `resolution`, `election`, `recall`, `honor`; a members' vote
+             *     (`admission`, `disbursement`) is gated by the org kinds instead.
+             */
+            proposal_kinds?: string[];
+            /** @description Who may open one: `anyone` or `office_holders`. */
+            proposers?: string;
             rate_limit: components["schemas"]["RateLimitView"];
             redistribution: string;
         };
@@ -1413,6 +1569,11 @@ export interface components {
             dormant: boolean;
             flags: Record<string, never>;
             handle: string;
+            /**
+             * Format: int32
+             * @description Honors the assembly has conferred (S2.3); 0 where there is no assembly.
+             */
+            honors?: number;
             /** Format: int32 */
             id: number;
             /** Format: int32 */
@@ -1529,6 +1690,18 @@ export interface components {
             /** Format: int32 */
             since_tick: number;
         };
+        /**
+         * @description A member moves the org's money or goods to a citizen or an org (S2.4,
+         *     Q122); the members vote through the ballot route.
+         */
+        DisbursementRequest: {
+            /** @description `{"money": cents}` or `{"good": ["food", 3]}`. */
+            asset: Record<string, never>;
+            /** @description The mover's case, optional. */
+            text?: string;
+            /** @description `{"citizen": id}` or `{"org": id}`. */
+            to: Record<string, never>;
+        };
         DividendRequest: {
             per_share: components["schemas"]["i64"];
         };
@@ -1565,6 +1738,35 @@ export interface components {
             max_workplaces: number;
             /** @description Output multiplier per level: low, normal, high. */
             output_mult: number[];
+        };
+        /**
+         * @description The election open for an office (S2.2, Q118): approval ballots, the top
+         *     `seats` win at the close.
+         */
+        ElectionView: {
+            /**
+             * Format: int32
+             * @description Approval ballots cast so far (each names any subset of the candidates).
+             */
+            ballots_cast: number;
+            /** @description In rank order: most approvals, then fewer past terms, then the lower id. */
+            candidates: components["schemas"]["CandidateView"][];
+            /** Format: int32 */
+            closes_cycle: number;
+            i_stand: boolean;
+            my_approvals: number[];
+            /**
+             * Format: int32
+             * @description Engine 0-based cycles.
+             */
+            opened_cycle: number;
+            /** Format: int32 */
+            seats: number;
+            /**
+             * @description Why the caller could not stand right now, in the engine's words with
+             *     its ids named; absent when they could.
+             */
+            stand_refusal?: string | null;
         };
         EmploymentOfferRequest: {
             /** Format: int32 */
@@ -1668,6 +1870,16 @@ export interface components {
         Health: {
             ok: boolean;
             societies: number;
+        };
+        HolderView: {
+            /** Format: int32 */
+            citizen: number;
+            handle: string;
+            /**
+             * Format: int32
+             * @description The engine's 0-based cycle the term runs through; the seat empties at its end.
+             */
+            term_ends_cycle: number;
         };
         /** @description The Situation view (GDD 9.1 step 1). */
         HomeView: {
@@ -1816,6 +2028,29 @@ export interface components {
             id: number;
             kind: string;
         };
+        OfficeView: {
+            consecutive: boolean;
+            election?: null | components["schemas"]["ElectionView"];
+            holders: components["schemas"]["HolderView"][];
+            i_hold: boolean;
+            /** @description `coordinator`, `planning_committee`, `legislator`, `union_steward`, `bank_board`. */
+            kind: string;
+            /** @description `majority` or `two_thirds`. */
+            recall: string;
+            /** Format: int32 */
+            seats: number;
+            /**
+             * Format: int32
+             * @description The engine's 0-based cycle since which the office has had fewer holders than seats.
+             */
+            short_since?: number | null;
+            /** Format: int32 */
+            term_cycles: number;
+        };
+        OfficesView: {
+            clock: components["schemas"]["Clock"];
+            offices: components["schemas"]["OfficeView"][];
+        };
         OrderView: {
             /** Format: int32 */
             expires_tick: number;
@@ -1944,6 +2179,112 @@ export interface components {
             title: string;
             type: string;
         };
+        /** @description How a proposal closed (S2.1) and what it did. */
+        ProposalOutcome: {
+            /**
+             * Format: int32
+             * @description The engine's 0-based cycle the close fell in.
+             */
+            closed_cycle: number;
+            /**
+             * Format: int64
+             * @description Log position of the `ProposalClosed`.
+             */
+            closed_seq: number;
+            /**
+             * @description What the carry did: the `PolicyChanged`, `Honored` or `Disbursed` it
+             *     produced, as the viewer may see them.
+             */
+            effects: components["schemas"]["EventRef"][];
+            passed: boolean;
+            tally: components["schemas"]["TallyView"];
+        };
+        ProposalView: {
+            /** @description The roll so far; empty once closed (the tally stands for it). */
+            ballots: components["schemas"]["BallotView"][];
+            /** Format: int32 */
+            by: number;
+            by_handle: string;
+            /**
+             * Format: int32
+             * @description The engine's 0-based cycle whose end (8j) closes the vote.
+             */
+            closes_cycle: number;
+            /**
+             * @description Whether the floor (`assembly:<id>`) takes posts now: while open and for
+             *     one cycle after the close (TDD 12).
+             */
+            floor_open: boolean;
+            /** Format: int32 */
+            id: number;
+            /**
+             * @description The engine's `ProposalKind`: `"resolution"`, `{"policy_change": {"patch": {...}}}`,
+             *     `{"honor": {"citizen": n}}`, `{"recall": {"office": "coordinator", "citizen": n}}`,
+             *     `{"disbursement": {"org": n, "to": {...}, "asset": {...}}}`, `{"admission": {...}}`.
+             */
+            kind: Record<string, never>;
+            /**
+             * @description The kind's tag: `policy_change`, `resolution`, `election`, `recall`,
+             *     `honor`, `admission`, `disbursement`.
+             */
+            kind_tag: string;
+            /** @description `yes`, `no`, `abstain` or absent. */
+            my_ballot?: string | null;
+            open: boolean;
+            /** Format: int32 */
+            opened_tick: number;
+            /**
+             * Format: int32
+             * @description The org whose members vote, for an admission or a disbursement; absent
+             *     for the assembly's own proposals.
+             */
+            org?: number | null;
+            outcome?: null | components["schemas"]["ProposalOutcome"];
+            tally: components["schemas"]["TallyView"];
+            text: string;
+            title: string;
+        };
+        ProposalsView: {
+            clock: components["schemas"]["Clock"];
+            /** @description Closed this epoch, oldest first, with outcomes. */
+            closed: components["schemas"]["ProposalView"][];
+            /**
+             * Format: int32
+             * @description Active humans: the voters a quorum is counted against right now (Q117).
+             */
+            electorate: number;
+            /** @description How the caller's standing plan votes for them at the close (`vote_default`). */
+            my_vote_default: Record<string, never>;
+            /**
+             * @description Open proposals the caller may see: the assembly's, and the members'
+             *     votes of the orgs they belong to. Oldest first.
+             */
+            open: components["schemas"]["ProposalView"][];
+            /**
+             * Format: int32
+             * @description `governance.open_proposals_per_citizen`.
+             */
+            open_per_citizen: number;
+            /**
+             * Format: double
+             * @description `population.quorum_fraction`.
+             */
+            quorum_fraction: number;
+        };
+        /**
+         * @description Open a proposal before the assembly (S2.1). `text` may be empty except for
+         *     a resolution, which is its text.
+         */
+        ProposeRequest: {
+            /**
+             * @description The engine's `ProposalKind` (see `ProposalView.kind`). An election
+             *     cannot be moved: stand for the office instead (Q125). A disbursement
+             *     goes through `POST /s/{id}/orgs/{oid}/disbursements`.
+             */
+            kind: Record<string, never>;
+            text?: string;
+            title: string;
+        };
         /**
          * @description The spectator's numbers (TDD 10.2 public routes): what `/s/{id}/stats`
          *     shows a citizen, plus the society's name and which tiles apply, so a
@@ -2009,6 +2350,11 @@ export interface components {
             citizen: number;
             firms: components["schemas"]["FirmValuation"][];
             handle: string;
+            /**
+             * Format: int32
+             * @description Honors the assembly has conferred (S2.3); the Commune's scoreboard reads it.
+             */
+            honors?: number;
             net_worth: components["schemas"]["i64"];
             self_made: components["schemas"]["i64"];
         };
@@ -2079,6 +2425,26 @@ export interface components {
             /** @description The last `CycleClosed.aggregates` (engine shape), if a cycle has closed. */
             last_cycle?: Record<string, never> | null;
             live: components["schemas"]["SocietyPulse"];
+        };
+        /**
+         * @description The count on a proposal (engine `Tally`): `cast` includes abstentions and
+         *     the ballots `vote_default` cast at the close; `quorum` is the ballots the
+         *     close requires against `eligible` voters (Q117). On an open proposal it is
+         *     the count so far.
+         */
+        TallyView: {
+            /** Format: int32 */
+            abstain: number;
+            /** Format: int32 */
+            cast: number;
+            /** Format: int32 */
+            eligible: number;
+            /** Format: int32 */
+            no: number;
+            /** Format: int32 */
+            quorum: number;
+            /** Format: int32 */
+            yes: number;
         };
         /** @description A new tick length for a society (0 = as fast as possible). */
         TickSecondsRequest: {
@@ -2970,7 +3336,7 @@ export interface operations {
             path: {
                 /** @description Society id */
                 id: number;
-                /** @description square or org:<org id> */
+                /** @description square, org:<org id> or assembly:<proposal id> */
                 channel: string;
             };
             cookie?: never;
@@ -2993,6 +3359,23 @@ export interface operations {
                     "application/json": components["schemas"]["Problem"];
                 };
             };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description No assembly floor in this society (code not_in_this_society) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     post_message: {
@@ -3002,7 +3385,7 @@ export interface operations {
             path: {
                 /** @description Society id */
                 id: number;
-                /** @description square or org:<org id> */
+                /** @description square, org:<org id> or assembly:<proposal id> */
                 channel: string;
             };
             cookie?: never;
@@ -3022,6 +3405,23 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The floor has closed (code unknown_proposal), or no assembly here */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3694,6 +4094,160 @@ export interface operations {
             };
         };
     };
+    offices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficesView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description The office */
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    stand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description coordinator, planning_committee, legislator, union_steward or bank_board */
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description The office */
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     place_order: {
         parameters: {
             query?: never;
@@ -3841,6 +4395,42 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    disburse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description Org id */
+                oid: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisbursementRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4305,6 +4895,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PricesView"];
+                };
+            };
+        };
+    };
+    proposals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalsView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    propose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    proposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description Proposal id */
+                pid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ballot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description Proposal id */
+                pid: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BallotRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

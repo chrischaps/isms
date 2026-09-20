@@ -8,7 +8,8 @@ pub mod society;
 use chrono::{DateTime, Utc};
 use isms_core::Capabilities;
 use isms_core::constitution::{
-    CapitalMode, Compensation, Governance, LaborMode, Monitoring, OfficeSpec, Redistribution,
+    CapitalMode, Compensation, Governance, LaborMode, Monitoring, OfficeSpec, ProposalKindTag,
+    Proposers, Redistribution,
 };
 use isms_core::kinds::{ContractKind, OrgKind, WorkplaceKind};
 use serde::{Deserialize, Serialize};
@@ -228,6 +229,16 @@ pub struct CapabilitiesView {
     pub governance: Governance,
     #[schema(value_type = Vec<Object>)]
     pub offices: Vec<OfficeSpec>,
+    /// The proposal kinds the assembly may open (S2.5): `policy_change`,
+    /// `resolution`, `election`, `recall`, `honor`; a members' vote
+    /// (`admission`, `disbursement`) is gated by the org kinds instead.
+    #[serde(default)]
+    #[schema(value_type = Vec<String>)]
+    pub proposal_kinds: BTreeSet<ProposalKindTag>,
+    /// Who may open one: `anyone` or `office_holders`.
+    #[serde(default)]
+    #[schema(value_type = String)]
+    pub proposers: Proposers,
     /// Slots per workplace kind; `null` = unlimited.
     #[schema(value_type = Object)]
     pub land_slots: BTreeMap<WorkplaceKind, Option<u32>>,
@@ -253,6 +264,8 @@ impl CapabilitiesView {
             monitoring_sigma: c.monitoring_sigma,
             governance: c.governance,
             offices: c.offices.clone(),
+            proposal_kinds: c.proposal_kinds.clone(),
+            proposers: c.proposers,
             land_slots: c.land_slots.clone(),
             rate_limit: RateLimitView {
                 per_second: c.rate_limit.per_second,

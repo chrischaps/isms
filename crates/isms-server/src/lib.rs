@@ -3,6 +3,7 @@
 
 pub mod actor;
 pub mod api;
+pub mod assembly;
 pub mod auth;
 pub mod chronicle;
 pub mod comms;

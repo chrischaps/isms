@@ -587,6 +587,7 @@ REST for commands and queries, WebSocket for the live event stream, OpenAPI 3.1 
 | Stream | `GET /s/{id}/stream` (WebSocket: events filtered to what the citizen may see, plus `TickResolved` deltas for self and public aggregates) |
 | Explain | `GET /s/{id}/explain/{event_seq}` (returns the `Explain` payloads of an event; the UI usually already has them inline) |
 | Public / spectator | `GET /public/societies`, `GET /public/s/{id}/stats`, `GET /public/s/{id}/chronicle`, `GET /public/s/{id}/archives`, `GET /public/s/{id}/archives/{epoch}` — no citizenship needed |
+| Assembly (Phase 2, S2.5) | `GET/POST /s/{id}/proposals`, `GET /s/{id}/proposals/{pid}`, `PUT /s/{id}/proposals/{pid}/ballot`, `GET /s/{id}/offices`, `POST/DELETE /s/{id}/offices/{kind}/candidacy`, `PUT /s/{id}/offices/{kind}/ballot` (approval, Q125), `POST /s/{id}/orgs/{oid}/disbursements` (a members' vote, S2.4); the floor of a proposal is the channel `assembly:<pid>` |
 
 Visibility rules are enforced server-side once, in a `Viewer` type: your own true output vs. others' noisy attribution; DMs; org channels; managers' per-worker views. The engine records everything; the API decides who sees what, per the constitution.
 

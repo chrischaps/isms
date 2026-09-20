@@ -183,7 +183,8 @@ struct SocietyActor {
     id: i64,
     store: PgEventStore,
     world: Arc<RwLock<World>>,
-    /// Derived once per epoch (TDD 5.2); rebuilt after a rollover.
+    /// Derived once per epoch (TDD 5.2); rebuilt after a rollover and after
+    /// a `PolicyChanged` (Q124: a vote can flip monitoring mid-epoch).
     rules: Option<(Epoch, Rules)>,
     next_seq: i64,
     events: broadcast::Sender<Arc<Batch>>,
@@ -276,6 +277,14 @@ impl SocietyActor {
             for e in &events {
                 apply(&mut world, e);
             }
+        }
+        if events
+            .iter()
+            .any(|e| matches!(e, Event::PolicyChanged { .. }))
+        {
+            // The policy is part of the rules (TDD T14): derive them again
+            // before the next command or tick reads a stale sigma (Q124).
+            self.rules = None;
         }
         self.next_seq += i64::try_from(events.len()).expect("batch fits in i64");
         let _ = self.events.send(Arc::new(Batch {

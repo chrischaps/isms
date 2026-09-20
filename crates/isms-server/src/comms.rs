@@ -1,7 +1,11 @@
 //! Chronicle reader and free-text channels (TDD 10.3 Society and Comms rows,
-//! TDD 12, D12): the Square, org channels with membership checks, and DMs.
+//! TDD 12, D12): the Square, org channels with membership checks, DMs, and
+//! the assembly floor: one thread per proposal (`assembly:<pid>`), readable
+//! by every citizen who may see the proposal, postable while it is open and
+//! for one cycle after (S2.5).
 
 use crate::api::{citizen_in, society, touch_presence};
+use crate::assembly::{floor_open, may_see, proposed_this_epoch};
 use crate::auth::Auth;
 use crate::error::{ApiError, ApiResult};
 use crate::state::{AppState, SocietyEntry, clock_of};
@@ -12,7 +16,9 @@ use isms_api_types::Problem;
 use isms_api_types::chronicle::{
     ChronicleView, HeadlineView, MessageView, MessagesView, PostMessage,
 };
-use isms_core::ids::{CitizenId, OrgId};
+use isms_core::command::{Reject, RejectCode};
+use isms_core::ids::{CitizenId, OrgId, ProposalId};
+use isms_core::kinds::Channel;
 use isms_core::ledger::Party;
 use isms_core::world::{ContractBody, ContractStatus, World};
 use isms_store::projections::{HeadlineRow, MessageRow};
@@ -112,7 +118,77 @@ pub async fn latest_headlines(state: &AppState, id: i64, n: i64) -> ApiResult<Ve
         .collect())
 }
 
+/// What a channel name resolves to for `me` (TDD 12), before the log is
+/// consulted: the Square, an org's channel or a DM they are in, or a floor
+/// whose proposal the world no longer holds (closed) and the log must place.
+enum Access {
+    /// Read and post freely.
+    Open,
+    /// The floor of a proposal that is not open now: readable if the log
+    /// shows one `me` may see; postable one cycle past its close.
+    ClosedFloor(ProposalId),
+}
+
 /// Who may read and write a channel (TDD 12).
+fn access(world: &World, me: CitizenId, channel: &str) -> ApiResult<Access> {
+    if can_access(world, me, channel) {
+        return Ok(Access::Open);
+    }
+    if let Some(pid) = channel.strip_prefix("assembly:") {
+        if !world
+            .constitution
+            .communication
+            .contains(&Channel::Assembly)
+        {
+            return Err(ApiError::Reject(Reject::new(
+                RejectCode::NotInThisSociety,
+                "this society has no assembly floor",
+            )));
+        }
+        let Some(pid) = pid.parse::<u32>().ok().map(ProposalId) else {
+            return Err(ApiError::NotFound(format!("no proposal {pid}")));
+        };
+        return match world.proposals.get(&pid) {
+            Some(p) if may_see(world, me, &p.kind) => Ok(Access::Open),
+            Some(_) => Err(ApiError::Forbidden("you are not in this channel".into())),
+            None => Ok(Access::ClosedFloor(pid)),
+        };
+    }
+    Err(ApiError::Forbidden("you are not in this channel".into()))
+}
+
+/// The floor of a proposal the world no longer holds: the log says whether
+/// it existed this epoch, whether `me` may see it, and when its floor closed.
+async fn closed_floor(
+    state: &AppState,
+    entry: &SocietyEntry,
+    me: CitizenId,
+    pid: ProposalId,
+    posting: bool,
+) -> ApiResult<()> {
+    let epoch = entry.handle.world.read().await.meta.epoch;
+    let opened = proposed_this_epoch(state, entry.row.id, epoch).await?;
+    let world = entry.handle.world.read().await;
+    let Some(o) = opened.get(&pid) else {
+        return Err(ApiError::NotFound(format!("no proposal {}", pid.0)));
+    };
+    if !may_see(&world, me, &o.kind) {
+        return Err(ApiError::Forbidden("you are not in this channel".into()));
+    }
+    if posting && !floor_open(&world, false, o.closes_cycle) {
+        return Err(ApiError::Reject(Reject::new(
+            RejectCode::UnknownProposal,
+            format!(
+                "the floor on proposal {} closed at the end of day {}",
+                pid.0,
+                o.closes_cycle + 2
+            ),
+        )));
+    }
+    Ok(())
+}
+
+/// The channels the world alone can answer for.
 fn can_access(world: &World, me: CitizenId, channel: &str) -> bool {
     if channel == "square" {
         return true;
@@ -154,10 +230,14 @@ async fn read_channel(
     channel: &str,
     after: i64,
 ) -> ApiResult<MessagesView> {
-    let world = entry.handle.world.read().await;
-    if !can_access(&world, me, channel) {
-        return Err(ApiError::Forbidden("you are not in this channel".into()));
+    let pending = match access(&*entry.handle.world.read().await, me, channel)? {
+        Access::Open => None,
+        Access::ClosedFloor(pid) => Some(pid),
+    };
+    if let Some(pid) = pending {
+        closed_floor(state, entry, me, pid, false).await?;
     }
+    let world = entry.handle.world.read().await;
     let rows = state
         .store
         .messages(entry.row.id, channel, after, PAGE)
@@ -204,11 +284,15 @@ async fn post_channel(
     if !state.limiter.check(&key, MSG_PER_SECOND, MSG_BURST) {
         return Err(ApiError::RateLimited);
     }
+    let pending = match access(&*entry.handle.world.read().await, me, channel)? {
+        Access::Open => None,
+        Access::ClosedFloor(pid) => Some(pid),
+    };
+    if let Some(pid) = pending {
+        closed_floor(state, entry, me, pid, true).await?;
+    }
     let (tick, handle) = {
         let world = entry.handle.world.read().await;
-        if !can_access(&world, me, channel) {
-            return Err(ApiError::Forbidden("you are not in this channel".into()));
-        }
         (
             world.meta.tick,
             world
@@ -246,9 +330,10 @@ struct AfterQuery {
     after: Option<i64>,
 }
 
-#[utoipa::path(get, path = "/s/{id}/channels/{channel}/messages", summary = "Read the Square or an org channel",
-    params(("id" = i64, Path, description = "Society id"), ("channel" = String, Path, description = "square or org:<org id>"), AfterQuery),
-    responses((status = 200, body = MessagesView), (status = 403, body = Problem)), security(("session" = []), ("api_key" = [])))]
+#[utoipa::path(get, path = "/s/{id}/channels/{channel}/messages", summary = "Read the Square, an org channel, or a proposal's floor",
+    params(("id" = i64, Path, description = "Society id"), ("channel" = String, Path, description = "square, org:<org id> or assembly:<proposal id>"), AfterQuery),
+    responses((status = 200, body = MessagesView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem, description = "No assembly floor in this society (code not_in_this_society)")),
+    security(("session" = []), ("api_key" = [])))]
 async fn read_messages(
     State(state): State<AppState>,
     auth: Auth,
@@ -264,9 +349,10 @@ async fn read_messages(
     ))
 }
 
-#[utoipa::path(post, path = "/s/{id}/channels/{channel}/messages", summary = "Post to the Square or an org channel",
-    params(("id" = i64, Path, description = "Society id"), ("channel" = String, Path, description = "square or org:<org id>")),
-    request_body = PostMessage, responses((status = 201, body = MessageView), (status = 403, body = Problem)), security(("session" = []), ("api_key" = [])))]
+#[utoipa::path(post, path = "/s/{id}/channels/{channel}/messages", summary = "Post to the Square, an org channel, or a proposal's floor (open, and one day after it closes)",
+    params(("id" = i64, Path, description = "Society id"), ("channel" = String, Path, description = "square, org:<org id> or assembly:<proposal id>")),
+    request_body = PostMessage, responses((status = 201, body = MessageView), (status = 403, body = Problem), (status = 404, body = Problem), (status = 422, body = Problem, description = "The floor has closed (code unknown_proposal), or no assembly here")),
+    security(("session" = []), ("api_key" = [])))]
 async fn post_message(
     State(state): State<AppState>,
     auth: Auth,

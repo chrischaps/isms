@@ -471,6 +471,7 @@ pub fn citizens_public(world: &World) -> Vec<CitizenPublic> {
             dormant: c.dormant,
             joined_tick: c.joined_tick,
             flags: serde_json::to_value(&c.flags).unwrap_or_default(),
+            honors: isms_core::metrics::honors_of(c),
         })
         .collect()
 }
@@ -508,6 +509,7 @@ pub fn scoreboard(world: &World) -> Vec<ScoreRow> {
                 net_worth: cents(net_worth(world, c.id)),
                 self_made: cents(self_made(world, c.id)),
                 firms,
+                honors: isms_core::metrics::honors_of(c),
             }
         })
         .collect();

@@ -32,7 +32,7 @@ use isms_core::ids::{
 };
 use isms_core::ledger::Party;
 use isms_core::money::Money;
-use isms_core::plan::{away_digest, touches};
+use isms_core::plan::touches;
 use isms_core::rules::Rules;
 use isms_core::world::{Allocation, Instrument, OfferBody, Side, StandingPlan, World};
 use isms_store::StoredEvent;
@@ -44,12 +44,16 @@ use utoipa_axum::routes;
 /// Digest and payslip pages never exceed this many events.
 const PAGE: usize = 200;
 /// How far back the away digest and the tape look, in events read.
-const READ_CAP: i64 = 20_000;
+pub(crate) const READ_CAP: i64 = 20_000;
 
 // -- helpers -------------------------------------------------------------------
 
 /// The society and the caller's citizen in it (403 for non-citizens), with presence counted.
-async fn me_in(state: &AppState, auth: &Auth, id: i64) -> ApiResult<(SocietyEntry, CitizenId)> {
+pub(crate) async fn me_in(
+    state: &AppState,
+    auth: &Auth,
+    id: i64,
+) -> ApiResult<(SocietyEntry, CitizenId)> {
     let entry = society(state, id)?;
     let row = citizen_in(state, auth, id)
         .await?
@@ -61,7 +65,7 @@ async fn me_in(state: &AppState, auth: &Auth, id: i64) -> ApiResult<(SocietyEntr
     ))
 }
 
-fn event_ref(viewer: &Viewer, world: &World, e: &StoredEvent) -> Option<EventRef> {
+pub(crate) fn event_ref(viewer: &Viewer, world: &World, e: &StoredEvent) -> Option<EventRef> {
     let payload = viewer.view_event(world, &e.event)?;
     Some(EventRef {
         seq: e.seq,
@@ -74,7 +78,7 @@ fn event_ref(viewer: &Viewer, world: &World, e: &StoredEvent) -> Option<EventRef
 }
 
 /// Send a command as the citizen (or for an org they manage) and report the events.
-async fn send(
+pub(crate) async fn send(
     state: &AppState,
     entry: &SocietyEntry,
     auth: &Auth,
@@ -198,6 +202,7 @@ async fn home(
         .store
         .read_since_tick(id, epoch, since, READ_CAP)
         .await?;
+    let opened = crate::assembly::proposed_this_epoch(&state, id, epoch).await?;
     let headlines = crate::comms::latest_headlines(&state, id, 5)
         .await?
         .into_iter()
@@ -210,7 +215,7 @@ async fn home(
     let world = entry.handle.world.read().await;
     let viewer = Viewer::new(&world, Some(me));
     let raw: Vec<Event> = stored.iter().map(|e| e.event.clone()).collect();
-    let mut digest: Vec<EventRef> = away_digest(me, &raw)
+    let mut digest: Vec<EventRef> = crate::assembly::digest_indices(&world, me, &raw, &opened)
         .into_iter()
         .filter_map(|i| event_ref(&viewer, &world, &stored[i]))
         .collect();
@@ -333,7 +338,7 @@ struct SinceQuery {
     since: Option<u32>,
 }
 
-#[utoipa::path(get, path = "/s/{id}/away-digest", summary = "Everything that touched you since a tick",
+#[utoipa::path(get, path = "/s/{id}/away-digest", summary = "Everything that touched you since a tick, the assembly's news included: proposals closed, the ballot cast for you by default, an honor, a seat",
     params(("id" = i64, Path, description = "Society id"), SinceQuery), responses((status = 200, body = DigestView)), security(("session" = []), ("api_key" = [])))]
 async fn digest(
     State(state): State<AppState>,
@@ -358,10 +363,11 @@ async fn digest(
         .store
         .read_since_tick(id, epoch, since, READ_CAP)
         .await?;
+    let opened = crate::assembly::proposed_this_epoch(&state, id, epoch).await?;
     let world = entry.handle.world.read().await;
     let viewer = Viewer::new(&world, Some(me));
     let raw: Vec<Event> = stored.iter().map(|e| e.event.clone()).collect();
-    let mut events: Vec<EventRef> = away_digest(me, &raw)
+    let mut events: Vec<EventRef> = crate::assembly::digest_indices(&world, me, &raw, &opened)
         .into_iter()
         .filter_map(|i| event_ref(&viewer, &world, &stored[i]))
         .collect();

@@ -594,6 +594,9 @@ pub struct CitizenPublic {
     pub joined_tick: u32,
     #[schema(value_type = Object)]
     pub flags: serde_json::Value,
+    /// Honors the assembly has conferred (S2.3); 0 where there is no assembly.
+    #[serde(default)]
+    pub honors: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -618,6 +621,9 @@ pub struct ScoreRow {
     pub net_worth: Cents,
     pub self_made: Cents,
     pub firms: Vec<FirmValuation>,
+    /// Honors the assembly has conferred (S2.3); the Commune's scoreboard reads it.
+    #[serde(default)]
+    pub honors: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -649,6 +655,198 @@ pub struct StreamFrame {
     pub events: Vec<EventRef>,
     /// Set when the subscriber fell behind and frames were dropped.
     pub lagged: Option<u64>,
+}
+
+// -- the assembly: proposals, ballots, offices (S2.5) ---------------------------
+
+/// The count on a proposal (engine `Tally`): `cast` includes abstentions and
+/// the ballots `vote_default` cast at the close; `quorum` is the ballots the
+/// close requires against `eligible` voters (Q117). On an open proposal it is
+/// the count so far.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct TallyView {
+    pub yes: u32,
+    pub no: u32,
+    pub abstain: u32,
+    pub cast: u32,
+    pub quorum: u32,
+    pub eligible: u32,
+}
+
+/// One ballot on the roll (Q135: the assembly votes openly).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BallotView {
+    pub citizen: u32,
+    pub handle: String,
+    /// `yes`, `no` or `abstain`.
+    pub ballot: String,
+}
+
+/// How a proposal closed (S2.1) and what it did.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ProposalOutcome {
+    pub passed: bool,
+    /// Log position of the `ProposalClosed`.
+    pub closed_seq: i64,
+    /// The engine's 0-based cycle the close fell in.
+    pub closed_cycle: u32,
+    pub tally: TallyView,
+    /// What the carry did: the `PolicyChanged`, `Honored` or `Disbursed` it
+    /// produced, as the viewer may see them.
+    pub effects: Vec<EventRef>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ProposalView {
+    pub id: u32,
+    pub by: u32,
+    pub by_handle: String,
+    pub title: String,
+    pub text: String,
+    /// The engine's `ProposalKind`: `"resolution"`, `{"policy_change": {"patch": {...}}}`,
+    /// `{"honor": {"citizen": n}}`, `{"recall": {"office": "coordinator", "citizen": n}}`,
+    /// `{"disbursement": {"org": n, "to": {...}, "asset": {...}}}`, `{"admission": {...}}`.
+    #[schema(value_type = Object)]
+    pub kind: serde_json::Value,
+    /// The kind's tag: `policy_change`, `resolution`, `election`, `recall`,
+    /// `honor`, `admission`, `disbursement`.
+    pub kind_tag: String,
+    /// The org whose members vote, for an admission or a disbursement; absent
+    /// for the assembly's own proposals.
+    pub org: Option<u32>,
+    pub opened_tick: u32,
+    /// The engine's 0-based cycle whose end (8j) closes the vote.
+    pub closes_cycle: u32,
+    pub open: bool,
+    pub tally: TallyView,
+    /// The roll so far; empty once closed (the tally stands for it).
+    pub ballots: Vec<BallotView>,
+    /// `yes`, `no`, `abstain` or absent.
+    pub my_ballot: Option<String>,
+    /// Whether the floor (`assembly:<id>`) takes posts now: while open and for
+    /// one cycle after the close (TDD 12).
+    pub floor_open: bool,
+    /// Present once closed.
+    pub outcome: Option<ProposalOutcome>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ProposalsView {
+    pub clock: Clock,
+    /// Open proposals the caller may see: the assembly's, and the members'
+    /// votes of the orgs they belong to. Oldest first.
+    pub open: Vec<ProposalView>,
+    /// Closed this epoch, oldest first, with outcomes.
+    pub closed: Vec<ProposalView>,
+    /// Active humans: the voters a quorum is counted against right now (Q117).
+    pub electorate: u32,
+    /// `population.quorum_fraction`.
+    pub quorum_fraction: f64,
+    /// `governance.open_proposals_per_citizen`.
+    pub open_per_citizen: u32,
+    /// How the caller's standing plan votes for them at the close (`vote_default`).
+    #[schema(value_type = Object)]
+    pub my_vote_default: serde_json::Value,
+}
+
+/// Open a proposal before the assembly (S2.1). `text` may be empty except for
+/// a resolution, which is its text.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ProposeRequest {
+    pub title: String,
+    #[serde(default)]
+    pub text: String,
+    /// The engine's `ProposalKind` (see `ProposalView.kind`). An election
+    /// cannot be moved: stand for the office instead (Q125). A disbursement
+    /// goes through `POST /s/{id}/orgs/{oid}/disbursements`.
+    #[schema(value_type = Object)]
+    pub kind: isms_core::world::ProposalKind,
+}
+
+/// Cast or replace a ballot; the last one before the close counts.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct BallotRequest {
+    /// `yes`, `no` or `abstain`.
+    #[schema(value_type = String)]
+    pub ballot: isms_core::world::Ballot,
+}
+
+/// A member moves the org's money or goods to a citizen or an org (S2.4,
+/// Q122); the members vote through the ballot route.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct DisbursementRequest {
+    /// `{"citizen": id}` or `{"org": id}`.
+    #[schema(value_type = Object)]
+    pub to: Party,
+    /// `{"money": cents}` or `{"good": ["food", 3]}`.
+    #[schema(value_type = Object)]
+    pub asset: Asset,
+    /// The mover's case, optional.
+    #[serde(default)]
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct HolderView {
+    pub citizen: u32,
+    pub handle: String,
+    /// The engine's 0-based cycle the term runs through; the seat empties at its end.
+    pub term_ends_cycle: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct CandidateView {
+    pub citizen: u32,
+    pub handle: String,
+    /// Approval ballots naming this candidate so far.
+    pub approvals: u32,
+}
+
+/// The election open for an office (S2.2, Q118): approval ballots, the top
+/// `seats` win at the close.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ElectionView {
+    pub seats: u32,
+    /// Engine 0-based cycles.
+    pub opened_cycle: u32,
+    pub closes_cycle: u32,
+    /// In rank order: most approvals, then fewer past terms, then the lower id.
+    pub candidates: Vec<CandidateView>,
+    /// Approval ballots cast so far (each names any subset of the candidates).
+    pub ballots_cast: u32,
+    pub my_approvals: Vec<u32>,
+    pub i_stand: bool,
+    /// Why the caller could not stand right now, in the engine's words with
+    /// its ids named; absent when they could.
+    pub stand_refusal: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct OfficeView {
+    /// `coordinator`, `planning_committee`, `legislator`, `union_steward`, `bank_board`.
+    pub kind: String,
+    pub seats: u32,
+    pub term_cycles: u32,
+    pub consecutive: bool,
+    /// `majority` or `two_thirds`.
+    pub recall: String,
+    pub holders: Vec<HolderView>,
+    pub i_hold: bool,
+    pub election: Option<ElectionView>,
+    /// The engine's 0-based cycle since which the office has had fewer holders than seats.
+    pub short_since: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct OfficesView {
+    pub clock: Clock,
+    pub offices: Vec<OfficeView>,
+}
+
+/// An approval ballot: any subset of the candidates, the empty set included.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ApproveRequest {
+    pub candidates: Vec<u32>,
 }
 
 // -- helpers -------------------------------------------------------------------

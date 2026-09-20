@@ -4,10 +4,12 @@
 //! the stream delivers a `Trade` to both parties within one tick.
 
 use axum_test::TestServer;
+use isms_api_types::chronicle::MessagesView;
 use isms_api_types::society::{
     ArchiveView, ArchivesView, BookView, BooksView, CitizensView, Committed, ContractsView,
-    DigestView, ExplainView, HomeView, HouseholdersView, NoticeBoardView, OrgLedgerView, OrgView,
-    OrgsView, PayslipsView, PlanView, PricesView, ScoreboardView, StatsView, StreamFrame,
+    DigestView, ExplainView, HomeView, HouseholdersView, NoticeBoardView, OfficesView,
+    OrgLedgerView, OrgView, OrgsView, PayslipsView, PlanView, PricesView, ProposalView,
+    ProposalsView, ScoreboardView, StatsView, StreamFrame,
 };
 use isms_api_types::{Joined, Problem, RejectCode};
 use isms_core::WORKSPACE_PRESETS_DIR;
@@ -1159,4 +1161,410 @@ async fn a_closing_statement_is_kept_until_the_window_closes(pool: PgPool) {
     assert!(!ar.open);
     assert_eq!(ar.closing_statements.len(), 2);
     assert_eq!(ar.mine.as_deref(), Some("We did more than we could."));
+}
+
+// -- the assembly (S2.5) -------------------------------------------------------
+
+/// The engine's proposal id, from the `Proposed` payload.
+fn proposal_id(c: &Committed) -> u32 {
+    let e = c
+        .events
+        .iter()
+        .find(|e| e.kind == "Proposed")
+        .expect("a Proposed event");
+    u32::try_from(e.payload["Proposed"]["proposal"].as_u64().unwrap()).unwrap()
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn the_assembly_proposes_votes_and_closes_through_the_actor(pool: PgPool) {
+    let f = fixture(pool, "commune").await;
+    let a = f.client("mover").await;
+    let b = f.client("second").await;
+    let c = f.client("nay").await;
+    let d = f.client("absent").await;
+    let caps: isms_api_types::CapabilitiesView = {
+        let r = a
+            .server
+            .get(&format!("/societies/{}/capabilities", f.id))
+            .await;
+        assert_eq!(r.status_code(), 200, "{}", r.text());
+        r.json()
+    };
+    assert!(
+        caps.proposal_kinds
+            .contains(&isms_core::constitution::ProposalKindTag::PolicyChange)
+    );
+    assert_eq!(caps.proposers, isms_core::constitution::Proposers::Anyone);
+
+    // d never votes by hand; the standing plan abstains for them at the close.
+    let p0: PlanView = d.get(f.id, "/plan").await;
+    let mut plan = p0.plan.clone();
+    plan["vote_default"] = json!("abstain");
+    let r = d.put(f.id, "/plan", json!({ "plan": plan })).await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+
+    let opened = a
+        .ok(
+            f.id,
+            "/proposals",
+            json!({ "title": "Five hours is enough", "text": "The norm is a day's work, not a day.",
+                    "kind": { "policy_change": { "patch": { "work_norm_hours": 5 } } } }),
+        )
+        .await;
+    assert_eq!(kinds(&opened), vec!["Proposed"]);
+    let pid = proposal_id(&opened);
+    let v: ProposalsView = a.get(f.id, "/proposals").await;
+    assert_eq!(v.open.len(), 1);
+    assert!(v.closed.is_empty());
+    assert_eq!(v.electorate, 4);
+    let open = &v.open[0];
+    assert_eq!(open.id, pid);
+    assert_eq!(open.kind_tag, "policy_change");
+    assert_eq!(open.by_handle, "mover");
+    assert_eq!(open.tally.eligible, 4);
+    assert_eq!(open.tally.quorum, 1);
+    assert!(open.my_ballot.is_none());
+    assert!(open.floor_open);
+    assert!(open.org.is_none());
+
+    // Ballots are replaceable until the close.
+    let ballot = format!("/proposals/{pid}/ballot");
+    for (who, how) in [(&a, "yes"), (&b, "no"), (&c, "no"), (&b, "yes")] {
+        let r = who.put(f.id, &ballot, json!({ "ballot": how })).await;
+        assert_eq!(r.status_code(), 200, "{}", r.text());
+        let c: Committed = r.json();
+        assert_eq!(kinds(&c), vec!["Voted"]);
+    }
+    let one: ProposalView = a.get(f.id, &format!("/proposals/{pid}")).await;
+    assert_eq!((one.tally.yes, one.tally.no, one.tally.cast), (2, 1, 3));
+    assert_eq!(one.my_ballot.as_deref(), Some("yes"));
+    assert_eq!(one.ballots.len(), 3);
+    assert!(
+        one.ballots
+            .iter()
+            .any(|b| b.handle == "second" && b.ballot == "yes")
+    );
+
+    // The floor: every citizen reads, anyone posts while the vote is open.
+    let floor = format!("/channels/assembly:{pid}/messages");
+    let r = a
+        .post(f.id, &floor, json!({ "body": "Hear me out." }))
+        .await;
+    assert_eq!(r.status_code(), 201, "{}", r.text());
+    let m: MessagesView = d.get(f.id, &floor).await;
+    assert_eq!(m.messages.len(), 1);
+    assert_eq!(m.messages[0].handle, "mover");
+    assert_eq!(
+        d.server
+            .get(&p(f.id, "/channels/assembly:999/messages"))
+            .await
+            .status_code(),
+        404
+    );
+
+    // The cycle ends: the close casts d's default, the quorum holds, the policy moves.
+    f.tick(24).await;
+    let v: ProposalsView = a.get(f.id, "/proposals").await;
+    assert!(v.open.is_empty());
+    assert_eq!(v.closed.len(), 1);
+    let closed = &v.closed[0];
+    assert!(!closed.open);
+    let outcome = closed.outcome.as_ref().expect("an outcome");
+    assert!(outcome.passed);
+    assert_eq!(
+        (outcome.tally.yes, outcome.tally.no, outcome.tally.abstain),
+        (2, 1, 1)
+    );
+    assert_eq!(outcome.tally.cast, 4);
+    let effects: Vec<&str> = outcome.effects.iter().map(|e| e.kind.as_str()).collect();
+    assert!(effects.contains(&"PolicyChanged"), "{effects:?}");
+    assert_eq!(f.handle.world.read().await.policy.work_norm_hours, Some(5));
+    let one: ProposalView = c.get(f.id, &format!("/proposals/{pid}")).await;
+    assert!(one.outcome.is_some());
+    assert!(
+        one.floor_open,
+        "the floor stays open the day after the close"
+    );
+
+    // The away digest tells d what the assembly did for them.
+    let dg: DigestView = d.get(f.id, "/away-digest?since=0").await;
+    let by_default = dg
+        .events
+        .iter()
+        .find(|e| e.kind == "Voted")
+        .expect("the default ballot");
+    assert_eq!(by_default.payload["Voted"]["by_default"], true);
+    assert_eq!(by_default.payload["Voted"]["ballot"], "abstain");
+    assert!(dg.events.iter().any(|e| e.kind == "ProposalClosed"));
+
+    // A vote on the closed proposal is the engine's refusal, named.
+    let r = a.put(f.id, &ballot, json!({ "ballot": "yes" })).await;
+    assert_eq!(reject(&r), RejectCode::UnknownProposal);
+    let problem: Problem = r.json();
+    let detail = problem.detail.unwrap_or_default();
+    assert!(detail.contains("no open proposal"), "{detail}");
+
+    // One day after the close the floor still takes posts; two days after, it does not.
+    let r = b
+        .post(f.id, &floor, json!({ "body": "Well fought." }))
+        .await;
+    assert_eq!(r.status_code(), 201, "{}", r.text());
+    f.tick(24).await;
+    let r = b.post(f.id, &floor, json!({ "body": "Too late." })).await;
+    assert_eq!(reject(&r), RejectCode::UnknownProposal);
+    let m: MessagesView = c.get(f.id, &floor).await;
+    assert_eq!(m.messages.len(), 2, "the minutes stay readable");
+    assert_eq!(
+        a.server.get(&p(f.id, "/proposals/999")).await.status_code(),
+        404
+    );
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn offices_stand_approve_and_seat_and_a_householder_is_no_candidate(pool: PgPool) {
+    let f = fixture(pool, "commune").await;
+    let a = f.client("alder").await;
+    let b = f.client("birch").await;
+    let c = f.client("cedar").await;
+    let o: OfficesView = a.get(f.id, "/offices").await;
+    assert_eq!(o.offices.len(), 1);
+    let office = &o.offices[0];
+    assert_eq!(
+        (office.kind.as_str(), office.seats, office.term_cycles),
+        ("coordinator", 3, 5)
+    );
+    assert!(office.holders.is_empty());
+    let election = office
+        .election
+        .as_ref()
+        .expect("the epoch opens with an election");
+    assert_eq!(election.seats, 3);
+    assert!(election.candidates.is_empty());
+    assert!(
+        election.stand_refusal.is_none(),
+        "{:?}",
+        election.stand_refusal
+    );
+
+    let candidacy = "/offices/coordinator/candidacy";
+    let r = a.ok(f.id, candidacy, json!({})).await;
+    assert_eq!(kinds(&r), vec!["CandidacyDeclared"]);
+    let r = b.ok(f.id, candidacy, json!({})).await;
+    assert_eq!(kinds(&r), vec!["CandidacyDeclared"]);
+    let r = b.delete(f.id, candidacy).await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let c2: Committed = r.json();
+    assert_eq!(kinds(&c2), vec!["CandidacyWithdrawn"]);
+    b.ok(f.id, candidacy, json!({})).await;
+    let o: OfficesView = b.get(f.id, "/offices").await;
+    let election = o.offices[0].election.as_ref().unwrap();
+    assert!(election.i_stand);
+    assert_eq!(election.candidates.len(), 2);
+    assert_eq!(
+        a.server
+            .post(&p(f.id, "/offices/mayor/candidacy"))
+            .add_header("x-requested-with", "isms")
+            .await
+            .status_code(),
+        400
+    );
+
+    // Approval ballots name any subset of the candidates, and are replaceable.
+    let ballot = "/offices/coordinator/ballot";
+    let r = c
+        .put(f.id, ballot, json!({ "candidates": [a.citizen] }))
+        .await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let r = c
+        .put(
+            f.id,
+            ballot,
+            json!({ "candidates": [a.citizen, b.citizen] }),
+        )
+        .await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let o: OfficesView = c.get(f.id, "/offices").await;
+    let election = o.offices[0].election.as_ref().unwrap();
+    assert_eq!(election.ballots_cast, 1);
+    assert_eq!(election.my_approvals.len(), 2);
+    assert!(election.candidates.iter().all(|x| x.approvals == 1));
+
+    // A householder's id where a candidate or an office-holder is expected is the engine's 422.
+    let householder = f
+        .handle
+        .world
+        .read()
+        .await
+        .citizens
+        .values()
+        .find(|z| z.kind == isms_core::kinds::CitizenKind::Householder)
+        .map(|z| z.id.0)
+        .expect("a householder");
+    let r = c
+        .put(f.id, ballot, json!({ "candidates": [householder] }))
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotACandidate);
+    let r = a
+        .post(
+            f.id,
+            "/proposals",
+            json!({ "title": "Out", "kind": { "recall": { "office": "coordinator", "citizen": householder } } }),
+        )
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotAnOfficeHolder);
+
+    // The cycle ends: the two candidates are seated, a third seat stays open.
+    f.tick(24).await;
+    let o: OfficesView = a.get(f.id, "/offices").await;
+    let office = &o.offices[0];
+    let seated: Vec<u32> = office.holders.iter().map(|h| h.citizen).collect();
+    assert!(
+        seated.contains(&a.citizen) && seated.contains(&b.citizen),
+        "{seated:?}"
+    );
+    assert!(office.i_hold);
+    let election = office
+        .election
+        .as_ref()
+        .expect("an election for the empty seat");
+    assert_eq!(election.seats, 1);
+    let o: OfficesView = c.get(f.id, "/offices").await;
+    assert!(!o.offices[0].i_hold);
+    let dg: DigestView = a.get(f.id, "/away-digest?since=0").await;
+    assert!(dg.events.iter().any(|e| e.kind == "OfficeTaken"));
+
+    // A recall of a sitting coordinator is a real motion.
+    let r = c
+        .ok(
+            f.id,
+            "/proposals",
+            json!({ "title": "Recall birch", "kind": { "recall": { "office": "coordinator", "citizen": b.citizen } } }),
+        )
+        .await;
+    assert_eq!(kinds(&r), vec!["Proposed"]);
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn freeport_has_no_assembly(pool: PgPool) {
+    let f = fixture(pool, "freeport").await;
+    let a = f.client("trader").await;
+    let r = a
+        .server
+        .get(&p(f.id, "/channels/assembly:1/messages"))
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotInThisSociety);
+    let r = a
+        .post(
+            f.id,
+            "/proposals",
+            json!({ "title": "Anything", "text": "Please.", "kind": "resolution" }),
+        )
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotInThisSociety);
+    let o: OfficesView = a.get(f.id, "/offices").await;
+    assert!(o.offices.is_empty());
+    let v: ProposalsView = a.get(f.id, "/proposals").await;
+    assert!(v.open.is_empty() && v.closed.is_empty());
+    let sb: ScoreboardView = a.get(f.id, "/scoreboard").await;
+    assert!(sb.rows.iter().all(|r| r.honors == 0));
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn a_members_disbursement_is_moved_and_voted_over_the_wire(pool: PgPool) {
+    let f = fixture(pool, "freeport").await;
+    let a = f.client("founder").await;
+    let b = f.client("member").await;
+    let x = f.client("outsider").await;
+    let c = a
+        .ok(
+            f.id,
+            "/orgs",
+            json!({ "kind": "association", "name": "Mutual Aid" }),
+        )
+        .await;
+    let oid = c.events[0].payload["OrgFounded"]["org"].as_u64().unwrap();
+    b.ok(f.id, &format!("/orgs/{oid}/join"), json!({})).await;
+    a.ok(
+        f.id,
+        &format!("/orgs/{oid}/members"),
+        json!({ "citizen": b.citizen }),
+    )
+    .await;
+    a.ok(
+        f.id,
+        "/transfers",
+        json!({ "to": { "org": oid }, "asset": { "money": 10_000 }, "memo": "dues" }),
+    )
+    .await;
+    // The manager's direct hand in the treasury is withdrawn (S2.4).
+    let r = a
+        .post(
+            f.id,
+            "/transfers",
+            json!({ "to": { "citizen": b.citizen }, "asset": { "money": 100 }, "memo": "x", "on_behalf_of": oid }),
+        )
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotAuthorized);
+
+    let moved = a
+        .ok(
+            f.id,
+            &format!("/orgs/{oid}/disbursements"),
+            json!({ "to": { "citizen": b.citizen }, "asset": { "money": 5_000 }, "text": "for the roof" }),
+        )
+        .await;
+    let pid = proposal_id(&moved);
+    // The org's business is its members'.
+    let v: ProposalsView = x.get(f.id, "/proposals").await;
+    assert!(v.open.is_empty());
+    assert_eq!(
+        x.server
+            .get(&p(f.id, &format!("/proposals/{pid}")))
+            .await
+            .status_code(),
+        404
+    );
+    let v: ProposalsView = b.get(f.id, "/proposals").await;
+    assert_eq!(v.open.len(), 1);
+    assert_eq!(v.open[0].kind_tag, "disbursement");
+    assert_eq!(v.open[0].org, Some(u32::try_from(oid).unwrap()));
+    assert_eq!(v.open[0].tally.eligible, 2);
+
+    let before: HomeView = b.get(f.id, "/home").await;
+    let r = b
+        .put(
+            f.id,
+            &format!("/proposals/{pid}/ballot"),
+            json!({ "ballot": "yes" }),
+        )
+        .await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let mut c: Committed = r.json();
+    if !kinds(&c).contains(&"ProposalClosed") {
+        // The mover casts no ballot by moving: a second yes makes the majority.
+        let r = a
+            .put(
+                f.id,
+                &format!("/proposals/{pid}/ballot"),
+                json!({ "ballot": "yes" }),
+            )
+            .await;
+        assert_eq!(r.status_code(), 200, "{}", r.text());
+        c = r.json();
+    }
+    assert!(kinds(&c).contains(&"Disbursed"), "{:?}", kinds(&c));
+    let after: HomeView = b.get(f.id, "/home").await;
+    assert_eq!(after.household.balance - before.household.balance, 5_000);
+    let v: ProposalsView = b.get(f.id, "/proposals").await;
+    assert!(v.open.is_empty());
+    let closed = v
+        .closed
+        .iter()
+        .find(|q| q.id == pid)
+        .expect("closed for the members");
+    let outcome = closed.outcome.as_ref().unwrap();
+    assert!(outcome.passed);
+    assert!(outcome.effects.iter().any(|e| e.kind == "Disbursed"));
+    let v: ProposalsView = x.get(f.id, "/proposals").await;
+    assert!(v.closed.is_empty(), "an outsider sees no members' vote");
 }
