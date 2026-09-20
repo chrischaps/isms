@@ -289,9 +289,10 @@ fn cycle_end_8h_hardship_and_fatigue(b: &mut TickBuilder) {
 fn cycle_end_8i_norms_ledger(b: &mut TickBuilder) {
     crate::norms::cycle_end_8i_norms_ledger(b);
 }
-/// 8j. Votes close (admission proposals, S0.17c); elections and vacancies are Phase 2.
+/// 8j. Votes close (S2.1): every proposal whose `closes_cycle` has come is
+/// tallied and, where it passed, takes effect. Elections and vacancies are S2.2.
 fn cycle_end_8j_votes_and_vacancies(b: &mut TickBuilder) {
-    crate::bank::cycle_end_8j_close_proposals(b);
+    crate::governance::cycle_end_8j_close_proposals(b);
 }
 fn cycle_end_8k_dormancy(b: &mut TickBuilder) {
     crate::plan::cycle_end_8k_dormancy(b);

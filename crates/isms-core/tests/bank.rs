@@ -347,8 +347,9 @@ fn admission_proposal_passes_at_majority_and_lapses_at_cycle_end() {
         panic!()
     };
     assert_eq!(events.len(), 1, "one yes of three is no majority");
-    // The proposer cannot vote twice; a non-member cannot vote.
-    let err = h
+    // A ballot is replaceable until the close (S2.1): the proposer casting
+    // yes again changes nothing; a non-member cannot vote.
+    let events = h
         .cmd(Envelope::citizen(
             nth(&h, 1),
             Command::VoteAdmission {
@@ -357,8 +358,9 @@ fn admission_proposal_passes_at_majority_and_lapses_at_cycle_end() {
             },
             0,
         ))
-        .unwrap_err();
-    assert_eq!(err.code, RejectCode::AlreadyExists);
+        .unwrap();
+    assert_eq!(events.len(), 1, "still one yes of three");
+    assert_eq!(h.world.proposals[&proposal].ballots.len(), 1);
     let err = h
         .cmd(Envelope::citizen(
             cand,

@@ -6,7 +6,7 @@
 
 use crate::constitution::{
     CapitalMode, Compensation, Constitution, Governance, LaborMode, Monitoring, OfficeSpec,
-    Pricing, Redistribution,
+    Pricing, ProposalKindTag, Proposers, Redistribution,
 };
 use crate::kinds::{ContractKind, OrgKind, WorkplaceKind};
 use crate::params::{Params, RateLimit};
@@ -37,6 +37,9 @@ pub struct Capabilities {
     /// The σ the engine actually uses for attribution noise.
     pub monitoring_sigma: f64,
     pub governance: Governance,
+    /// The proposal kinds the society may open, and who may open them (S2.1).
+    pub proposal_kinds: BTreeSet<ProposalKindTag>,
+    pub proposers: Proposers,
     pub offices: Vec<OfficeSpec>,
     /// Slots per workplace kind; `None` = unlimited.
     pub land_slots: BTreeMap<WorkplaceKind, Option<u32>>,
@@ -76,6 +79,8 @@ impl Capabilities {
             monitoring,
             monitoring_sigma,
             governance: constitution.governance,
+            proposal_kinds: constitution.proposal_kinds.clone(),
+            proposers: constitution.proposers,
             offices: constitution.offices.clone(),
             land_slots,
             rate_limit: params.market.rate_limit,
@@ -113,6 +118,7 @@ mod tests {
     /// The S0.2 test table from TDD §5.2.
     #[test]
     fn capability_table_matches_tdd() {
+        use crate::constitution::ProposalKindTag as T;
         use ContractKind as C;
         use OrgKind as O;
 
@@ -133,6 +139,7 @@ mod tests {
         assert!(f.offices.is_empty());
         assert_eq!(f.monitoring_sigma, 0.0);
         assert_eq!(f.governance, Governance::None);
+        assert!(f.proposal_kinds.is_empty());
 
         let c = caps("commune");
         assert!(!c.money && !c.order_books && c.common_store);
@@ -149,6 +156,17 @@ mod tests {
         assert_eq!(c.monitoring_sigma, 0.6);
         assert_eq!(c.pay, Compensation::Need);
         assert_eq!(c.labor, LaborMode::Norm);
+        assert_eq!(
+            c.proposal_kinds,
+            set(&[
+                T::PolicyChange,
+                T::Resolution,
+                T::Election,
+                T::Recall,
+                T::Honor
+            ])
+        );
+        assert_eq!(c.proposers, crate::constitution::Proposers::Anyone);
 
         let d = caps("directorate");
         assert!(d.money && d.administered_prices && !d.order_books);

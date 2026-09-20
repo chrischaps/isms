@@ -960,6 +960,7 @@ pub fn apply(world: &mut World, event: &Event) {
             citizen,
             by,
         } => {
+            let closes_cycle = world.cycle_of(world.meta.tick);
             world.proposals.insert(
                 *proposal,
                 crate::world::Proposal {
@@ -967,11 +968,13 @@ pub fn apply(world: &mut World, event: &Event) {
                     by: *by,
                     opened_tick: world.meta.tick,
                     title: format!("admit {citizen} to {org}"),
+                    text: String::new(),
                     kind: crate::world::ProposalKind::Admission {
                         org: *org,
                         citizen: *citizen,
                     },
-                    votes: BTreeMap::from([(*by, true)]),
+                    closes_cycle,
+                    ballots: BTreeMap::from([(*by, crate::world::Ballot::Yes)]),
                 },
             );
             if world.next.proposal.0 <= proposal.0 {
@@ -984,7 +987,47 @@ pub fn apply(world: &mut World, event: &Event) {
             approve,
         } => {
             if let Some(p) = world.proposals.get_mut(proposal) {
-                p.votes.insert(*citizen, *approve);
+                let ballot = if *approve {
+                    crate::world::Ballot::Yes
+                } else {
+                    crate::world::Ballot::No
+                };
+                p.ballots.insert(*citizen, ballot);
+            }
+        }
+        Event::Proposed {
+            proposal,
+            by,
+            title,
+            text,
+            kind,
+            closes_cycle,
+        } => {
+            world.proposals.insert(
+                *proposal,
+                crate::world::Proposal {
+                    id: *proposal,
+                    by: *by,
+                    opened_tick: world.meta.tick,
+                    title: title.clone(),
+                    text: text.clone(),
+                    kind: *kind,
+                    closes_cycle: *closes_cycle,
+                    ballots: BTreeMap::new(),
+                },
+            );
+            if world.next.proposal.0 <= proposal.0 {
+                world.next.proposal = proposal.next();
+            }
+        }
+        Event::Voted {
+            proposal,
+            citizen,
+            ballot,
+            ..
+        } => {
+            if let Some(p) = world.proposals.get_mut(proposal) {
+                p.ballots.insert(*citizen, *ballot);
             }
         }
         Event::ProposalClosed { proposal, .. } => {

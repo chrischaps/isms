@@ -15,6 +15,11 @@ contracts = ["sale_direct", "pledge"]
 org_kinds = ["collective", "association"]
 communication = ["square", "assembly", "org", "dm", "notice_board", "chronicle"]
 offices = [{ kind = "coordinator", seats = 3, term_cycles = 5, consecutive = false, recall = "majority" }]
+# GDD 8.1: the assembly's proposal kinds and who may open one. Disbursement is an
+# association's vote (S2.4), not the assembly's. A policy change to `rationing`
+# is a coordinator's to open (Q116).
+proposal_kinds = ["policy_change", "resolution", "election", "recall", "honor"]
+proposers = "anyone"
 
 [policy]
 monitoring = "inherit"

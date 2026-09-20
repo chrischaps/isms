@@ -377,6 +377,8 @@ pub enum Event {
     PolicyChanged {
         policy: Box<Policy>,
         by: Actor,
+        /// The proposal whose close made the change (S2.1); `None` for `SetPolicy`.
+        proposal: Option<crate::ids::ProposalId>,
     },
 
     // --- the tick -----------------------------------------------------------
@@ -550,6 +552,8 @@ pub enum Event {
     ProposalClosed {
         proposal: crate::ids::ProposalId,
         passed: bool,
+        /// The count at close (S2.1). An admission vote counts its members.
+        tally: crate::world::Tally,
     },
     /// The org just founded is the union of `firm` (S0.17d).
     UnionFormed {
@@ -602,6 +606,24 @@ pub enum Event {
     /// two before the last. Collapse and an operator end give no warning.
     EpochEnding {
         final_cycle: Cycle,
+    },
+    // --- Phase 2 (appended) -------------------------------------------------
+    /// A proposal opened before the assembly (S2.1).
+    Proposed {
+        proposal: crate::ids::ProposalId,
+        by: CitizenId,
+        title: String,
+        text: String,
+        kind: crate::world::ProposalKind,
+        closes_cycle: Cycle,
+    },
+    /// A ballot cast or replaced; `by_default` when 8j cast it from the
+    /// standing plan's `vote_default` (S2.1).
+    Voted {
+        proposal: crate::ids::ProposalId,
+        citizen: CitizenId,
+        ballot: crate::world::Ballot,
+        by_default: bool,
     },
 }
 
@@ -846,6 +868,8 @@ impl Event {
             Event::StrikeEnded { .. } => "StrikeEnded",
             Event::OfferWithdrawn { .. } => "OfferWithdrawn",
             Event::EpochEnding { .. } => "EpochEnding",
+            Event::Proposed { .. } => "Proposed",
+            Event::Voted { .. } => "Voted",
         }
     }
 
@@ -950,5 +974,7 @@ impl Event {
         "StrikeEnded",
         "OfferWithdrawn",
         "EpochEnding",
+        "Proposed",
+        "Voted",
     ];
 }

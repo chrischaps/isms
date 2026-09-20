@@ -300,6 +300,8 @@ fn unimplemented_registry_matches_the_enum() {
         "StrikePaid",
         "StrikeEnded",
         "OfferWithdrawn",
+        "Proposed",
+        "Voted",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -317,8 +319,13 @@ fn unimplemented_registry_matches_the_enum() {
 
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
-    // Phase 0b variants are appended after `CycleClosed` (Q64).
-    let last = Event::EpochEnding { final_cycle: 0 };
+    // Phase 0b variants are appended after `CycleClosed` (Q64); Phase 2 after `EpochEnding`.
+    let last = Event::Voted {
+        proposal: crate::ids::ProposalId(0),
+        citizen: crate::ids::CitizenId(0),
+        ballot: crate::world::Ballot::Yes,
+        by_default: false,
+    };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {
         society_id: 0,
