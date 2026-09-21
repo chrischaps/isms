@@ -170,7 +170,7 @@ export function Market({ id, instrument = "food" }: { id: number; instrument?: s
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl">{t("store")}</h2>
+        <h2 className="text-2xl">{t("store_screen")}</h2>
         {books.data!.price_index != null ? (
           <p className="num text-muted text-sm">
             {t("society_stat")} {books.data!.price_index.toFixed(2)} <span className="text-xs">(reference basket, Food = 1)</span>

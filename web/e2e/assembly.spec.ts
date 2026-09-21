@@ -38,7 +38,7 @@ test("a Commune citizen moves a proposal, votes, and sees it carried", async ({ 
 
   // The nav has an assembly where the constitution has governance.
   const nav = page.getByRole("navigation", { name: "Sections" });
-  await nav.getByRole("link", { name: "assembly" }).click();
+  await nav.getByRole("link", { name: "Assembly" }).click();
   await expect(page.getByTestId("assembly-rule")).toContainText("of 1 voter makes a quorum");
 
   // Stand for coordinator: the election is open (at epoch start, and again for every empty seat).
@@ -98,7 +98,7 @@ test("a Commune citizen moves a proposal, votes, and sees it carried", async ({ 
   expect(freeportHref).toBeTruthy();
   await page.goto(freeportHref!);
   await expect(page.getByRole("navigation", { name: "Sections" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "assembly" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Assembly" })).toHaveCount(0);
   await page.goto(`${freeportHref}/assembly`);
   await expect(page.getByText("There is no assembly in this society.")).toBeVisible();
 });

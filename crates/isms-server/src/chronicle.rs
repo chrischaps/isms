@@ -16,19 +16,32 @@ use std::path::Path;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+fn hundred() -> f64 {
+    100.0
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Thresholds {
     pub price_move_pct: f64,
+    /// The night's verdict where a `need_met` line exists (S2.9): at or above
+    /// this fulfilment `need_met` fires, below it `need_short`.
+    #[serde(default = "hundred")]
+    pub need_met_pct: f64,
 }
 
 /// `presets/copy/<preset>/chronicle.toml`.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Templates {
     pub thresholds: Thresholds,
-    /// Event kind -> template.
+    /// Event kind -> template, or `Kind.path=value` -> a variant that fires
+    /// when the payload field at `path` reads `value` (S2.9).
     pub templates: BTreeMap<String, String>,
-    /// `price_up`, `price_down`, `hardship`, `unemployed`.
+    /// `price_up`, `price_down`, `hardship`, `stock_out`, `need_met`, `need_short`.
     pub cycle: BTreeMap<String, String>,
+    /// Enum values in the society's words, `[words.<field>] value = "..."`;
+    /// the Welcome Brief reads them (S2.9).
+    #[serde(default)]
+    pub words: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 impl Templates {
@@ -38,6 +51,30 @@ impl Templates {
             .map_err(|e| format!("chronicle copy {}: {e}", path.display()))?;
         toml::from_str(&text).map_err(|e| format!("chronicle copy {}: {e}", path.display()))
     }
+
+    /// `value` in the society's words, or `value` itself where the copy has none.
+    #[must_use]
+    pub fn word<'a>(&'a self, field: &str, value: &'a str) -> &'a str {
+        self.words
+            .get(field)
+            .and_then(|t| t.get(value))
+            .map_or(value, String::as_str)
+    }
+}
+
+/// Everything a society needs from `presets/copy/<preset>/` to be served:
+/// the Chronicle templates and the Welcome Brief. `seed` calls this before
+/// it writes a row, so a preset without copy fails there and not at the
+/// first tick or the first visitor (S2.9).
+pub fn check_copy(presets_dir: &Path, preset: &str) -> Result<(), String> {
+    // `presets/test/*` are engine fixtures (TDD S1.4), never served: no copy.
+    if preset.starts_with("test/") {
+        return Ok(());
+    }
+    Templates::load(presets_dir, preset)?;
+    let welcome = presets_dir.join("copy").join(preset).join("welcome.md");
+    std::fs::metadata(&welcome).map_err(|e| format!("welcome copy {}: {e}", welcome.display()))?;
+    Ok(())
 }
 
 /// Names learned from the log, so ids read as people and firms.
@@ -45,6 +82,11 @@ impl Templates {
 pub struct Names {
     pub citizens: BTreeMap<u64, String>,
     pub orgs: BTreeMap<u64, String>,
+    /// Workplace id -> its kind, from `WorkplaceAdded` and `WorkplaceOpened`.
+    pub workplaces: BTreeMap<u64, String>,
+    /// Proposal id -> its title, from `Proposed`; an admission vote is named
+    /// after the citizen and the org.
+    pub proposals: BTreeMap<u64, String>,
     /// Citizens who are people; householder doings are scenery, not news.
     pub humans: std::collections::BTreeSet<u64>,
 }
@@ -64,14 +106,27 @@ pub struct Projector {
     templates: Templates,
     names: Names,
     prev_index: Option<f64>,
+    /// The policy in force, as JSON, from `SocietyCreated` and every
+    /// `PolicyChanged` since: the next change is narrated field by field
+    /// against it (S2.9).
+    policy: Option<Value>,
 }
 
 fn field<'a>(payload: &'a Value, path: &str) -> Option<&'a Value> {
     let mut v = payload;
     for part in path.split('.') {
-        v = v.get(part)?;
+        v = match (v, part.parse::<usize>()) {
+            (Value::Array(items), Ok(i)) => items.get(i)?,
+            _ => v.get(part)?,
+        };
     }
     Some(v)
+}
+
+/// A variant key `Kind.path=value` (S2.9): the path and the value it wants.
+fn variant_of<'a>(key: &'a str, kind: &str) -> Option<(&'a str, &'a str)> {
+    let rest = key.strip_prefix(kind)?.strip_prefix('.')?;
+    rest.split_once('=')
 }
 
 fn plain(v: &Value) -> Option<String> {
@@ -100,11 +155,49 @@ impl Projector {
             templates,
             names: Names::default(),
             prev_index: None,
+            policy: None,
         }
     }
 
     fn learn(&mut self, event: &Event) {
         match event {
+            Event::SocietyCreated { preset, .. } => {
+                self.policy = serde_json::to_value(&preset.policy).ok();
+            }
+            Event::WorkplaceAdded {
+                workplace, kind, ..
+            }
+            | Event::WorkplaceOpened {
+                workplace, kind, ..
+            } => {
+                let kind = serde_json::to_value(kind)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .unwrap_or_else(|| format!("{kind:?}").to_lowercase());
+                self.names
+                    .workplaces
+                    .insert(u64::from(workplace.0), kind.replace('_', " "));
+            }
+            Event::Proposed {
+                proposal, title, ..
+            } => {
+                self.names
+                    .proposals
+                    .insert(u64::from(proposal.0), title.clone());
+            }
+            Event::AdmissionProposed {
+                proposal,
+                org,
+                citizen,
+                ..
+            } => {
+                let who = self.name_citizen(u64::from(citizen.0));
+                let org = self.name_org(u64::from(org.0));
+                self.names.proposals.insert(
+                    u64::from(proposal.0),
+                    format!("the admission of {who} to {org}"),
+                );
+            }
             Event::CitizenJoined {
                 citizen,
                 handle,
@@ -145,26 +238,28 @@ impl Projector {
             let value = field(payload, path)?;
             let text = match kind {
                 "" => plain(value)?,
-                "citizen" => {
+                "citizen" => self.name_citizen(value.as_u64()?),
+                "org" => self.name_org(value.as_u64()?),
+                "workplace" => {
                     let id = value.as_u64()?;
                     self.names
-                        .citizens
+                        .workplaces
                         .get(&id)
-                        .cloned()
-                        .unwrap_or_else(|| format!("citizen #{id}"))
+                        .map_or_else(|| format!("workplace #{id}"), |k| format!("the {k} #{id}"))
                 }
-                "org" => {
+                "proposal" => {
                     let id = value.as_u64()?;
                     self.names
-                        .orgs
+                        .proposals
                         .get(&id)
                         .cloned()
-                        .unwrap_or_else(|| format!("org #{id}"))
+                        .unwrap_or_else(|| format!("proposal #{id}"))
                 }
                 "credits" => {
                     let cents = value.as_i64()?;
                     format!("{}.{:02}", cents / 100, (cents % 100).abs())
                 }
+                "pct" => format!("{:.0}", value.as_f64()? * 100.0),
                 _ => return None,
             };
             out.push_str(&text);
@@ -174,25 +269,116 @@ impl Projector {
         Some(out)
     }
 
+    fn name_citizen(&self, id: u64) -> String {
+        self.names
+            .citizens
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| format!("citizen #{id}"))
+    }
+
+    fn name_org(&self, id: u64) -> String {
+        self.names
+            .orgs
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| format!("org #{id}"))
+    }
+
+    /// Every template for `kind` that applies to `payload`: the plain one,
+    /// then each `Kind.path=value` variant whose field reads `value`, in key
+    /// order (S2.9).
+    fn render_kind(&self, kind: &str, payload: &Value, out: &mut Vec<String>) {
+        if let Some(t) = self.templates.templates.get(kind)
+            && let Some(text) = self.fill(t, payload)
+        {
+            out.push(text);
+        }
+        let prefix = format!("{kind}.");
+        for (key, t) in self.templates.templates.range(prefix.clone()..) {
+            if !key.starts_with(&prefix) {
+                break;
+            }
+            let Some((path, want)) = variant_of(key, kind) else {
+                continue;
+            };
+            if field(payload, path)
+                .and_then(plain)
+                .is_some_and(|v| v == want)
+                && let Some(text) = self.fill(t, payload)
+            {
+                out.push(text);
+            }
+        }
+    }
+
+    /// One line per policy field that moved (S2.9): `PolicyChanged.<field>=<to>`
+    /// where the copy names the value, else `PolicyChanged.<field>` with
+    /// `{{from}}` and `{{to}}`. Nothing before the first `SocietyCreated`.
+    fn render_policy_change(&self, next: &Value, out: &mut Vec<String>) {
+        let (Some(Value::Object(prev)), Value::Object(next)) = (&self.policy, next) else {
+            return;
+        };
+        for (name, to) in next {
+            let from = prev.get(name).unwrap_or(&Value::Null);
+            if from == to {
+                continue;
+            }
+            let ctx = serde_json::json!({ "field": name, "from": from, "to": to });
+            let keyed = plain(to).map(|v| format!("PolicyChanged.{name}={v}"));
+            let template = keyed
+                .as_ref()
+                .and_then(|k| self.templates.templates.get(k))
+                .or_else(|| {
+                    self.templates
+                        .templates
+                        .get(&format!("PolicyChanged.{name}"))
+                });
+            if let Some(t) = template
+                && let Some(text) = self.fill(t, &ctx)
+            {
+                out.push(text);
+            }
+        }
+    }
+
     /// Headlines for one event, in order.
     pub fn observe(&mut self, event: &Event, seq: i64, tick: u32, cycle: u32) -> Vec<NewHeadline> {
         self.learn(event);
         let kind = event.kind();
-        let payload = serde_json::to_value(event)
+        let mut payload = serde_json::to_value(event)
             .ok()
             .and_then(|v| v.get(kind).cloned())
             .unwrap_or(Value::Null);
         let mut texts: Vec<String> = Vec::new();
+        match event {
+            // The copy keys on the outcome, which the tally implies (S2.9).
+            Event::ProposalClosed { passed, tally, .. } => {
+                let outcome = if *passed {
+                    "passed"
+                } else if tally.cast < tally.quorum {
+                    "no_quorum"
+                } else {
+                    "failed"
+                };
+                if let Value::Object(map) = &mut payload {
+                    map.insert("outcome".into(), Value::String(outcome.into()));
+                }
+            }
+            Event::PolicyChanged { policy, .. } => {
+                let next = serde_json::to_value(policy).unwrap_or(Value::Null);
+                self.render_policy_change(&next, &mut texts);
+                self.policy = Some(next);
+            }
+            _ => {}
+        }
         let about_a_householder = ABOUT_A_PERSON.contains(&kind)
             && !payload
                 .get("citizen")
                 .and_then(Value::as_u64)
                 .is_some_and(|c| self.names.humans.contains(&c));
-        if !about_a_householder
-            && let Some(template) = self.templates.templates.get(kind)
-            && let Some(text) = self.fill(template, &payload)
-        {
-            texts.push(text);
+        if !about_a_householder && !matches!(event, Event::PolicyChanged { .. }) {
+            self.render_kind(kind, &payload, &mut texts);
         }
         if let Event::CycleClosed { aggregates, .. } = event {
             if let (Some(prev), Some(now)) = (self.prev_index, aggregates.price_index) {
@@ -214,6 +400,35 @@ impl Projector {
                 && let Some(t) = self.templates.cycle.get("hardship")
             {
                 let ctx = serde_json::json!({ "count": aggregates.hardship_count });
+                if let Some(text) = self.fill(t, &ctx) {
+                    texts.push(text);
+                }
+            }
+            // A bare shelf at the close of the day (GDD 12 "stock-outs"; S2.9).
+            if let Some(t) = self.templates.cycle.get("stock_out") {
+                for (good, qty) in &aggregates.store_stock {
+                    if *qty > 0 {
+                        continue;
+                    }
+                    let name = serde_json::to_value(good)
+                        .ok()
+                        .and_then(|v| v.as_str().map(str::to_owned))
+                        .unwrap_or_else(|| format!("{good:?}").to_lowercase());
+                    let ctx = serde_json::json!({ "good": name });
+                    if let Some(text) = self.fill(t, &ctx) {
+                        texts.push(text);
+                    }
+                }
+            }
+            // The night's verdict on need (GDD 6.2 scoreboard; S2.9).
+            let pct = aggregates.need_fulfillment_rate * 100.0;
+            let key = if pct >= self.templates.thresholds.need_met_pct {
+                "need_met"
+            } else {
+                "need_short"
+            };
+            if let Some(t) = self.templates.cycle.get(key) {
+                let ctx = serde_json::json!({ "pct": format!("{pct:.0}") });
                 if let Some(text) = self.fill(t, &ctx) {
                     texts.push(text);
                 }

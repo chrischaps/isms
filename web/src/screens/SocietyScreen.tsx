@@ -204,7 +204,7 @@ export function SocietyScreen({ id }: { id: number }) {
                     <th className="py-1 font-normal">Citizen</th>
                     <th className="py-1 text-right font-normal">Hours given</th>
                     <th className="py-1 text-right font-normal">Norm met</th>
-                    <th className="py-1 text-right font-normal">Honors</th>
+                    <th className="py-1 text-right font-normal">{t("honor")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -228,7 +228,7 @@ export function SocietyScreen({ id }: { id: number }) {
                   <th className="py-1 text-right font-normal">Net worth</th>
                   <th className="py-1 text-right font-normal">Self-made</th>
                   <th className="py-1 font-normal">Firms</th>
-                  {honors ? <th className="py-1 text-right font-normal">Honors</th> : null}
+                  {honors ? <th className="py-1 text-right font-normal">{t("honor")}</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -260,7 +260,7 @@ export function SocietyScreen({ id }: { id: number }) {
                 <th className="py-1 font-normal">Handle</th>
                 <th className="py-1 font-normal">Kind</th>
                 <th className="py-1 font-normal">Since</th>
-                {honors ? <th className="py-1 text-right font-normal">Honors</th> : null}
+                {honors ? <th className="py-1 text-right font-normal">{t("honor")}</th> : null}
                 <th className="py-1 font-normal">Flags</th>
               </tr>
             </thead>

@@ -58,6 +58,9 @@ pub async fn seed_society(
     spec: &SeedSpec,
 ) -> Result<SocietyRow, RuntimeError> {
     let preset = load_preset_with_overrides(presets_dir, &spec.preset, &spec.overrides)?;
+    // A preset without its copy fails here, before any row exists, not at
+    // the first tick's headline or the first visitor's Welcome (S2.9).
+    crate::chronicle::check_copy(presets_dir, &spec.preset).map_err(RuntimeError::Copy)?;
     let id = store.next_society_id().await?;
     let row = SocietyRow {
         id,

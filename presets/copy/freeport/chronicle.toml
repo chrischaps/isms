@@ -2,7 +2,9 @@
 # event about a human; the forty seeded householders are scenery until they
 # emigrate. `{{field}}` reads the event payload, `{{citizen:field}}` and
 # `{{org:field}}` turn ids into names, `{{credits:field}}` prints cents as
-# credits. A template whose field is missing or null is skipped.
+# credits. A template whose field is missing or null is skipped. A key of the
+# form `Kind.path=value` is a variant that fires when that payload field reads
+# `value` (S2.9); `ProposalClosed.outcome` is `passed`, `failed` or `no_quorum`.
 
 [thresholds]
 # A basket index move over one cycle at least this large gets a headline.
@@ -21,6 +23,11 @@ CitizenJoined = "{{handle}} arrives with {{credits:endowment}} credits and nothi
 EpochStarted = "Epoch {{epoch}} opens. Everything is for sale again."
 EpochEnded = "The epoch ends after cycle {{cycle}}. The ledgers close."
 EpochEnding = "Two days remain in the epoch. Settle what you can."
+# A member-owned org's admission vote (S0.11, S2.1): the only ballot in Freeport.
+AdmissionProposed = "{{citizen:by}} moves that {{org:org}} admit {{citizen:citizen}}. The members will vote."
+"ProposalClosed.outcome=passed" = "The members carry {{proposal:proposal}}, {{tally.yes}} to {{tally.no}}."
+"ProposalClosed.outcome=failed" = "The members decline {{proposal:proposal}}, {{tally.no}} against {{tally.yes}}."
+"ProposalClosed.outcome=no_quorum" = "{{proposal:proposal}} lapses for want of a quorum: {{tally.cast}} voted, {{tally.quorum}} were needed."
 
 # Cycle-end headlines, evaluated against CycleClosed.aggregates.
 [cycle]

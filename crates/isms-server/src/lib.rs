@@ -6,6 +6,8 @@ pub mod api;
 pub mod assembly;
 pub mod auth;
 pub mod chronicle;
+#[cfg(test)]
+mod chronicle_tests;
 pub mod commons;
 pub mod comms;
 pub mod coordinator;
