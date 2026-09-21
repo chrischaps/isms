@@ -7,7 +7,8 @@
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useCapabilities, useLexicon } from "../api/hooks";
+import { useCitizens } from "../api/civic";
+import { useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { usePlan, useSetPlan } from "../api/society";
 
 type Money = number; // cents on the wire
@@ -106,6 +107,9 @@ export function PlanScreen({ id }: { id: number }) {
   const caps = useCapabilities(id);
   const { t } = useLexicon(id);
   const setPlan = useSetPlan(id);
+  // The citizens, so a followed ballot is picked by name (S2.6); only where there is an assembly.
+  const citizens = useCitizens(id);
+  const home = useHome(id);
   const [draft, setDraft] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -416,7 +420,14 @@ export function PlanScreen({ id }: { id: number }) {
                 name="vote"
                 value={v}
                 checked={v === "follow" ? follow !== null : d.vote_default === v}
-                onChange={() => set({ vote_default: v === "follow" ? { follow: follow ?? 1 } : v })}
+                onChange={() =>
+                set({
+                  vote_default:
+                    v === "follow"
+                      ? { follow: follow ?? (citizens.data?.citizens ?? []).find((z) => z.id !== home.data?.citizen.id)?.id ?? 1 }
+                      : v,
+                })
+              }
               />
               <span>
                 {label} <span className="text-muted text-xs">{hint}</span>
@@ -425,16 +436,25 @@ export function PlanScreen({ id }: { id: number }) {
           ))}
           {follow !== null ? (
             <label className="ml-6 flex items-center gap-2 text-sm">
-              <span>Citizen id</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
+              <span>Whose ballot</span>
+              <select
                 aria-label="Citizen to follow"
-                className="border-line num w-20 rounded-sm border px-1"
+                className="border-line w-48 rounded-sm border px-1"
                 value={follow}
-                onChange={(e) => set({ vote_default: { follow: Math.max(1, Math.trunc(Number(e.target.value) || 1)) } })}
-              />
+                onChange={(e) => set({ vote_default: { follow: Number(e.target.value) } })}
+              >
+                {(citizens.data?.citizens ?? [])
+                  .filter((z) => z.id !== home.data?.citizen.id)
+                  .map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.handle}
+                    </option>
+                  ))}
+                {(citizens.data?.citizens ?? []).some((z) => z.id === follow) ? null : (
+                  <option value={follow}>citizen no. {follow}</option>
+                )}
+              </select>
+              <span className="text-muted text-xs">one hop: if they cast no ballot of their own, you abstain</span>
             </label>
           ) : null}
         </section>

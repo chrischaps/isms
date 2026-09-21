@@ -1,0 +1,29 @@
+# The Chronicle's voice in the Commune (TDD 9.4, GDD 12). A placeholder so a
+# lab Commune can be served before S2.9 writes the real copy: the same
+# templates as Freeport's, worded for a society with no prices and no wages.
+# `{{field}}` reads the event payload, `{{citizen:field}}` and `{{org:field}}`
+# turn ids into names. A template whose field is missing or null is skipped.
+
+[thresholds]
+# No prices move here; the threshold is kept so the loader has one.
+price_move_pct = 10.0
+
+[templates]
+OrgFounded = "{{citizen:founder}} founds {{name}}, a new {{kind}}."
+ManagerAppointed = "{{citizen:citizen}} takes the chair at {{org:org}}."
+HardshipBegan = "{{citizen:citizen}} is going hungry. The Store did not reach them."
+HardshipEnded = "{{citizen:citizen}} is eating again."
+DestitutionBegan = "{{citizen:citizen}} is destitute."
+DestitutionEnded = "{{citizen:citizen}} is back on their feet."
+HouseholderEmigrated = "{{citizen:citizen}} has left the Commune."
+CitizenJoined = "{{handle}} joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+EpochStarted = "Epoch {{epoch}} opens. The Store is stocked and the assembly sits tonight."
+EpochEnded = "The epoch ends after cycle {{cycle}}. The Ledger closes."
+EpochEnding = "Two days remain in the epoch."
+
+# Cycle-end headlines, evaluated against CycleClosed.aggregates.
+[cycle]
+price_up = "The reference basket rose {{pct}}% over the cycle."
+price_down = "The reference basket fell {{pct}}% over the cycle."
+hardship = "{{count}} went hungry this cycle. The Store fell short."
+unemployed = "{{count}} gave no hours this cycle."

@@ -14,7 +14,16 @@ import { Home } from "./Home";
 
 const SCREENS: Record<
   string,
-  "/s/$id" | "/s/$id/work" | "/s/$id/plan" | "/s/$id/market" | "/s/$id/orgs" | "/s/$id/contracts" | "/s/$id/society" | "/s/$id/talk" | "/s/$id/archives"
+  | "/s/$id"
+  | "/s/$id/work"
+  | "/s/$id/plan"
+  | "/s/$id/market"
+  | "/s/$id/orgs"
+  | "/s/$id/contracts"
+  | "/s/$id/assembly"
+  | "/s/$id/society"
+  | "/s/$id/talk"
+  | "/s/$id/archives"
 > = {
   "": "/s/$id",
   work: "/s/$id/work",
@@ -22,6 +31,7 @@ const SCREENS: Record<
   market: "/s/$id/market",
   orgs: "/s/$id/orgs",
   contracts: "/s/$id/contracts",
+  assembly: "/s/$id/assembly",
   society: "/s/$id/society",
   talk: "/s/$id/talk",
   archives: "/s/$id/archives",
@@ -55,6 +65,9 @@ export function SocietyShell({ id }: { id: number }) {
     ...(c.order_books ? [{ to: "market", label: t("store"), built: true }] : []),
     ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations", built: true }] : []),
     { to: "contracts", label: "Contracts", built: true },
+    // The assembly exists only where the constitution has governance (S2.6): in
+    // Freeport there is no nav item, which is the design statement.
+    ...(c.governance !== "none" ? [{ to: "assembly", label: t("assembly"), built: true }] : []),
     { to: "society", label: "Society", built: true },
     { to: "talk", label: "Talk", built: true },
     { to: "archives", label: "Archive", built: true },
