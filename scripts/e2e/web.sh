@@ -22,6 +22,8 @@ SQLX_OFFLINE=true cargo build -q -p isms-server
 "$SERVER" seed --preset commune --class lab --name "commune-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 # A second one for the Store and Ledger test (S2.7): the assembly test counts its electorate, so the two cannot share a society.
 "$SERVER" seed --preset commune --class lab --name "ledger-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
+# A third for the coordinator test (S2.8): its one citizen is the one candidate the first close seats.
+"$SERVER" seed --preset commune --class lab --name "coordinator-$(date +%s)-$RANDOM" --tick-seconds 1 --param params.population.collapse_enabled=false >/dev/null
 ISMS_OPERATORS="admin@example.test" "$SERVER" serve --bind "127.0.0.1:$PORT" --base-url "$ISMS_API" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
@@ -41,5 +43,6 @@ ISMS_SESSION_CIVIC="$("$SERVER" session --email civic-$(date +%s)@example.test)"
 ISMS_SESSION_ADMIN="$("$SERVER" session --email admin@example.test)"
 ISMS_SESSION_ASSEMBLY="$("$SERVER" session --email assembly-$(date +%s)@example.test)"
 ISMS_SESSION_COMMUNE="$("$SERVER" session --email commune-$(date +%s)@example.test)"
-export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND ISMS_SESSION_LEND ISMS_SESSION_BORROW ISMS_SESSION_CIVIC ISMS_SESSION_ADMIN ISMS_SESSION_ASSEMBLY ISMS_SESSION_COMMUNE
+ISMS_SESSION_COORDINATOR="$("$SERVER" session --email coordinator-$(date +%s)@example.test)"
+export ISMS_SESSION ISMS_SESSION_NEW ISMS_SESSION_WORK ISMS_SESSION_MARKET ISMS_SESSION_ORG ISMS_SESSION_HAND ISMS_SESSION_LEND ISMS_SESSION_BORROW ISMS_SESSION_CIVIC ISMS_SESSION_ADMIN ISMS_SESSION_ASSEMBLY ISMS_SESSION_COMMUNE ISMS_SESSION_COORDINATOR
 (cd web && pnpm exec playwright test "$@")

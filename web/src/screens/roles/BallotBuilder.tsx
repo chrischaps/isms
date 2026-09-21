@@ -76,6 +76,7 @@ export function BallotBuilder({
   citizens,
   offices,
   only,
+  fields: onlyFields,
   onMoved,
 }: {
   id: number;
@@ -84,6 +85,8 @@ export function BallotBuilder({
   offices: Office[];
   /** Restrict the builder to these kinds (S2.8 mounts it for the rationing rule alone). */
   only?: string[];
+  /** Restrict a policy change to these fields (the Coordinator workspace: `["rationing"]`). */
+  fields?: string[];
   onMoved?: (title: string) => void;
 }) {
   const kinds = movableKinds(caps.proposal_kinds ?? [], only);
@@ -101,7 +104,7 @@ export function BallotBuilder({
 
   if (kinds.length === 0) return null;
   const current = kinds.includes(kind) ? kind : kinds[0]!;
-  const fields = POLICY_FIELDS.filter((f) => f.show(caps));
+  const fields = POLICY_FIELDS.filter((f) => f.show(caps) && (!onlyFields || onlyFields.includes(f.key)));
   const heldOffices = offices.filter((o) => o.holders.length > 0);
   const recallHolders = heldOffices.find((o) => o.kind === recallOffice)?.holders ?? [];
   const splitSum = split.wares + split.machines + split.dwellings;

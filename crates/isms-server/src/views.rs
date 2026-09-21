@@ -329,6 +329,8 @@ pub fn org(world: &World, viewer: &Viewer, id: OrgId) -> Option<OrgView> {
             slot: wp.slot.map(|s| s.0),
             machines: wp.machines,
             cycle_output: wp.cycle_output,
+            target: wp.target,
+            last_cycle_output: wp.last_cycle_output,
             workers: wp
                 .workers
                 .iter()

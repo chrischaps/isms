@@ -5,11 +5,13 @@
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useOffices } from "../api/assembly";
 import { credits } from "../api/client";
 import { useCapabilities, useLexicon, useSociety } from "../api/hooks";
 import { useChronicle, useCitizens, useHouseholders, useScoreboard, useStats, type HeadlineView } from "../api/civic";
 import { Markdown } from "../lib/markdown";
-import { hourName, whenOfTick } from "../lib/when";
+import { fieldName } from "../lib/policy";
+import { dayOf, hourName, whenOfTick } from "../lib/when";
 
 type Aggregates = Record<string, unknown>;
 
@@ -123,6 +125,8 @@ export function SocietyScreen({ id }: { id: number }) {
   const citizens = useCitizens(id);
   const script = useHouseholders(id);
   const [showScript, setShowScript] = useState(false);
+  // Who holds office (S2.8): read where there is governance; a non-citizen's 403 simply hides the tile.
+  const offices = useOffices(id, caps.data !== undefined && caps.data.governance !== "none");
 
   if (caps.isPending || stats.isPending || society.isPending) return <p className="text-muted">Loading.</p>;
   if (caps.error || stats.error || society.error) return <p className="text-bad">Could not load: {String(caps.error ?? stats.error ?? society.error)}</p>;
@@ -148,6 +152,38 @@ export function SocietyScreen({ id }: { id: number }) {
           <StatTiles stats={s} money={c.money} credit={c.contracts.includes("credit")} orgs={c.org_kinds.length > 0} t={t} />
         </div>
       </section>
+
+      {honors && offices.data && offices.data.offices.length > 0 ? (
+        <section data-testid="offices-tile">
+          <h3 className="text-lg">{t("office")}</h3>
+          <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
+            {offices.data.offices.map((o) => (
+              <div key={o.kind} className="flex flex-col" data-testid={`office-tile-${o.kind}`}>
+                <span className="text-muted text-xs uppercase tracking-wide">
+                  {fieldName(o.kind)} · {o.holders.length} of {o.seats}
+                </span>
+                {o.holders.length === 0 ? <span className="text-muted text-sm">Nobody sits.</span> : null}
+                {o.holders.map((h) => (
+                  <span key={h.citizen} className="text-sm">
+                    {h.handle}
+                    <span className="text-muted text-xs"> through {dayOf(h.term_ends_cycle)}</span>
+                  </span>
+                ))}
+                {o.election ? (
+                  <Link to="/s/$id/assembly" params={{ id: String(id) }} className="text-accent text-xs underline">
+                    election open, {o.election.candidates.length} {o.election.candidates.length === 1 ? "candidate" : "candidates"}
+                  </Link>
+                ) : null}
+                {o.i_hold ? (
+                  <Link to="/s/$id/coordinator" params={{ id: String(id) }} className="text-xs underline">
+                    your workspace
+                  </Link>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-8 md:grid-cols-2">
         <div>

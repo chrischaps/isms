@@ -964,6 +964,7 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .merge(crate::society_api::routes())
         .merge(crate::assembly::routes())
         .merge(crate::commons::routes())
+        .merge(crate::coordinator::routes())
         .merge(crate::comms::routes())
 }
 

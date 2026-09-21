@@ -94,6 +94,9 @@ export function Work({ id }: { id: number }) {
   const l = h.labor;
   const held = positions(l, "by need, from the Store");
   const name = names.org;
+  // The Plan's target per workplace (S2.8), advisory under a direct assembly: read beside your hours.
+  const targets = new Map((orgs.data?.orgs ?? []).flatMap((o) => o.workplaces.map((w) => [w.id, { target: w.target ?? null, yesterday: w.last_cycle_output ?? 0 }] as const)));
+  const anyTarget = [...targets.values()].some((x) => x.target != null);
   const edit = rows ?? initialRows(l);
   const total = edit.reduce((n, r) => n + r.hours, 0);
   const over = total > l.budget;
@@ -163,6 +166,11 @@ export function Work({ id }: { id: number }) {
                       {name(p.org)}
                       <span className="text-muted block text-xs">
                         {names.workplaceTitle(p.workplace)} · up to {p.maxHours} h a day
+                        {targets.get(p.workplace)?.target != null ? (
+                          <span data-testid={`target-${p.workplace}`}>
+                            {" · "}the Plan asks {targets.get(p.workplace)!.target!.toFixed(0)} a day; yesterday it made {targets.get(p.workplace)!.yesterday.toFixed(0)}
+                          </span>
+                        ) : null}
                         {p.contract === null ? (
                           <>
                             {" · "}
@@ -261,6 +269,7 @@ export function Work({ id }: { id: number }) {
                 <tr>
                   <th className="py-1 font-normal">Workplace</th>
                   <th className="py-1 text-right font-normal">Working there</th>
+                  {anyTarget ? <th className="py-1 text-right font-normal">The Plan asks</th> : null}
                   <th className="py-1 font-normal" />
                 </tr>
               </thead>
@@ -281,6 +290,11 @@ export function Work({ id }: { id: number }) {
                           {w.workers.length}
                           {cap !== undefined ? <span className="text-muted text-xs"> of {cap}</span> : null}
                         </td>
+                        {anyTarget ? (
+                          <td className="num py-1 pr-3 text-right">
+                            {targets.get(w.id)?.target != null ? `${targets.get(w.id)!.target!.toFixed(0)} a day` : <span className="text-muted">—</span>}
+                          </td>
+                        ) : null}
                         <td className="py-1 text-right">
                           {mine ? (
                             <span className="text-muted text-xs">yours</span>

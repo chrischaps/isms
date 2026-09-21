@@ -6,6 +6,7 @@
 
 import { useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
+import { useOffices } from "../api/assembly";
 import { credits, setHumanizer } from "../api/client";
 import { useCapabilities, useHome, useLexicon, useMe, useSociety, useStream } from "../api/hooks";
 import { WorldClock } from "../components/WorldClock";
@@ -23,6 +24,7 @@ const SCREENS: Record<
   | "/s/$id/store"
   | "/s/$id/ledger"
   | "/s/$id/assembly"
+  | "/s/$id/coordinator"
   | "/s/$id/society"
   | "/s/$id/talk"
   | "/s/$id/archives"
@@ -36,6 +38,7 @@ const SCREENS: Record<
   store: "/s/$id/store",
   ledger: "/s/$id/ledger",
   assembly: "/s/$id/assembly",
+  coordinator: "/s/$id/coordinator",
   society: "/s/$id/society",
   talk: "/s/$id/talk",
   archives: "/s/$id/archives",
@@ -55,6 +58,10 @@ export function SocietyShell({ id }: { id: number }) {
     setHumanizer(names.inText);
     return () => setHumanizer(null);
   }, [names]);
+  // A role workspace mounts on holding the office, not on a capability (S2.8):
+  // the offices are read once the caller is a citizen of a governed society.
+  const offices = useOffices(id, home.data !== undefined && caps.data !== undefined && caps.data.governance !== "none");
+  const coordinates = offices.data?.offices.some((o) => o.kind === "coordinator" && o.i_hold) ?? false;
   useStream(id);
   if (society.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
   if (society.error || caps.error) {
@@ -76,6 +83,8 @@ export function SocietyShell({ id }: { id: number }) {
     // The assembly exists only where the constitution has governance (S2.6): in
     // Freeport there is no nav item, which is the design statement.
     ...(c.governance !== "none" ? [{ to: "assembly", label: t("assembly"), built: true }] : []),
+    // The office's workspace, for its holders alone (S2.8; TDD 4 roles/).
+    ...(coordinates ? [{ to: "coordinator", label: t("office"), built: true }] : []),
     { to: "society", label: "Society", built: true },
     { to: "talk", label: "Talk", built: true },
     { to: "archives", label: "Archive", built: true },

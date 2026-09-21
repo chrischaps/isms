@@ -15,6 +15,7 @@ import {
 import { Admin } from "./screens/Admin";
 import { PublicArchives, SocietyArchives } from "./screens/Archives";
 import { Assembly } from "./screens/Assembly";
+import { Coordinator } from "./screens/roles/Coordinator";
 import { Contracts } from "./screens/Contracts";
 import { EventScreen } from "./screens/Event";
 import { Gallery } from "./screens/Gallery";
@@ -131,6 +132,11 @@ function SocietyLedgerRoute() {
 function SocietyAssemblyRoute() {
   const { id } = useParams({ from: "/s/$id/assembly" });
   return <Assembly id={Number(id)} />;
+}
+
+function SocietyCoordinatorRoute() {
+  const { id } = useParams({ from: "/s/$id/coordinator" });
+  return <Coordinator id={Number(id)} />;
 }
 
 function SocietyTalkRoute() {
@@ -271,6 +277,12 @@ const societyAssemblyRoute = createRoute({
   component: SocietyAssemblyRoute,
 });
 
+const societyCoordinatorRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/coordinator",
+  component: SocietyCoordinatorRoute,
+});
+
 const societyTalkRoute = createRoute({
   getParentRoute: () => societyRoute,
   path: "/talk",
@@ -317,6 +329,7 @@ const routeTree = rootRoute.addChildren([
     societyStoreRoute,
     societyLedgerRoute,
     societyAssemblyRoute,
+    societyCoordinatorRoute,
     societyTalkRoute,
     societyChannelRoute,
     societyEventRoute,

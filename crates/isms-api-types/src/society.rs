@@ -329,6 +329,12 @@ pub struct WorkplaceView {
     pub slot: Option<u32>,
     pub machines: u32,
     pub cycle_output: f64,
+    /// The Plan's target for it, units a day (S2.8), and yesterday's output:
+    /// the advisory target a Commune worker reads their hours against.
+    #[serde(default)]
+    pub target: Option<f64>,
+    #[serde(default)]
+    pub last_cycle_output: f64,
     pub workers: Vec<WorkerView>,
 }
 
@@ -859,6 +865,80 @@ pub struct OfficesView {
     pub offices: Vec<OfficeView>,
 }
 
+// -- the Coordinator workspace (S2.8) -----------------------------------------------
+
+/// One workplace as the Plan sees it: its target beside what it made.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct PlanTargetView {
+    pub workplace: u32,
+    pub org: u32,
+    pub org_name: String,
+    /// True for the collective's workplaces, the ones a coordinator may close.
+    pub collective: bool,
+    #[schema(value_type = String)]
+    pub kind: WorkplaceKind,
+    pub slot: Option<u32>,
+    pub workers: u32,
+    pub machines: u32,
+    /// The published target, units a day; `None` where none was set.
+    pub target: Option<f64>,
+    /// Units made so far today.
+    pub cycle_output: f64,
+    /// Yesterday's output and its fulfilment against the target then in force.
+    pub last_cycle_output: f64,
+    pub last_fulfillment: Option<f64>,
+}
+
+/// One land slot: its kind and the workplace on it, if any.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct SlotView {
+    pub id: u32,
+    #[schema(value_type = String)]
+    pub kind: WorkplaceKind,
+    pub workplace: Option<u32>,
+}
+
+/// The Plan as published, and the land it is published over (S2.8). The
+/// coordinator's workspace is this view plus the offices; every citizen may
+/// read it, since the Plan is public.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct PublishedPlanView {
+    pub clock: Clock,
+    /// True when the caller sits as Coordinator (the workspace mounts on it).
+    pub i_coordinate: bool,
+    /// Advisory where governance is direct (GDD 6.2): no bonus, no ratchet.
+    pub advisory: bool,
+    /// The engine's 0-based cycle the Plan was last published in, and by whom.
+    pub published_cycle: Option<u32>,
+    pub published_tick: Option<u32>,
+    pub published_by: Option<u32>,
+    pub targets: Vec<PlanTargetView>,
+    /// Every land slot, in id order; kinds absent from the land are unlimited.
+    pub slots: Vec<SlotView>,
+    /// Workplace kinds with no slot limit.
+    #[schema(value_type = Vec<String>)]
+    pub unlimited_kinds: Vec<WorkplaceKind>,
+    /// The collective a coordinator opens workplaces for; `None` where there is none.
+    pub collective: Option<u32>,
+    /// Materials a new workplace costs, and what the Common Store holds.
+    pub founding_materials: u32,
+    pub store_materials: u32,
+    pub max_workplaces: u32,
+}
+
+/// The targets to publish, per workplace id, in units a day.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct PublishPlanRequest {
+    pub targets: BTreeMap<u32, f64>,
+}
+
+/// Open a workplace of the collective on a free slot of its kind (any, when `slot` is absent).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct OpenWorkplaceRequest {
+    #[schema(value_type = String)]
+    pub kind: WorkplaceKind,
+    pub slot: Option<u32>,
+}
 /// An approval ballot: any subset of the candidates, the empty set included.
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct ApproveRequest {

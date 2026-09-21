@@ -789,6 +789,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/s/{id}/offices/coordinator/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Coordinator: publish the Plan (targets per workplace, units a day; advisory under a direct assembly) */
+        put: operations["publish_plan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/s/{id}/offices/{kind}/ballot": {
         parameters: {
             query?: never;
@@ -1115,6 +1132,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/s/{id}/plan/published": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Plan as published: every workplace's target beside what it made, the land slots, and what a workplace costs against the Store */
+        get: operations["published_plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/s/{id}/prices": {
         parameters: {
             query?: never;
@@ -1264,6 +1298,40 @@ export interface paths {
         /** Give money or goods to a citizen or an org */
         post: operations["transfer"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/workplaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Coordinator: open a workplace of the collective on a land slot; the founding Materials come out of the Common Store */
+        post: operations["open_workplace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/workplaces/{wid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Coordinator: close a workplace of the collective; its workers are unassigned this hour and its slot freed */
+        delete: operations["close_workplace"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2210,6 +2278,12 @@ export interface components {
             clock: components["schemas"]["Clock"];
             offices: components["schemas"]["OfficeView"][];
         };
+        /** @description Open a workplace of the collective on a free slot of its kind (any, when `slot` is absent). */
+        OpenWorkplaceRequest: {
+            kind: string;
+            /** Format: int32 */
+            slot?: number | null;
+        };
         OrderView: {
             /** Format: int32 */
             expires_tick: number;
@@ -2306,6 +2380,40 @@ export interface components {
             qty: number;
             /** @description `bid` or `ask`. */
             side: string;
+        };
+        /** @description One workplace as the Plan sees it: its target beside what it made. */
+        PlanTargetView: {
+            /** @description True for the collective's workplaces, the ones a coordinator may close. */
+            collective: boolean;
+            /**
+             * Format: double
+             * @description Units made so far today.
+             */
+            cycle_output: number;
+            kind: string;
+            /**
+             * Format: double
+             * @description Yesterday's output and its fulfilment against the target then in force.
+             */
+            last_cycle_output: number;
+            /** Format: double */
+            last_fulfillment?: number | null;
+            /** Format: int32 */
+            machines: number;
+            /** Format: int32 */
+            org: number;
+            org_name: string;
+            /** Format: int32 */
+            slot?: number | null;
+            /**
+             * Format: double
+             * @description The published target, units a day; `None` where none was set.
+             */
+            target?: number | null;
+            /** Format: int32 */
+            workers: number;
+            /** Format: int32 */
+            workplace: number;
         };
         PlanView: {
             clock: components["schemas"]["Clock"];
@@ -2478,6 +2586,52 @@ export interface components {
             orgs: boolean;
             preset: string;
         };
+        /** @description The targets to publish, per workplace id, in units a day. */
+        PublishPlanRequest: {
+            targets: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * @description The Plan as published, and the land it is published over (S2.8). The
+         *     coordinator's workspace is this view plus the offices; every citizen may
+         *     read it, since the Plan is public.
+         */
+        PublishedPlanView: {
+            /** @description Advisory where governance is direct (GDD 6.2): no bonus, no ratchet. */
+            advisory: boolean;
+            clock: components["schemas"]["Clock"];
+            /**
+             * Format: int32
+             * @description The collective a coordinator opens workplaces for; `None` where there is none.
+             */
+            collective?: number | null;
+            /**
+             * Format: int32
+             * @description Materials a new workplace costs, and what the Common Store holds.
+             */
+            founding_materials: number;
+            /** @description True when the caller sits as Coordinator (the workspace mounts on it). */
+            i_coordinate: boolean;
+            /** Format: int32 */
+            max_workplaces: number;
+            /** Format: int32 */
+            published_by?: number | null;
+            /**
+             * Format: int32
+             * @description The engine's 0-based cycle the Plan was last published in, and by whom.
+             */
+            published_cycle?: number | null;
+            /** Format: int32 */
+            published_tick?: number | null;
+            /** @description Every land slot, in id order; kinds absent from the land are unlimited. */
+            slots: components["schemas"]["SlotView"][];
+            /** Format: int32 */
+            store_materials: number;
+            targets: components["schemas"]["PlanTargetView"][];
+            /** @description Workplace kinds with no slot limit. */
+            unlimited_kinds: string[];
+        };
         RateLimitView: {
             /** Format: int32 */
             burst: number;
@@ -2553,6 +2707,14 @@ export interface components {
             hours: number;
             /** Format: double */
             level: number;
+        };
+        /** @description One land slot: its kind and the workplace on it, if any. */
+        SlotView: {
+            /** Format: int32 */
+            id: number;
+            kind: string;
+            /** Format: int32 */
+            workplace?: number | null;
         };
         SocietyList: {
             societies: components["schemas"]["SocietySummary"][];
@@ -2777,10 +2939,18 @@ export interface components {
             /** Format: int32 */
             id: number;
             kind: string;
+            /** Format: double */
+            last_cycle_output?: number;
             /** Format: int32 */
             machines: number;
             /** Format: int32 */
             slot?: number | null;
+            /**
+             * Format: double
+             * @description The Plan's target for it, units a day (S2.8), and yesterday's output:
+             *     the advisory target a Commune worker reads their hours against.
+             */
+            target?: number | null;
             workers: components["schemas"]["WorkerView"][];
         };
         /** Format: int64 */
@@ -4436,6 +4606,41 @@ export interface operations {
             };
         };
     };
+    publish_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishPlanRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            /** @description Not a coordinator, an unknown workplace, or a target below zero */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     approve: {
         parameters: {
             query?: never;
@@ -5186,6 +5391,37 @@ export interface operations {
             };
         };
     };
+    published_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedPlanView"];
+                };
+            };
+            /** @description No Plan is published in this society */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     prices: {
         parameters: {
             query?: {
@@ -5471,6 +5707,74 @@ export interface operations {
                     "application/json": components["schemas"]["Committed"];
                 };
             };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    open_workplace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenWorkplaceRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            /** @description Not a coordinator, no free slot, or too few Materials */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    close_workplace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description Workplace id */
+                wid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            /** @description Not a coordinator, or not the collective's workplace */
             422: {
                 headers: {
                     [name: string]: unknown;

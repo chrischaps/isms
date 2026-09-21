@@ -8,6 +8,7 @@ pub mod auth;
 pub mod chronicle;
 pub mod commons;
 pub mod comms;
+pub mod coordinator;
 pub mod error;
 pub mod limiter;
 pub mod mail;

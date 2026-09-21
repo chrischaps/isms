@@ -9,7 +9,8 @@ use isms_api_types::society::{
     ArchiveView, ArchivesView, BookView, BooksView, CitizensView, Committed, ContractsView,
     ContributionView, DigestView, ExplainView, HomeView, HouseholdersView, NoticeBoardView,
     OfficesView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlanView, PricesView,
-    ProposalView, ProposalsView, ScoreboardView, StatsView, StoreView, StreamFrame,
+    ProposalView, ProposalsView, PublishedPlanView, ScoreboardView, StatsView, StoreView,
+    StreamFrame,
 };
 use isms_api_types::{Joined, Problem, RejectCode};
 use isms_core::WORKSPACE_PRESETS_DIR;
@@ -1786,4 +1787,150 @@ async fn freeport_has_no_store_and_no_ledger(pool: PgPool) {
         r.json()
     };
     assert_eq!(me.citizenships[0].honors, 0);
+}
+
+/// S2.8: a seated coordinator publishes the Plan, opens a workplace of the
+/// collective out of the Store's Materials and closes it again; a citizen who
+/// does not sit is refused each with `NotAnOfficeHolder`; the published Plan
+/// carries the target and its signature, and the org view shows the target.
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn the_coordinator_publishes_the_plan_and_opens_and_closes_a_workplace(pool: PgPool) {
+    let f = fixture(pool, "commune").await;
+    let a = f.client("ash").await;
+    let b = f.client("bea").await;
+
+    // Nobody sits yet: the routes exist, the powers do not.
+    let plan: PublishedPlanView = a.get(f.id, "/plan/published").await;
+    assert!(plan.advisory);
+    assert!(!plan.i_coordinate);
+    assert!(plan.published_cycle.is_none());
+    assert!(!plan.targets.is_empty());
+    let wid = plan
+        .targets
+        .iter()
+        .find(|t| t.collective)
+        .map(|t| t.workplace)
+        .expect("a collective workplace");
+    let r = a
+        .put(
+            f.id,
+            "/offices/coordinator/plan",
+            json!({ "targets": { wid.to_string(): 40.0 } }),
+        )
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotAnOfficeHolder);
+
+    // One candidate, one close: seated.
+    a.ok(f.id, "/offices/coordinator/candidacy", json!({}))
+        .await;
+    f.tick(24).await;
+    let plan: PublishedPlanView = a.get(f.id, "/plan/published").await;
+    assert!(plan.i_coordinate);
+    let plan_b: PublishedPlanView = b.get(f.id, "/plan/published").await;
+    assert!(!plan_b.i_coordinate);
+
+    // The Plan: a target on one workplace, signed on the published view and shown on the org.
+    let r = a
+        .put(
+            f.id,
+            "/offices/coordinator/plan",
+            json!({ "targets": { wid.to_string(): 40.0 } }),
+        )
+        .await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let c: Committed = r.json();
+    assert_eq!(kinds(&c), vec!["PlanPublished"]);
+    let plan: PublishedPlanView = b.get(f.id, "/plan/published").await;
+    assert_eq!(plan.published_by, Some(a.citizen));
+    assert!(plan.published_cycle.is_some());
+    let row = plan.targets.iter().find(|t| t.workplace == wid).unwrap();
+    assert_eq!(row.target, Some(40.0));
+    let orgs: OrgsView = b.get(f.id, "/orgs").await;
+    let wv = orgs
+        .orgs
+        .iter()
+        .flat_map(|o| o.workplaces.iter())
+        .find(|w| w.id == wid)
+        .unwrap();
+    assert_eq!(wv.target, Some(40.0));
+    let r = a
+        .put(
+            f.id,
+            "/offices/coordinator/plan",
+            json!({ "targets": { "9999": 1.0 } }),
+        )
+        .await;
+    assert_eq!(reject(&r), RejectCode::UnknownWorkplace);
+    let r = b
+        .put(
+            f.id,
+            "/offices/coordinator/plan",
+            json!({ "targets": { wid.to_string(): 1.0 } }),
+        )
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotAnOfficeHolder);
+
+    // The land: open a workplace of the collective once the Store holds the Materials.
+    let cost = plan.founding_materials;
+    let mut have = plan.store_materials;
+    for _ in 0..200 {
+        if have >= cost {
+            break;
+        }
+        f.tick(1).await;
+        let p: PublishedPlanView = a.get(f.id, "/plan/published").await;
+        have = p.store_materials;
+    }
+    assert!(have >= cost, "the Store never held {cost} Materials");
+    let before: PublishedPlanView = a.get(f.id, "/plan/published").await;
+    let r = b
+        .post(f.id, "/workplaces", json!({ "kind": "workshop" }))
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotAnOfficeHolder);
+    let c = a
+        .ok(f.id, "/workplaces", json!({ "kind": "workshop" }))
+        .await;
+    assert_eq!(kinds(&c), vec!["WorkplaceOpened"]);
+    let after: PublishedPlanView = a.get(f.id, "/plan/published").await;
+    assert_eq!(after.targets.len(), before.targets.len() + 1);
+    assert_eq!(after.store_materials, before.store_materials - cost);
+    let opened = after
+        .targets
+        .iter()
+        .find(|t| !before.targets.iter().any(|x| x.workplace == t.workplace))
+        .unwrap();
+    assert!(opened.collective);
+    assert_eq!(opened.org, before.collective.unwrap());
+
+    // And close it: a non-holder refused, the coordinator's word instant.
+    let r = b
+        .delete(f.id, &format!("/workplaces/{}", opened.workplace))
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotAnOfficeHolder);
+    let r = a
+        .delete(f.id, &format!("/workplaces/{}", opened.workplace))
+        .await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+    let c: Committed = r.json();
+    assert!(kinds(&c).contains(&"WorkplaceClosed"));
+    let closed: PublishedPlanView = a.get(f.id, "/plan/published").await;
+    assert_eq!(closed.targets.len(), before.targets.len());
+}
+
+/// S2.8: Freeport publishes no Plan, so the read is `NotInThisSociety` and
+/// so is the coordinator's command (the capability gate, before any holder check).
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn freeport_has_no_published_plan(pool: PgPool) {
+    let f = fixture(pool, "freeport").await;
+    let a = f.client("fern").await;
+    assert_eq!(
+        reject(&a.server.get(&p(f.id, "/plan/published")).await),
+        RejectCode::NotInThisSociety
+    );
+    let r = a
+        .put(f.id, "/offices/coordinator/plan", json!({ "targets": {} }))
+        .await;
+    assert_eq!(reject(&r), RejectCode::NotInThisSociety);
+    let r = a.post(f.id, "/workplaces", json!({ "kind": "farm" })).await;
+    assert_eq!(reject(&r), RejectCode::NotInThisSociety);
 }
