@@ -128,6 +128,8 @@ export function SocietyScreen({ id }: { id: number }) {
   if (caps.error || stats.error || society.error) return <p className="text-bad">Could not load: {String(caps.error ?? stats.error ?? society.error)}</p>;
   const c = caps.data!;
   const s = stats.data!;
+  const byNorm = c.labor === "norm";
+  const honors = c.governance !== "none";
   const current = society.data!.clock.cycle;
   const shown = chronicle.data?.cycle ?? cycle ?? current;
 
@@ -157,6 +159,32 @@ export function SocietyScreen({ id }: { id: number }) {
         <div>
           <h3 className="text-lg">{t("scoreboard")}</h3>
           {scoreboard.data && scoreboard.data.rows.length > 0 ? (
+            byNorm ? (
+              // The Commune's claim (GDD 6.2): the contribution record and the assembly's
+              // honors; the society-level need fulfillment is among the numbers above.
+              <table className="mt-2 w-full text-sm" data-testid="scoreboard">
+                <thead className="text-muted text-left text-xs uppercase tracking-wide">
+                  <tr>
+                    <th className="py-1 font-normal">Citizen</th>
+                    <th className="py-1 text-right font-normal">Hours given</th>
+                    <th className="py-1 text-right font-normal">Norm met</th>
+                    <th className="py-1 text-right font-normal">Honors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scoreboard.data.rows.slice(0, 20).map((r) => (
+                    <tr key={r.citizen} className="rule">
+                      <td className="py-1 pr-2">{r.handle}</td>
+                      <td className="num py-1 pr-2 text-right">{(r.contribution?.hours_total ?? 0).toFixed(0)}</td>
+                      <td className="num py-1 pr-2 text-right">
+                        {r.contribution && r.contribution.days > 0 ? `${r.contribution.norm_met_days} of ${r.contribution.days} days` : "—"}
+                      </td>
+                      <td className="num py-1 text-right">{(r.honors ?? 0) > 0 ? r.honors : <span className="text-muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
             <table className="mt-2 w-full text-sm" data-testid="scoreboard">
               <thead className="text-muted text-left text-xs uppercase tracking-wide">
                 <tr>
@@ -164,6 +192,7 @@ export function SocietyScreen({ id }: { id: number }) {
                   <th className="py-1 text-right font-normal">Net worth</th>
                   <th className="py-1 text-right font-normal">Self-made</th>
                   <th className="py-1 font-normal">Firms</th>
+                  {honors ? <th className="py-1 text-right font-normal">Honors</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -173,10 +202,12 @@ export function SocietyScreen({ id }: { id: number }) {
                     <td className="num py-1 pr-2 text-right">{credits(r.net_worth)}</td>
                     <td className={`num py-1 pr-2 text-right ${r.self_made < 0 ? "text-bad" : ""}`}>{credits(r.self_made)}</td>
                     <td className="py-1 text-xs">{r.firms.map((f) => `${f.name} (${credits(f.book_value)})`).join(", ")}</td>
+                    {honors ? <td className="num py-1 text-right">{(r.honors ?? 0) > 0 ? r.honors : <span className="text-muted">—</span>}</td> : null}
                   </tr>
                 ))}
               </tbody>
             </table>
+            )
           ) : (
             <p className="text-muted mt-2 text-sm">{scoreboard.isPending ? "Loading." : "No scoreboard here: this society does not keep one."}</p>
           )}
@@ -193,6 +224,7 @@ export function SocietyScreen({ id }: { id: number }) {
                 <th className="py-1 font-normal">Handle</th>
                 <th className="py-1 font-normal">Kind</th>
                 <th className="py-1 font-normal">Since</th>
+                {honors ? <th className="py-1 text-right font-normal">Honors</th> : null}
                 <th className="py-1 font-normal">Flags</th>
               </tr>
             </thead>
@@ -210,6 +242,7 @@ export function SocietyScreen({ id }: { id: number }) {
                     </td>
                     <td className="py-1 pr-2">{z.kind}{z.dormant ? ", dormant" : ""}</td>
                     <td className="num py-1 pr-2">{whenOfTick(z.joined_tick)}</td>
+                    {honors ? <td className="num py-1 pr-2 text-right">{(z.honors ?? 0) > 0 ? z.honors : <span className="text-muted">—</span>}</td> : null}
                     <td className="py-1 text-xs">{flags.join(", ")}</td>
                   </tr>
                 );

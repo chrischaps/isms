@@ -6,6 +6,7 @@ pub mod api;
 pub mod assembly;
 pub mod auth;
 pub mod chronicle;
+pub mod commons;
 pub mod comms;
 pub mod error;
 pub mod limiter;

@@ -20,6 +20,8 @@ const SCREENS: Record<
   | "/s/$id/market"
   | "/s/$id/orgs"
   | "/s/$id/contracts"
+  | "/s/$id/store"
+  | "/s/$id/ledger"
   | "/s/$id/assembly"
   | "/s/$id/society"
   | "/s/$id/talk"
@@ -31,6 +33,8 @@ const SCREENS: Record<
   market: "/s/$id/market",
   orgs: "/s/$id/orgs",
   contracts: "/s/$id/contracts",
+  store: "/s/$id/store",
+  ledger: "/s/$id/ledger",
   assembly: "/s/$id/assembly",
   society: "/s/$id/society",
   talk: "/s/$id/talk",
@@ -63,6 +67,10 @@ export function SocietyShell({ id }: { id: number }) {
     { to: "work", label: t("work_screen"), built: true },
     { to: "plan", label: t("plan"), built: true },
     ...(c.order_books ? [{ to: "market", label: t("store"), built: true }] : []),
+    // The Common Store and the Ledger of Contribution (S2.7): a moneyless
+    // society's day is the shelves and the record, and only there do they exist.
+    ...(c.common_store ? [{ to: "store", label: t("store"), built: true }] : []),
+    ...(c.labor === "norm" ? [{ to: "ledger", label: t("ledger"), built: true }] : []),
     ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations", built: true }] : []),
     { to: "contracts", label: "Contracts", built: true },
     // The assembly exists only where the constitution has governance (S2.6): in

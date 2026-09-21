@@ -40,6 +40,13 @@ export function describe(e: EventRef, t: T, me?: number): LedgerRow {
     }
     case "Transferred":
       return { ...base, what: `Transfer: ${String(p.memo ?? "")}`, cents: money(p.amount) };
+    case "Drew": {
+      const share = (p.explain as { rule?: string } | undefined)?.rule === "store_surplus_share";
+      const goods = Object.entries((p.goods ?? {}) as Record<string, number>)
+        .map(([g, n]) => `${n} ${g}`)
+        .join(", ");
+      return { ...base, what: share ? "Surplus share from the Store" : "Drew from the Store", goods: `+${goods}` };
+    }
     case "DividendPaid":
       return { ...base, what: "Dividend", cents: money(p.amount) };
     case "CreditInstallment":

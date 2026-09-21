@@ -118,6 +118,10 @@ pub struct LaborView {
     pub allocations: Vec<AllocationView>,
     pub skills: Vec<SkillView>,
     pub employment: Vec<ContractView>,
+    /// Every position the caller holds, contract or not (S2.7): the norm
+    /// systems' positions have no contract and would otherwise not show.
+    #[serde(default)]
+    pub positions: Vec<PositionView>,
     /// What each effort level costs and yields (GDD 4.3), from the preset.
     pub effort: EffortCosts,
 }
@@ -624,6 +628,18 @@ pub struct ScoreRow {
     /// Honors the assembly has conferred (S2.3); the Commune's scoreboard reads it.
     #[serde(default)]
     pub honors: u32,
+    /// The contribution record (S2.7), where labor is by norm: the Commune's
+    /// scoreboard ranks on it; `None` elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contribution: Option<ContributionScore>,
+}
+
+/// The Ledger of Contribution in three figures (GDD 6.2 Scoreboard).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ContributionScore {
+    pub hours_total: f64,
+    pub days: u32,
+    pub norm_met_days: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
@@ -955,4 +971,141 @@ pub struct ArchivesView {
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct ClosingStatementRequest {
     pub text: String,
+}
+
+// -- the Common Store and the Ledger of Contribution (S2.7) -----------------------
+
+/// One good on the Store's shelves this tick (GDD 6.2), with the caller's
+/// own standing toward it.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct StockView {
+    #[schema(value_type = String)]
+    pub good: Good,
+    /// Units on the shelf now.
+    pub stock: u32,
+    /// Units requested this tick and not yet resolved (phase 6 resolves them).
+    pub requested: u32,
+    /// Citizens with a request in this tick.
+    pub requesters: u32,
+    /// What the caller may still draw this tick (`store::entitlement`): the
+    /// units that bring the meter to full, less pantry and pending, capped by
+    /// pantry room. 0 for a good the Store does not ration by need.
+    pub my_entitlement: u32,
+    /// The caller's request this tick, not yet served.
+    pub my_pending: u32,
+    /// Meter tenths one unit restores, for the goods drawn by need; `None` otherwise.
+    pub meter_per_unit: Option<u32>,
+    /// What each active citizen would get if the day ended now:
+    /// `floor(stock / active citizens)` (GDD 6.2, Q54).
+    pub share_if_shared_now: u32,
+}
+
+/// How one good fared over a whole day: what was asked, what was served.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct StoreDayView {
+    #[schema(value_type = String)]
+    pub good: Good,
+    pub requested: u32,
+    pub served: u32,
+    /// `requested - served`: the units the Store could not find.
+    pub short: u32,
+    /// Hours in which the rationing rule had to decide (served < requested).
+    pub rationed_ticks: u32,
+    /// Units shared out equally at the day's end (surplus shares).
+    pub shared: u32,
+    /// Citizens who received a surplus share.
+    pub shared_with: u32,
+}
+
+/// The Common Store (GDD 6.2; S2.7): the shelves, the rule in force, the
+/// caller's entitlement and pending draw, yesterday's service, and the
+/// caller's draw record. Answers 422 `NoStore` where there is no store.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct StoreView {
+    pub clock: Clock,
+    /// The rationing rule in force when the stock runs short:
+    /// `need_first`, `equal_shortfall` or `lottery` (`policy.rationing`).
+    pub rule: String,
+    /// Per good, in the engine's order; the goods drawn by need come first.
+    pub stock: Vec<StockView>,
+    /// Active citizens: the denominator of a surplus share.
+    pub active_citizens: u32,
+    /// The engine's 0-based cycle `last_cycle` reports; `None` before a day has closed.
+    pub last_cycle: Option<u32>,
+    /// Yesterday, per good that anyone asked for or that was shared.
+    pub yesterday: Vec<StoreDayView>,
+    /// Today so far, per good that anyone has asked for.
+    pub today: Vec<StoreDayView>,
+    /// The caller's `Drew` events, oldest first (the draw record; GDD 9.1 step 3).
+    pub my_draws: Vec<EventRef>,
+    #[schema(value_type = Object)]
+    pub my_pantry: BTreeMap<Good, u32>,
+    #[schema(value_type = Object)]
+    pub pantry_capacity: BTreeMap<Good, u32>,
+}
+
+/// One citizen's line on the Ledger of Contribution (GDD 6.2): hours exact,
+/// output as attributed under the society's monitoring, the norm met or not.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ContributionRow {
+    pub citizen: u32,
+    pub handle: String,
+    pub kind: String,
+    pub dormant: bool,
+    pub is_me: bool,
+    /// Hours worked so far today (tick-hours over the day's ticks; exact, a decision).
+    pub hours_today: f64,
+    /// Output attributed so far today under the monitoring in force: with
+    /// σ > 0 this is a noised figure, never the true one (Q55).
+    pub attributed_today: f64,
+    /// Whether today's hours already reach the norm.
+    pub norm_met_today: bool,
+    /// The last closed day.
+    pub hours_yesterday: f64,
+    pub attributed_yesterday: f64,
+    /// Every closed day on the record.
+    pub days: u32,
+    pub hours_total: f64,
+    pub attributed_total: f64,
+    /// Closed days on which the norm was met.
+    pub norm_met_days: u32,
+    /// Honors the assembly has conferred (S2.3).
+    pub honors: u32,
+    /// Where they hold a position today, by workplace id.
+    pub workplaces: Vec<u32>,
+}
+
+/// The Ledger of Contribution (GDD 6.2; S2.7): every citizen's public record,
+/// the norm and the monitoring stated. Answers 422 `NotInThisSociety` where
+/// labor is not by norm.
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct ContributionView {
+    pub clock: Clock,
+    /// The published work norm, hours per day (`policy.work_norm_hours`).
+    pub norm_hours: Option<u32>,
+    /// The monitoring level in force: `high`, `medium`, `low`.
+    pub monitoring: String,
+    /// The σ of the attribution noise: 0 means the figures are exact.
+    pub sigma: f64,
+    /// Active citizens first, by hours today, then by handle; dormant citizens after.
+    pub rows: Vec<ContributionRow>,
+    /// The workplace with room where labor is scarcest by the balance weights
+    /// (`orgs::least_staffed`, Q62): where the norm would send you.
+    pub least_staffed: Option<u32>,
+    /// Positions per workplace and the cap, for the position picker.
+    pub max_workers_per_workplace: u32,
+    pub max_workplaces: u32,
+}
+
+/// A position the caller holds at a workplace, with or without a contract (S2.7).
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+pub struct PositionView {
+    pub workplace: u32,
+    pub org: u32,
+    pub org_name: String,
+    #[schema(value_type = String)]
+    pub kind: WorkplaceKind,
+    /// The employment contract, where positions come by contract; `None`
+    /// for a norm position (`JoinWorkplace`, Q62).
+    pub contract: Option<u32>,
 }

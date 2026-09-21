@@ -2,12 +2,46 @@
 
 import { describe, expect, it } from "vitest";
 import type { EventRef } from "../api/client";
+import { drawRows, goodsText, ruleText } from "./draws";
 import { buildNames, workplaceTitles } from "./names";
 import { needHints } from "./needs";
 import { payslipRows } from "./payslips";
 import { inputsText, producerNote, supplyOf, type OrgLike as SupplyOrg, type Recipe } from "./supply";
 import { diffText, kindSummary, policyDiff, policyValue, quorumBar, wouldCarry } from "./policy";
 import { dayOf, deadlineOfTick, epochEndingText, hourName, hourOfClock, whenOf, whenOfTick } from "./when";
+
+describe("draws", () => {
+  const drew = (seq: number, tick: number, goods: Record<string, number>, rule: string): EventRef => ({
+    seq,
+    tick,
+    cycle: Math.floor(tick / 24),
+    epoch: 0,
+    kind: "Drew",
+    payload: { Drew: { citizen: 3, goods, explain: { rule, inputs: [], formula: "", result: 1 } } },
+  });
+
+  it("tells a draw by need from a surplus share, newest first, with the goods and the Explain", () => {
+    const rows = drawRows([drew(1, 5, { food: 2 }, "store_draw_need_first"), drew(2, 23, { food: 1, wares: 1 }, "store_surplus_share")]);
+    expect(rows.map((r) => r.what)).toEqual(["Surplus share at the day's end", "Drew from the Store"]);
+    expect(rows[0]!.goods).toBe("+1 food, 1 wares");
+    expect(rows[1]!.goods).toBe("+2 food");
+    expect(rows[1]!.when).toBe("Day 1, 5 AM");
+    expect(rows[1]!.explain?.rule).toBe("store_draw_need_first");
+  });
+
+  it("keeps the last n draws", () => {
+    const rows = drawRows([drew(1, 1, { food: 1 }, "store_draw_need_first"), drew(2, 2, { food: 1 }, "store_draw_need_first"), drew(3, 3, { food: 1 }, "store_draw_lottery")], 24, 2);
+    expect(rows.map((r) => r.key)).toEqual(["3", "2"]);
+  });
+
+  it("states each rationing rule in words", () => {
+    expect(ruleText("need_first")).toMatch(/largest request/);
+    expect(ruleText("equal_shortfall")).toMatch(/same share/);
+    expect(ruleText("lottery")).toMatch(/drawn order/);
+    expect(goodsText({ food: 2, wares: 1 })).toBe("2 food, 1 wares");
+    expect(goodsText(undefined)).toBe("");
+  });
+});
 
 describe("when", () => {
   it("names hours as the header clock does", () => {

@@ -301,11 +301,23 @@ async fn me(State(state): State<AppState>, auth: Auth) -> ApiResult<Json<Me>> {
                 (kind, u64::try_from(n).unwrap_or(0))
             })
             .collect();
+        let honors = match society(&state, c.society_id) {
+            Ok(entry) => entry
+                .handle
+                .world
+                .read()
+                .await
+                .citizens
+                .get(&CitizenId(citizen_id))
+                .map_or(0, isms_core::metrics::honors_of),
+            Err(_) => 0,
+        };
         citizenships.push(Citizenship {
             society_id: c.society_id,
             citizen_id,
             handle: c.handle,
             action_share,
+            honors,
         });
     }
     let api_keys = state
@@ -951,6 +963,7 @@ fn openapi_router() -> OpenApiRouter<AppState> {
         .routes(routes!(join))
         .merge(crate::society_api::routes())
         .merge(crate::assembly::routes())
+        .merge(crate::commons::routes())
         .merge(crate::comms::routes())
 }
 

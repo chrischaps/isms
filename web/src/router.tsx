@@ -18,6 +18,7 @@ import { Assembly } from "./screens/Assembly";
 import { Contracts } from "./screens/Contracts";
 import { EventScreen } from "./screens/Event";
 import { Gallery } from "./screens/Gallery";
+import { LedgerScreen } from "./screens/Ledger";
 import { Login } from "./screens/Login";
 import { Market } from "./screens/Market";
 import { Org } from "./screens/Org";
@@ -28,6 +29,7 @@ import { PublicSocieties, PublicSociety } from "./screens/Public";
 import { Societies } from "./screens/Societies";
 import { SocietyHome, SocietyShell } from "./screens/Society";
 import { SocietyScreen } from "./screens/SocietyScreen";
+import { Store } from "./screens/Store";
 import { Talk } from "./screens/Talk";
 import { Work } from "./screens/Work";
 
@@ -114,6 +116,16 @@ function SocietyContractsRoute() {
 function SocietySocietyRoute() {
   const { id } = useParams({ from: "/s/$id/society" });
   return <SocietyScreen id={Number(id)} />;
+}
+
+function SocietyStoreRoute() {
+  const { id } = useParams({ from: "/s/$id/store" });
+  return <Store id={Number(id)} />;
+}
+
+function SocietyLedgerRoute() {
+  const { id } = useParams({ from: "/s/$id/ledger" });
+  return <LedgerScreen id={Number(id)} />;
 }
 
 function SocietyAssemblyRoute() {
@@ -241,6 +253,18 @@ const societySocietyRoute = createRoute({
   component: SocietySocietyRoute,
 });
 
+const societyStoreRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/store",
+  component: SocietyStoreRoute,
+});
+
+const societyLedgerRoute = createRoute({
+  getParentRoute: () => societyRoute,
+  path: "/ledger",
+  component: SocietyLedgerRoute,
+});
+
 const societyAssemblyRoute = createRoute({
   getParentRoute: () => societyRoute,
   path: "/assembly",
@@ -290,6 +314,8 @@ const routeTree = rootRoute.addChildren([
     societyOrgRoute,
     societyContractsRoute,
     societySocietyRoute,
+    societyStoreRoute,
+    societyLedgerRoute,
     societyAssemblyRoute,
     societyTalkRoute,
     societyChannelRoute,

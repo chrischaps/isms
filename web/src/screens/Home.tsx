@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ApiError, credits, type EventRef } from "../api/client";
 import { useCapabilities, useHome, useLexicon, useSociety } from "../api/hooks";
+import { useStore } from "../api/commons";
 import { usePayslips, useSetPlan } from "../api/society";
 import { Countdown } from "../components/Countdown";
 import { DiffSinceLastSeen } from "../components/DiffSinceLastSeen";
@@ -13,6 +14,7 @@ import { Ledger } from "../components/Ledger";
 import { Meter } from "../components/Meter";
 import { Num } from "../components/Num";
 import { useNames } from "../lib/names";
+import { drawRows } from "../lib/draws";
 import { needHints } from "../lib/needs";
 import { payslipRows } from "../lib/payslips";
 import { epochEndingText, whenOfTick } from "../lib/when";
@@ -30,6 +32,8 @@ export function Home({ id }: { id: number }) {
   const slips = usePayslips(id);
   const { t } = useLexicon(id);
   const caps = useCapabilities(id);
+  const hasStore = caps.data?.common_store === true;
+  const store = useStore(id, hasStore && home.data !== undefined);
   const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const keep = useSetPlan(id);
   const [kept, setKept] = useState<number | null>(null);
@@ -62,6 +66,10 @@ export function Home({ id }: { id: number }) {
   const rent = h.household.dwelling?.rent_per_cycle;
   const hints = needHints(t, caps.data);
   const ending = epochEndingText(h.clock);
+  const money = caps.data?.money !== false;
+  const shelf = (good: string) => store.data?.stock.find((s) => s.good === good);
+  const food = shelf("food");
+  const wares = shelf("wares");
 
   return (
     <div className="flex flex-col gap-8">
@@ -100,10 +108,39 @@ export function Home({ id }: { id: number }) {
           <Meter label="Comfort" value={h.needs.comfort} hint={hints.comfort} />
         </div>
         <dl className="grid grid-cols-2 gap-y-1 text-sm">
-          <dt className="text-muted">{t("balance")}</dt>
-          <dd className="num">
-            <Num value={credits(h.household.balance)} unit="cr" />
-          </dd>
+          {money ? (
+            <>
+              <dt className="text-muted">{t("balance")}</dt>
+              <dd className="num">
+                <Num value={credits(h.household.balance)} unit="cr" />
+              </dd>
+            </>
+          ) : null}
+          {hasStore ? (
+            <>
+              <dt className="text-muted">{t("store")}</dt>
+              <dd className="num" data-testid="store-tile">
+                {store.data ? (
+                  <>
+                    {food?.stock ?? 0} food, {wares?.stock ?? 0} wares on the shelf
+                    <span className="text-muted block text-xs">
+                      {food && food.my_pending > 0
+                        ? `${food.my_pending} Food asked this hour`
+                        : food && food.my_entitlement > 0
+                          ? `you may draw ${food.my_entitlement} Food`
+                          : "your Food meter is full"}
+                      {" · "}
+                      <Link to="/s/$id/store" params={{ id: String(id) }} className="underline">
+                        the shelves
+                      </Link>
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted">Loading.</span>
+                )}
+              </dd>
+            </>
+          ) : null}
           <dt className="text-muted">{t("pantry")}</dt>
           <dd className="num" data-testid="pantry">
             {Object.entries(h.household.pantry)
@@ -139,16 +176,25 @@ export function Home({ id }: { id: number }) {
         </div>
         <div>
           <h3 className="text-lg">{t("compensation")}</h3>
-          <div className="mt-2" data-testid="payslips">
-            <Ledger
-              rows={
-                slips.data
-                  ? payslipRows(slips.data.payslips as unknown as EventRef[], names.org, 5)
-                  : []
-              }
-              empty="No payslip yet. The first comes at the end of the day."
-            />
-          </div>
+          {hasStore ? (
+            <div className="mt-2" data-testid="draws">
+              <Ledger
+                rows={store.data ? drawRows(store.data.my_draws as unknown as EventRef[], h.clock.ticks_per_cycle, 5) : []}
+                empty="No draw yet. Your plan asks the Store for Food when the meter has room for a unit."
+              />
+            </div>
+          ) : (
+            <div className="mt-2" data-testid="payslips">
+              <Ledger
+                rows={
+                  slips.data
+                    ? payslipRows(slips.data.payslips as unknown as EventRef[], names.org, 5)
+                    : []
+                }
+                empty="No payslip yet. The first comes at the end of the day."
+              />
+            </div>
+          )}
         </div>
       </section>
 
@@ -172,8 +218,8 @@ export function Home({ id }: { id: number }) {
         <div>
           <h3 className="text-lg">{t("plan")}</h3>
           <p className="text-muted mt-2 text-sm">
-            Keep Food at least {String((h.plan as Record<string, unknown>).keep_food_at_least)}; keep{" "}
-            {credits(Number((h.plan as Record<string, unknown>).keep_balance_at_least ?? 0))} cr in hand.
+            Keep Food at least {String((h.plan as Record<string, unknown>).keep_food_at_least)}
+            {money ? `; keep ${credits(Number((h.plan as Record<string, unknown>).keep_balance_at_least ?? 0))} cr in hand.` : "."}
           </p>
           <button
             type="button"

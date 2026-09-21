@@ -117,6 +117,9 @@ pub struct Citizenship {
     /// Commands by how they reached the engine: `web`, `api_key`, `plan`, ...
     /// (TDD 13 telemetry; an agent on a key shows here).
     pub action_share: BTreeMap<String, u64>,
+    /// Honors the assembly has conferred on this citizen (S2.3, S2.7).
+    #[serde(default)]
+    pub honors: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]

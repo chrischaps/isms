@@ -588,6 +588,7 @@ REST for commands and queries, WebSocket for the live event stream, OpenAPI 3.1 
 | Explain | `GET /s/{id}/explain/{event_seq}` (returns the `Explain` payloads of an event; the UI usually already has them inline) |
 | Public / spectator | `GET /public/societies`, `GET /public/s/{id}/stats`, `GET /public/s/{id}/chronicle`, `GET /public/s/{id}/archives`, `GET /public/s/{id}/archives/{epoch}` — no citizenship needed |
 | Assembly (Phase 2, S2.5) | `GET/POST /s/{id}/proposals`, `GET /s/{id}/proposals/{pid}`, `PUT /s/{id}/proposals/{pid}/ballot`, `GET /s/{id}/offices`, `POST/DELETE /s/{id}/offices/{kind}/candidacy`, `PUT /s/{id}/offices/{kind}/ballot` (approval, Q125), `POST /s/{id}/orgs/{oid}/disbursements` (a members' vote, S2.4); the floor of a proposal is the channel `assembly:<pid>` |
+| Commons (Phase 2, S2.7) | `GET /s/{id}/store` (`StoreView`: the shelves with the caller's entitlement and pending draw, the rationing rule in force, yesterday and today from the log, the caller's draw record; 422 `NoStore` elsewhere), `GET /s/{id}/ledger` (`ContributionView`: every citizen's hours exact and output as attributed with σ stated, the norm met today and over the record, honors, the caller's row marked; 422 `NotInThisSociety` where labor is not by norm), `POST`/`DELETE /s/{id}/workplaces/{wid}/position` (`JoinWorkplace`/`LeaveWorkplace`: a norm position, Q141); `LaborView.positions` lists every position held, contract or not; `ScoreRow.contribution` where labor is by norm |
 
 Visibility rules are enforced server-side once, in a `Viewer` type: your own true output vs. others' noisy attribution; DMs; org channels; managers' per-worker views. The engine records everything; the API decides who sees what, per the constitution.
 
@@ -1029,7 +1030,7 @@ Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; t
 - **Done gate.** `pnpm typecheck/lint/test`; Playwright `assembly.spec.ts` green in CI; the nav absent in Freeport.
 - **Hand-off.** Builder components reused by S2.8's rationing form. Depends on S2.5. ∥ with S2.4.
 
-#### S2.7 ∥ — Common Store and Ledger of Contribution screens *(server + web)*
+#### S2.7 ∥ — Common Store and Ledger of Contribution screens *(server + web; done 2026-09-20)*
 - **Goal.** A Commune citizen's day is the Store's stock and the Ledger, on two screens.
 - **Read.** GDD §6.2 (Production and the Common Store, Labor, Scoreboard), §15; `store.rs`, `norms.rs`, `world.rs` (`ContributionRecord`, `CommonStore`); `Market.tsx` (the per-good page as the pattern), `Work.tsx`.
 - **Build.** `GET /s/{id}/store` (`StoreView`: stock per good, this tick's requests, the rule in force, served/short last cycle, my entitlement and pending draw, surplus shares) and `GET /s/{id}/ledger` (`ContributionView`: hours exact, output as attributed with σ stated, norm cycles met, honors; my row marked). `screens/Store.tsx` on `caps.common_store`, `screens/Ledger.tsx` on `caps.labor === "norm"`; Home tiles for stock and my draw; honors on `Profile.tsx` and the citizens list; the Commune scoreboard fields. Playwright `commune.spec.ts` (stock shown, a draw lands in the pantry, my ledger row shows today's hours).

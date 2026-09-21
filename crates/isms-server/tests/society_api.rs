@@ -7,14 +7,14 @@ use axum_test::TestServer;
 use isms_api_types::chronicle::MessagesView;
 use isms_api_types::society::{
     ArchiveView, ArchivesView, BookView, BooksView, CitizensView, Committed, ContractsView,
-    DigestView, ExplainView, HomeView, HouseholdersView, NoticeBoardView, OfficesView,
-    OrgLedgerView, OrgView, OrgsView, PayslipsView, PlanView, PricesView, ProposalView,
-    ProposalsView, ScoreboardView, StatsView, StreamFrame,
+    ContributionView, DigestView, ExplainView, HomeView, HouseholdersView, NoticeBoardView,
+    OfficesView, OrgLedgerView, OrgView, OrgsView, PayslipsView, PlanView, PricesView,
+    ProposalView, ProposalsView, ScoreboardView, StatsView, StoreView, StreamFrame,
 };
 use isms_api_types::{Joined, Problem, RejectCode};
 use isms_core::WORKSPACE_PRESETS_DIR;
 use isms_core::command::{Command, Envelope};
-use isms_core::event::Actor;
+use isms_core::event::{Actor, Event};
 use isms_core::ids::CitizenId;
 use isms_core::kinds::{ClientKind, Good};
 use isms_core::ledger::{Asset, Party};
@@ -1567,4 +1567,223 @@ async fn a_members_disbursement_is_moved_and_voted_over_the_wire(pool: PgPool) {
     assert!(outcome.effects.iter().any(|e| e.kind == "Disbursed"));
     let v: ProposalsView = x.get(f.id, "/proposals").await;
     assert!(v.closed.is_empty(), "an outsider sees no members' vote");
+}
+
+// -- the Common Store and the Ledger of Contribution (S2.7) ------------------------
+
+/// S2.7 done gate: the Store's entitlement is the engine's; a norm position
+/// taken over the wire puts hours on the Ledger; the Ledger shows output as
+/// attributed and never the true figure while sigma > 0; the day's close
+/// writes the record and the Store reports yesterday.
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn the_store_and_the_ledger_of_the_commune(pool: PgPool) {
+    let f = fixture(pool, "commune").await;
+    let a = f.client("hand").await;
+
+    // The shelves and the rule, with my entitlement as `store::entitlement` computes it.
+    let s: StoreView = a.get(f.id, "/store").await;
+    assert_eq!(s.rule, "need_first");
+    assert_eq!(s.stock[0].good, Good::Food);
+    assert_eq!(s.stock[1].good, Good::Wares);
+    {
+        let w = f.handle.world.read().await;
+        let me = w.citizens.get(&CitizenId(a.citizen)).unwrap();
+        for row in &s.stock {
+            assert_eq!(
+                row.my_entitlement,
+                isms_core::store::entitlement(&w, me, row.good),
+                "{:?}",
+                row.good
+            );
+            assert_eq!(row.my_pending, 0);
+        }
+        let active = w.citizens.values().filter(|c| !c.dormant).count();
+        assert_eq!(s.active_citizens, u32::try_from(active).unwrap());
+        assert_eq!(
+            s.stock[0].share_if_shared_now,
+            s.stock[0].stock / s.active_citizens
+        );
+    }
+    assert!(s.last_cycle.is_none());
+    assert!(s.yesterday.is_empty());
+    assert!(s.my_draws.is_empty());
+
+    // A norm position, taken over the wire (Q62, Q141): no contract, on the labor view.
+    let wid = {
+        let w = f.handle.world.read().await;
+        w.workplaces
+            .values()
+            .find(|wp| isms_core::orgs::check_room(&w, wp.id).is_ok())
+            .map(|wp| wp.id.0)
+            .expect("a workplace with room")
+    };
+    let taken = a
+        .ok(f.id, &format!("/workplaces/{wid}/position"), json!({}))
+        .await;
+    assert_eq!(kinds(&taken), vec!["Assigned"]);
+    let home: HomeView = a.get(f.id, "/home").await;
+    assert_eq!(home.labor.positions.len(), 1);
+    assert_eq!(home.labor.positions[0].workplace, wid);
+    assert!(home.labor.positions[0].contract.is_none());
+    assert!(home.labor.employment.is_empty());
+    assert_eq!(
+        reject(
+            &a.post(f.id, &format!("/workplaces/{wid}/position"), json!({}))
+                .await
+        ),
+        RejectCode::AlreadyExists
+    );
+    let r = a
+        .put(
+            f.id,
+            "/labor",
+            json!({ "allocations": [{ "workplace": wid, "hours": 6, "effort": "normal" }] }),
+        )
+        .await;
+    assert_eq!(r.status_code(), 200, "{}", r.text());
+
+    // Two hours of work: the Ledger has my hours exactly and my output as attributed.
+    f.tick(2).await;
+    let l: ContributionView = a.get(f.id, "/ledger").await;
+    assert_eq!(l.norm_hours, Some(6));
+    assert_eq!(l.monitoring, "low");
+    assert!(l.sigma > 0.0, "the Commune's monitoring is low, sigma > 0");
+    assert_eq!(l.rows.iter().filter(|r| r.is_me).count(), 1);
+    let mine = l.rows.iter().find(|r| r.is_me).unwrap();
+    assert_eq!(mine.handle, "hand");
+    assert_eq!(mine.workplaces, vec![wid]);
+    assert!(
+        (mine.hours_today - 12.0 / 24.0).abs() < 1e-9,
+        "{}",
+        mine.hours_today
+    );
+    assert!(!mine.norm_met_today);
+    assert_eq!(mine.days, 0);
+    // The true figures live only in the `Produced` events; the Ledger carries the noised sum.
+    let produced = f
+        .store
+        .read_last_of_kind(f.id, "Produced", 10_000)
+        .await
+        .unwrap();
+    let (mut true_sum, mut attributed_sum) = (0.0_f64, 0.0_f64);
+    for e in &produced {
+        if let Event::Produced { per_worker, .. } = &e.event {
+            for w in per_worker {
+                if w.citizen == CitizenId(a.citizen) {
+                    true_sum += w.true_output;
+                    attributed_sum += w.attributed_output;
+                }
+            }
+        }
+    }
+    assert!(attributed_sum > 0.0, "the hours produced something");
+    assert!((mine.attributed_today - attributed_sum).abs() < 1e-9);
+    assert!(
+        (mine.attributed_today - true_sum).abs() > 1e-9,
+        "with sigma > 0 the Ledger never shows the exact output"
+    );
+    let raw = a.server.get(&p(f.id, "/ledger")).await.text();
+    assert!(!raw.contains("true_output"));
+    // Active rows come first, by hours today; every dormant row after.
+    let first_dormant = l
+        .rows
+        .iter()
+        .position(|r| r.dormant)
+        .unwrap_or(l.rows.len());
+    assert!(l.rows[..first_dormant].iter().all(|r| !r.dormant));
+    assert!(
+        l.rows[..first_dormant]
+            .windows(2)
+            .all(|w| w[0].hours_today >= w[1].hours_today)
+    );
+    assert!(l.least_staffed.is_some());
+
+    // The day closes: the record has a day, the norm met; the Store reports yesterday.
+    f.tick(22).await;
+    let l: ContributionView = a.get(f.id, "/ledger").await;
+    let mine = l.rows.iter().find(|r| r.is_me).unwrap();
+    assert_eq!(mine.days, 1);
+    assert!(
+        (mine.hours_yesterday - 6.0).abs() < 1e-9,
+        "{}",
+        mine.hours_yesterday
+    );
+    assert_eq!(mine.norm_met_days, 1);
+    assert!((mine.hours_total - 6.0).abs() < 1e-9);
+    let s: StoreView = a.get(f.id, "/store").await;
+    assert_eq!(s.last_cycle, Some(0));
+    let food = s
+        .yesterday
+        .iter()
+        .find(|d| d.good == Good::Food)
+        .expect("someone drew Food yesterday");
+    assert!(food.requested > 0);
+    assert!(food.served <= food.requested);
+    assert_eq!(food.short, food.requested - food.served);
+    // My own draws, oldest first, each with its Explain.
+    assert!(
+        s.my_draws.windows(2).all(|w| w[0].seq < w[1].seq),
+        "the draw record is oldest first"
+    );
+    for d in &s.my_draws {
+        assert_eq!(d.kind, "Drew");
+        assert!(d.payload["Drew"]["explain"]["rule"].is_string());
+    }
+
+    // The Commune's scoreboard ranks the contribution record, not net worth.
+    let sb: ScoreboardView = a.get(f.id, "/scoreboard").await;
+    assert!(sb.rows.iter().all(|r| r.contribution.is_some()));
+    assert!(sb.rows.windows(2).all(|w| {
+        w[0].contribution.as_ref().unwrap().hours_total
+            >= w[1].contribution.as_ref().unwrap().hours_total
+    }));
+    let me = sb.rows.iter().find(|r| r.citizen == a.citizen).unwrap();
+    assert_eq!(me.contribution.as_ref().unwrap().norm_met_days, 1);
+
+    // Giving the position up.
+    let left = a.delete(f.id, &format!("/workplaces/{wid}/position")).await;
+    assert_eq!(left.status_code(), 200, "{}", left.text());
+    let left: Committed = left.json();
+    assert_eq!(kinds(&left), vec!["Unassigned"]);
+    let home: HomeView = a.get(f.id, "/home").await;
+    assert!(home.labor.positions.is_empty());
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn freeport_has_no_store_and_no_ledger(pool: PgPool) {
+    let f = fixture(pool, "freeport").await;
+    let a = f.client("trader").await;
+    assert_eq!(
+        reject(&a.server.get(&p(f.id, "/store")).await),
+        RejectCode::NoStore
+    );
+    assert_eq!(
+        reject(&a.server.get(&p(f.id, "/ledger")).await),
+        RejectCode::NotInThisSociety
+    );
+    let wid = f
+        .handle
+        .world
+        .read()
+        .await
+        .workplaces
+        .keys()
+        .next()
+        .unwrap()
+        .0;
+    assert_eq!(
+        reject(
+            &a.post(f.id, &format!("/workplaces/{wid}/position"), json!({}))
+                .await
+        ),
+        RejectCode::NotInThisSociety
+    );
+    let sb: ScoreboardView = a.get(f.id, "/scoreboard").await;
+    assert!(sb.rows.iter().all(|r| r.contribution.is_none()));
+    let me: isms_api_types::Me = {
+        let r = a.server.get("/me").await;
+        assert_eq!(r.status_code(), 200, "{}", r.text());
+        r.json()
+    };
+    assert_eq!(me.citizenships[0].honors, 0);
 }

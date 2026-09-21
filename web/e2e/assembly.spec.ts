@@ -19,10 +19,10 @@ test("a Commune citizen moves a proposal, votes, and sees it carried", async ({ 
   test.setTimeout(150_000);
   await context.addCookies([{ name: "isms_session", value: session!, domain: "127.0.0.1", path: "/" }]);
 
-  // Join the Commune, not the first society in the list.
+  // Join the assembly test's own Commune (seeded as commune-*), not the first society in the list.
   await page.goto("/");
   const list = page.getByTestId("society-list");
-  const commune = list.locator("li", { hasText: "The Commune" });
+  const commune = list.locator("li", { hasText: /commune-\d+/ });
   await expect(commune).toBeVisible();
   const freeport = list.locator("li", { hasText: "Freeport" }).first();
   const freeportHref = await freeport.getByRole("link").first().getAttribute("href");

@@ -636,6 +636,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/s/{id}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Ledger of Contribution: every citizen's hours (exact) and output (as attributed, sigma stated), the norm met or not, honors; your row marked */
+        get: operations["get_ledger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/s/{id}/notice-board": {
         parameters: {
             query?: never;
@@ -1201,6 +1218,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/s/{id}/store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Common Store: the shelves, the rule in force, your entitlement and pending draw, yesterday's service, your draw record */
+        get: operations["get_store"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/s/{id}/stream": {
         parameters: {
             query?: never;
@@ -1230,6 +1264,24 @@ export interface paths {
         /** Give money or goods to a citizen or an org */
         post: operations["transfer"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/s/{id}/workplaces/{wid}/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take a position at a workplace under the work norm (no contract; Q62) */
+        post: operations["take_position"];
+        /** Give up a norm position */
+        delete: operations["leave_position"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1606,6 +1658,11 @@ export interface components {
             /** Format: int32 */
             citizen_id: number;
             handle: string;
+            /**
+             * Format: int32
+             * @description Honors the assembly has conferred on this citizen (S2.3, S2.7).
+             */
+            honors?: number;
             /** Format: int64 */
             society_id: number;
         };
@@ -1673,6 +1730,103 @@ export interface components {
         ContractsView: {
             clock: components["schemas"]["Clock"];
             contracts: components["schemas"]["ContractView"][];
+        };
+        /**
+         * @description One citizen's line on the Ledger of Contribution (GDD 6.2): hours exact,
+         *     output as attributed under the society's monitoring, the norm met or not.
+         */
+        ContributionRow: {
+            /**
+             * Format: double
+             * @description Output attributed so far today under the monitoring in force: with
+             *     σ > 0 this is a noised figure, never the true one (Q55).
+             */
+            attributed_today: number;
+            /** Format: double */
+            attributed_total: number;
+            /** Format: double */
+            attributed_yesterday: number;
+            /** Format: int32 */
+            citizen: number;
+            /**
+             * Format: int32
+             * @description Every closed day on the record.
+             */
+            days: number;
+            dormant: boolean;
+            handle: string;
+            /**
+             * Format: int32
+             * @description Honors the assembly has conferred (S2.3).
+             */
+            honors: number;
+            /**
+             * Format: double
+             * @description Hours worked so far today (tick-hours over the day's ticks; exact, a decision).
+             */
+            hours_today: number;
+            /** Format: double */
+            hours_total: number;
+            /**
+             * Format: double
+             * @description The last closed day.
+             */
+            hours_yesterday: number;
+            is_me: boolean;
+            kind: string;
+            /**
+             * Format: int32
+             * @description Closed days on which the norm was met.
+             */
+            norm_met_days: number;
+            /** @description Whether today's hours already reach the norm. */
+            norm_met_today: boolean;
+            /** @description Where they hold a position today, by workplace id. */
+            workplaces: number[];
+        };
+        /** @description The Ledger of Contribution in three figures (GDD 6.2 Scoreboard). */
+        ContributionScore: {
+            /** Format: int32 */
+            days: number;
+            /** Format: double */
+            hours_total: number;
+            /** Format: int32 */
+            norm_met_days: number;
+        };
+        /**
+         * @description The Ledger of Contribution (GDD 6.2; S2.7): every citizen's public record,
+         *     the norm and the monitoring stated. Answers 422 `NotInThisSociety` where
+         *     labor is not by norm.
+         */
+        ContributionView: {
+            clock: components["schemas"]["Clock"];
+            /**
+             * Format: int32
+             * @description The workplace with room where labor is scarcest by the balance weights
+             *     (`orgs::least_staffed`, Q62): where the norm would send you.
+             */
+            least_staffed?: number | null;
+            /**
+             * Format: int32
+             * @description Positions per workplace and the cap, for the position picker.
+             */
+            max_workers_per_workplace: number;
+            /** Format: int32 */
+            max_workplaces: number;
+            /** @description The monitoring level in force: `high`, `medium`, `low`. */
+            monitoring: string;
+            /**
+             * Format: int32
+             * @description The published work norm, hours per day (`policy.work_norm_hours`).
+             */
+            norm_hours?: number | null;
+            /** @description Active citizens first, by hours today, then by handle; dormant citizens after. */
+            rows: components["schemas"]["ContributionRow"][];
+            /**
+             * Format: double
+             * @description The σ of the attribution noise: 0 means the figures are exact.
+             */
+            sigma: number;
         };
         CreditOfferRequest: {
             collateral?: Record<string, never> | null;
@@ -1931,6 +2085,11 @@ export interface components {
             fatigue_debt: number;
             /** Format: double */
             output_mult: number;
+            /**
+             * @description Every position the caller holds, contract or not (S2.7): the norm
+             *     systems' positions have no contract and would otherwise not show.
+             */
+            positions?: components["schemas"]["PositionView"][];
             skills: components["schemas"]["SkillView"][];
         };
         LeaseOfferRequest: {
@@ -2152,6 +2311,21 @@ export interface components {
             clock: components["schemas"]["Clock"];
             plan: Record<string, never>;
         };
+        /** @description A position the caller holds at a workplace, with or without a contract (S2.7). */
+        PositionView: {
+            /**
+             * Format: int32
+             * @description The employment contract, where positions come by contract; `None`
+             *     for a norm position (`JoinWorkplace`, Q62).
+             */
+            contract?: number | null;
+            kind: string;
+            /** Format: int32 */
+            org: number;
+            org_name: string;
+            /** Format: int32 */
+            workplace: number;
+        };
         PostMessage: {
             body: string;
         };
@@ -2348,6 +2522,7 @@ export interface components {
         ScoreRow: {
             /** Format: int32 */
             citizen: number;
+            contribution?: null | components["schemas"]["ContributionScore"];
             firms: components["schemas"]["FirmValuation"][];
             handle: string;
             /**
@@ -2425,6 +2600,112 @@ export interface components {
             /** @description The last `CycleClosed.aggregates` (engine shape), if a cycle has closed. */
             last_cycle?: Record<string, never> | null;
             live: components["schemas"]["SocietyPulse"];
+        };
+        /**
+         * @description One good on the Store's shelves this tick (GDD 6.2), with the caller's
+         *     own standing toward it.
+         */
+        StockView: {
+            good: string;
+            /**
+             * Format: int32
+             * @description Meter tenths one unit restores, for the goods drawn by need; `None` otherwise.
+             */
+            meter_per_unit?: number | null;
+            /**
+             * Format: int32
+             * @description What the caller may still draw this tick (`store::entitlement`): the
+             *     units that bring the meter to full, less pantry and pending, capped by
+             *     pantry room. 0 for a good the Store does not ration by need.
+             */
+            my_entitlement: number;
+            /**
+             * Format: int32
+             * @description The caller's request this tick, not yet served.
+             */
+            my_pending: number;
+            /**
+             * Format: int32
+             * @description Units requested this tick and not yet resolved (phase 6 resolves them).
+             */
+            requested: number;
+            /**
+             * Format: int32
+             * @description Citizens with a request in this tick.
+             */
+            requesters: number;
+            /**
+             * Format: int32
+             * @description What each active citizen would get if the day ended now:
+             *     `floor(stock / active citizens)` (GDD 6.2, Q54).
+             */
+            share_if_shared_now: number;
+            /**
+             * Format: int32
+             * @description Units on the shelf now.
+             */
+            stock: number;
+        };
+        /** @description How one good fared over a whole day: what was asked, what was served. */
+        StoreDayView: {
+            good: string;
+            /**
+             * Format: int32
+             * @description Hours in which the rationing rule had to decide (served < requested).
+             */
+            rationed_ticks: number;
+            /** Format: int32 */
+            requested: number;
+            /** Format: int32 */
+            served: number;
+            /**
+             * Format: int32
+             * @description Units shared out equally at the day's end (surplus shares).
+             */
+            shared: number;
+            /**
+             * Format: int32
+             * @description Citizens who received a surplus share.
+             */
+            shared_with: number;
+            /**
+             * Format: int32
+             * @description `requested - served`: the units the Store could not find.
+             */
+            short: number;
+        };
+        /**
+         * @description The Common Store (GDD 6.2; S2.7): the shelves, the rule in force, the
+         *     caller's entitlement and pending draw, yesterday's service, and the
+         *     caller's draw record. Answers 422 `NoStore` where there is no store.
+         */
+        StoreView: {
+            /**
+             * Format: int32
+             * @description Active citizens: the denominator of a surplus share.
+             */
+            active_citizens: number;
+            clock: components["schemas"]["Clock"];
+            /**
+             * Format: int32
+             * @description The engine's 0-based cycle `last_cycle` reports; `None` before a day has closed.
+             */
+            last_cycle?: number | null;
+            /** @description The caller's `Drew` events, oldest first (the draw record; GDD 9.1 step 3). */
+            my_draws: components["schemas"]["EventRef"][];
+            my_pantry: Record<string, never>;
+            pantry_capacity: Record<string, never>;
+            /**
+             * @description The rationing rule in force when the stock runs short:
+             *     `need_first`, `equal_shortfall` or `lottery` (`policy.rationing`).
+             */
+            rule: string;
+            /** @description Per good, in the engine's order; the goods drawn by need come first. */
+            stock: components["schemas"]["StockView"][];
+            /** @description Today so far, per good that anyone has asked for. */
+            today: components["schemas"]["StoreDayView"][];
+            /** @description Yesterday, per good that anyone asked for or that was shared. */
+            yesterday: components["schemas"]["StoreDayView"][];
         };
         /**
          * @description The count on a proposal (engine `Tally`): `cast` includes abstentions and
@@ -3850,6 +4131,37 @@ export interface operations {
             };
         };
     };
+    get_ledger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContributionView"];
+                };
+            };
+            /** @description Labor is not by norm here */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     notice_board: {
         parameters: {
             query?: never;
@@ -5075,6 +5387,37 @@ export interface operations {
             };
         };
     };
+    get_store: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreView"];
+                };
+            };
+            /** @description No Common Store in this society */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     stream: {
         parameters: {
             query?: never;
@@ -5119,6 +5462,70 @@ export interface operations {
                 "application/json": components["schemas"]["TransferRequest"];
             };
         };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    take_position: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description Workplace id */
+                wid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Committed"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    leave_position: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Society id */
+                id: number;
+                /** @description Workplace id */
+                wid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {

@@ -5,9 +5,9 @@ use crate::state::clock_of;
 use crate::viewer::Viewer;
 use isms_api_types::society::{
     AllocationView, BookSummary, BookView, CitizenPublic, CitizenSelfView, ContractView,
-    DwellingView, EffortCosts, FirmValuation, FoundingCosts, HouseholdView, LaborView, Level,
-    NeedsView, OfferView, OrderView, OrgView, RecipeView, ScoreRow, SkillView, SlotSummary,
-    SocietyPulse, WorkerView, WorkplaceView, cents, instrument_name,
+    ContributionScore, DwellingView, EffortCosts, FirmValuation, FoundingCosts, HouseholdView,
+    LaborView, Level, NeedsView, OfferView, OrderView, OrgView, PositionView, RecipeView, ScoreRow,
+    SkillView, SlotSummary, SocietyPulse, WorkerView, WorkplaceView, cents, instrument_name,
 };
 use isms_core::ids::{CitizenId, OrgId};
 use isms_core::kinds::{CitizenKind, Good, WorkplaceKind};
@@ -152,6 +152,23 @@ pub fn labor(world: &World, viewer: &Viewer, c: CitizenId) -> Option<LaborView> 
         .into_iter()
         .filter(|k| k.body.get("employment").is_some() && k.role == "party")
         .collect();
+    // Every position held, contract or not: a norm position (S0.15c, Q62)
+    // has none and would otherwise be invisible on the wire (S2.7).
+    let positions = world
+        .workplaces
+        .values()
+        .filter_map(|wp| {
+            let a = wp.workers.get(&c)?;
+            let org = world.orgs.get(&wp.org)?;
+            Some(PositionView {
+                workplace: wp.id.0,
+                org: org.id.0,
+                org_name: org.name.clone(),
+                kind: wp.kind,
+                contract: a.contract.map(|k| k.0),
+            })
+        })
+        .collect();
     let lp = &world.params.labor;
     Some(LaborView {
         budget: l.budget,
@@ -160,6 +177,7 @@ pub fn labor(world: &World, viewer: &Viewer, c: CitizenId) -> Option<LaborView> 
         allocations,
         skills,
         employment,
+        positions,
         effort: EffortCosts {
             output_mult: [
                 lp.effort_output_mult.low,
@@ -476,7 +494,13 @@ pub fn citizens_public(world: &World) -> Vec<CitizenPublic> {
         .collect()
 }
 
+/// The scoreboard the constitution keeps (GDD 10): Freeport's net worth and
+/// firms everywhere money exists; where labor is by norm, the Commune's
+/// contribution record and honors rank the rows instead (S2.7).
+#[allow(clippy::cast_precision_loss)]
 pub fn scoreboard(world: &World) -> Vec<ScoreRow> {
+    let by_norm = world.constitution.labor == isms_core::constitution::LaborMode::Norm;
+    let tpc = f64::from(world.ticks_per_cycle());
     let mut rows: Vec<ScoreRow> = world
         .citizens
         .values()
@@ -510,14 +534,31 @@ pub fn scoreboard(world: &World) -> Vec<ScoreRow> {
                 self_made: cents(self_made(world, c.id)),
                 firms,
                 honors: isms_core::metrics::honors_of(c),
+                contribution: by_norm.then(|| ContributionScore {
+                    hours_total: c.contribution.tick_hours_total as f64 / tpc,
+                    days: c.contribution.cycles,
+                    norm_met_days: c.contribution.norm_met_cycles,
+                }),
             }
         })
         .collect();
-    rows.sort_by(|a, b| {
-        b.net_worth
-            .cmp(&a.net_worth)
-            .then(a.citizen.cmp(&b.citizen))
-    });
+    if by_norm {
+        rows.sort_by(|a, b| {
+            let (ha, hb) = (
+                a.contribution.as_ref().map_or(0.0, |x| x.hours_total),
+                b.contribution.as_ref().map_or(0.0, |x| x.hours_total),
+            );
+            hb.total_cmp(&ha)
+                .then(b.honors.cmp(&a.honors))
+                .then(a.citizen.cmp(&b.citizen))
+        });
+    } else {
+        rows.sort_by(|a, b| {
+            b.net_worth
+                .cmp(&a.net_worth)
+                .then(a.citizen.cmp(&b.citizen))
+        });
+    }
     rows
 }
 

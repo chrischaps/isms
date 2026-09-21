@@ -81,6 +81,7 @@ export function Profile() {
               <tr>
                 <th className="py-1 font-normal">Society</th>
                 <th className="py-1 font-normal">Handle</th>
+                <th className="py-1 text-right font-normal">Honors</th>
                 <th className="py-1 font-normal">How you act</th>
               </tr>
             </thead>
@@ -96,6 +97,9 @@ export function Profile() {
                       </Link>
                     </td>
                     <td className="py-1 pr-2">{c.handle}</td>
+                    <td className="num py-1 pr-2 text-right" data-testid="honors">
+                      {(c.honors ?? 0) > 0 ? c.honors : <span className="text-muted">—</span>}
+                    </td>
                     <td className="py-1 text-xs" data-testid="action-share">
                       {total === 0
                         ? "no actions yet"
