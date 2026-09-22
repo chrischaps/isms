@@ -1,0 +1,30 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "first_seq": 235,
+  "events": [
+   {
+    "seq": 235,
+    "tick": 1,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "Assigned",
+    "payload": {
+     "Assigned": {
+      "citizen": 40,
+      "contract": null,
+      "workplace": 1
+     }
+    }
+   }
+  ]
+ }
+}

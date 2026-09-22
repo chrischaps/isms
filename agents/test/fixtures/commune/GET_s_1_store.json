@@ -1,0 +1,66 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "rule": "need_first",
+  "stock": [
+   {
+    "good": "food",
+    "stock": 960,
+    "requested": 0,
+    "requesters": 0,
+    "my_entitlement": 0,
+    "my_pending": 0,
+    "meter_per_unit": 6,
+    "share_if_shared_now": 20
+   },
+   {
+    "good": "wares",
+    "stock": 0,
+    "requested": 0,
+    "requesters": 0,
+    "my_entitlement": 0,
+    "my_pending": 0,
+    "meter_per_unit": 6,
+    "share_if_shared_now": 0
+   },
+   {
+    "good": "grain",
+    "stock": 360,
+    "requested": 0,
+    "requesters": 0,
+    "my_entitlement": 0,
+    "my_pending": 0,
+    "meter_per_unit": null,
+    "share_if_shared_now": 7
+   },
+   {
+    "good": "ore",
+    "stock": 180,
+    "requested": 0,
+    "requesters": 0,
+    "my_entitlement": 0,
+    "my_pending": 0,
+    "meter_per_unit": null,
+    "share_if_shared_now": 3
+   }
+  ],
+  "active_citizens": 48,
+  "last_cycle": null,
+  "yesterday": [],
+  "today": [],
+  "my_draws": [],
+  "my_pantry": {},
+  "pantry_capacity": {
+   "food": 48,
+   "wares": 48
+  }
+ }
+}

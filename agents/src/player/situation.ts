@@ -13,7 +13,8 @@ export function extract(home: HomeView): Situation {
     shelter: home.needs.shelter,
     comfort: home.needs.comfort,
     housed: home.household.dwelling != null,
-    jobs: home.labor.employment.length,
+    // Contract-less positions under a norm count as jobs (S2.10); in Freeport every position has a contract.
+    jobs: home.labor.employment.length + (home.labor.positions ?? []).filter((p) => p.contract == null).length,
     pantry_food: pantry.food ?? 0,
   };
 }
@@ -34,6 +35,7 @@ export function situationText(home: HomeView): string {
     const rate = pay.hourly !== undefined ? `${credits(pay.hourly)}/h` : pay.piece_rate !== undefined ? `${credits(pay.piece_rate)} a unit` : "?";
     return `contract ${e.id}: org ${String(b.org)} workplace ${String(b.workplace)} at ${rate}, up to ${String(b.max_hours)} h/day (${e.status})`;
   });
+  const positions = (home.labor.positions ?? []).filter((p) => p.contract == null).map((p) => `workplace ${p.workplace} (${p.org_name}, ${p.kind})`);
   const alloc = home.labor.allocations.map((a) => `${a.hours} h at workplace ${a.workplace} (${a.org_name}, ${a.kind}) effort ${a.effort}`);
   const dwelling = h.dwelling
     ? `dwelling ${h.dwelling.id}${h.dwelling.rent_per_cycle != null ? ` renting at ${credits(h.dwelling.rent_per_cycle)} a day` : ", yours"}`
@@ -50,7 +52,7 @@ export function situationText(home: HomeView): string {
     `You are ${home.citizen.handle} (citizen ${home.citizen.id})${flags.length ? `; flags: ${flags.join(", ")}` : ""}.`,
     `Needs: food ${home.needs.food.toFixed(0)}, shelter ${home.needs.shelter.toFixed(0)}, comfort ${home.needs.comfort.toFixed(0)} (each 0-100; below 20 food for a whole day is hardship).`,
     `Balance ${credits(h.balance)} credits. Pantry: ${pantry || "empty"}. Housing: ${dwelling}.`,
-    `Jobs: ${jobs.length ? jobs.join("; ") : "none"}.`,
+    positions.length ? `Positions under the norm: ${positions.join("; ")}.` : `Jobs: ${jobs.length ? jobs.join("; ") : "none"}.`,
     `Labor this day: ${alloc.length ? alloc.join("; ") : "nothing allocated"}; budget ${home.labor.budget} h; output multiplier ${home.labor.output_mult.toFixed(2)}${home.labor.fatigue_debt ? `; fatigue debt ${home.labor.fatigue_debt} h` : ""}.`,
     `Society: ${home.society.population} citizens, ${home.society.active_humans} people, ${home.society.unemployed} unemployed; food last ${home.society.food_last_price != null ? credits(home.society.food_last_price) : "?"}; price index ${home.society.price_index?.toFixed(2) ?? "?"}.`,
     home.headlines.length ? `Headlines: ${home.headlines.map((x) => x.text).join(" | ")}` : "No headlines yet.",

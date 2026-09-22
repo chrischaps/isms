@@ -1,0 +1,687 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "citizens": [
+   {
+    "id": 0,
+    "handle": "H-0",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 1,
+    "handle": "H-1",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 2,
+    "handle": "H-2",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 3,
+    "handle": "H-3",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 4,
+    "handle": "H-4",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 5,
+    "handle": "H-5",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 6,
+    "handle": "H-6",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 7,
+    "handle": "H-7",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 8,
+    "handle": "H-8",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 9,
+    "handle": "H-9",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 10,
+    "handle": "H-10",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 11,
+    "handle": "H-11",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 12,
+    "handle": "H-12",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 13,
+    "handle": "H-13",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 14,
+    "handle": "H-14",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 15,
+    "handle": "H-15",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 16,
+    "handle": "H-16",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 17,
+    "handle": "H-17",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 18,
+    "handle": "H-18",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 19,
+    "handle": "H-19",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 20,
+    "handle": "H-20",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 21,
+    "handle": "H-21",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 22,
+    "handle": "H-22",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 23,
+    "handle": "H-23",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 24,
+    "handle": "H-24",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 25,
+    "handle": "H-25",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 26,
+    "handle": "H-26",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 27,
+    "handle": "H-27",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 28,
+    "handle": "H-28",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 29,
+    "handle": "H-29",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 30,
+    "handle": "H-30",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 31,
+    "handle": "H-31",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 32,
+    "handle": "H-32",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 33,
+    "handle": "H-33",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 34,
+    "handle": "H-34",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 35,
+    "handle": "H-35",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 36,
+    "handle": "H-36",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 37,
+    "handle": "H-37",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 38,
+    "handle": "H-38",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 39,
+    "handle": "H-39",
+    "kind": "householder",
+    "dormant": false,
+    "joined_tick": 0,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 40,
+    "handle": "founder-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 41,
+    "handle": "wage-maximiser-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 42,
+    "handle": "speculator-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 43,
+    "handle": "saver-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 44,
+    "handle": "slacker-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 45,
+    "handle": "borrower-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 46,
+    "handle": "landlord-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   },
+   {
+    "id": 47,
+    "handle": "rule-prober-1",
+    "kind": "human",
+    "dormant": false,
+    "joined_tick": 1,
+    "flags": {
+     "defaulted": false,
+     "destitute": false,
+     "in_hardship": false,
+     "options_narrowed": false
+    },
+    "honors": 0
+   }
+  ]
+ }
+}

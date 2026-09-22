@@ -1055,7 +1055,7 @@ Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; t
 - **Done gate.** The lexicon key test green for five files; a chronicle template test renders every governance event from fixtures; `make check`.
 - **Hand-off.** The keys the S2.6–S2.8 screens use; the Welcome fields the harness reads. Depends on S2.1–S2.3's event names. ∥ with S2.6–S2.8.
 
-#### S2.10 ∥ — Commune personas and tools for the agents harness
+#### S2.10 ∥ — Commune personas and tools for the agents harness *(agents; done 2026-09-21)*
 - **Goal.** `make e2e-agents PRESET=commune` plays a Commune day: proposing, voting, standing, drawing, reading the Ledger.
 - **Read.** `agents/README.md`, `agents/personas/*.md`, `agents/src/tools/`, `agents/src/brain/scripted/strategies.ts`, `scripts/agents/run.sh`; ADR-0010; S2.5's routes.
 - **Build.** Read tools `proposals`, `proposal`, `offices`, `store`, `ledger`; act tools `propose`, `vote`, `stand`, `withdraw_candidacy`, `set_plan`, `open_workplace`, `close_workplace`, `post_floor`. Personas `steward`, `rationer`, `free-rider`, `chronicler`; `rule-prober` gains governance probes (vote twice, vote as a householder id, propose a Directorate field). `run.sh` takes `PRESET`; `make e2e-agents` runs Freeport then Commune with `ASSERT_CLEAN=1`. The report gains a governance paragraph.

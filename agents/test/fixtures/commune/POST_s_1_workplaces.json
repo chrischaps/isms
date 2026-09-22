@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "You do not sit as Coordinator",
+  "code": "not_an_office_holder"
+ }
+}

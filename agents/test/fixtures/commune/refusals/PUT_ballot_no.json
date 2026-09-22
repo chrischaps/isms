@@ -1,0 +1,31 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "first_seq": 241,
+  "events": [
+   {
+    "seq": 241,
+    "tick": 1,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "Voted",
+    "payload": {
+     "Voted": {
+      "ballot": "no",
+      "by_default": false,
+      "citizen": 41,
+      "proposal": 1
+     }
+    }
+   }
+  ]
+ }
+}

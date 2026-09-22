@@ -9,11 +9,20 @@ import { invoke, type AnyTool, type Refusal, type ToolContext } from "../../tool
 import * as act from "../../tools/act.ts";
 import * as read from "../../tools/read.ts";
 import type { TurnInput } from "../brain.ts";
+import { FREEPORT, type SocietyFacts } from "../../society.ts";
 
 export type Offer = Schemas["OfferView"];
 export type OrgView = Schemas["OrgView"];
 export type OrgsView = Schemas["OrgsView"];
 export type BooksView = Schemas["BooksView"];
+export type ProposalsView = Schemas["ProposalsView"];
+export type ProposalView = Schemas["ProposalView"];
+export type OfficesView = Schemas["OfficesView"];
+export type OfficeView = Schemas["OfficeView"];
+export type StoreView = Schemas["StoreView"];
+export type LedgerView = Schemas["ContributionView"];
+export type PublishedPlanView = Schemas["PublishedPlanView"];
+export type PositionView = Schemas["PositionView"];
 
 /** Per-player memory that survives between turns (a scripted brain's "notes"). */
 export type Memory = Record<string, unknown>;
@@ -24,11 +33,14 @@ export class Script {
   readonly memory: Memory;
   readonly notes: string[] = [];
   readonly handle: string;
-  constructor(ctx: ToolContext, input: TurnInput, memory: Memory, handle: string) {
+  /** The society's capabilities; Freeport's when none were read. */
+  readonly facts: SocietyFacts;
+  constructor(ctx: ToolContext, input: TurnInput, memory: Memory, handle: string, facts: SocietyFacts = FREEPORT) {
     this.ctx = ctx;
     this.input = input;
     this.memory = memory;
     this.handle = handle;
+    this.facts = facts;
   }
 
   get home(): HomeView {
@@ -48,6 +60,13 @@ export class Script {
   }
   get employed(): boolean {
     return this.home.labor.employment.length > 0;
+  }
+  get me(): number {
+    return this.home.citizen.id;
+  }
+  /** Contract-less positions under a work norm (S2.7). */
+  get positions(): PositionView[] {
+    return (this.home.labor.positions ?? []).filter((p) => p.contract == null);
   }
   get actionsLeft(): number {
     return this.ctx.turn.maxActions - this.ctx.turn.actionsUsed;
@@ -80,6 +99,26 @@ export class Script {
   }
   async books(): Promise<BooksView | null> {
     const v = await this.get<BooksView>(read.books);
+    return isRefusal(v) ? null : v;
+  }
+  async proposals(): Promise<ProposalsView | null> {
+    const v = await this.get<ProposalsView>(read.proposals);
+    return isRefusal(v) ? null : v;
+  }
+  async offices(): Promise<OfficesView | null> {
+    const v = await this.get<OfficesView>(read.offices);
+    return isRefusal(v) ? null : v;
+  }
+  async store(): Promise<StoreView | null> {
+    const v = await this.get<StoreView>(read.store);
+    return isRefusal(v) ? null : v;
+  }
+  async ledger(): Promise<LedgerView | null> {
+    const v = await this.get<LedgerView>(read.ledger);
+    return isRefusal(v) ? null : v;
+  }
+  async publishedPlan(): Promise<PublishedPlanView | null> {
+    const v = await this.get<PublishedPlanView>(read.publishedPlan);
     return isRefusal(v) ? null : v;
   }
 }
@@ -188,4 +227,56 @@ export function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m]! : Math.round((s[m - 1]! + s[m]!) / 2);
+}
+
+// -- the Commune: the norm, the assembly, the Store (S2.10) ----------------------
+
+/** Work under the norm: take a position where labor is scarcest if none is held, then set the hours. */
+export async function workTheNorm(s: Script, hours?: number, effort: "low" | "normal" | "high" = "normal"): Promise<string> {
+  let position = s.positions[0];
+  if (!position) {
+    const ledger = await s.ledger();
+    const wid = ledger?.least_staffed;
+    if (wid == null) return "no workplace has room";
+    if (!(await s.do(act.takePosition, { workplace: wid }))) return `could not take a position at workplace ${wid}`;
+    const norm = ledger?.norm_hours ?? 6;
+    const h = Math.min(hours ?? norm, s.home.labor.budget);
+    await s.do(act.setLabor, { allocations: [{ workplace: wid, hours: h, effort }] });
+    return `took a position at workplace ${wid} and set ${h} h`;
+  }
+  const norm = (s.memory.norm as number | undefined) ?? 6;
+  const h = Math.min(hours ?? norm, s.home.labor.budget);
+  const current = s.home.labor.allocations;
+  const same = current.length === 1 && current[0]!.workplace === position.workplace && current[0]!.hours === h && current[0]!.effort === effort;
+  if (same) return `working ${h} h at workplace ${position.workplace}`;
+  const ok = await s.do(act.setLabor, { allocations: [{ workplace: position.workplace, hours: h, effort }] });
+  return ok ? `set ${h} h at workplace ${position.workplace}` : `could not set ${h} h at workplace ${position.workplace}`;
+}
+
+/** What a policy-change proposal does to the work norm: the new hours, or null when it leaves them. */
+export function normOf(p: ProposalView): number | null {
+  const k = p.kind as { policy_change?: { patch?: { work_norm_hours?: number | null } } };
+  const h = k.policy_change?.patch?.work_norm_hours;
+  return typeof h === "number" ? h : null;
+}
+
+/** Ballots on every open proposal without one yet, as `decide` says; returns what was cast. */
+export async function voteOnOpen(s: Script, decide: (p: ProposalView) => "yes" | "no" | "abstain" | null): Promise<string[]> {
+  const v = await s.proposals();
+  if (!v) return [];
+  const cast: string[] = [];
+  for (const p of v.open) {
+    if (p.my_ballot != null || s.actionsLeft <= 0) continue;
+    const ballot = decide(p);
+    if (!ballot) continue;
+    if (await s.do(act.vote, { proposal: p.id, ballot })) cast.push(`${ballot} on #${p.id} "${p.title}"`);
+  }
+  return cast;
+}
+
+/** The office's open election, if any, and whether I stand or sit. */
+export function electionFor(offices: OfficesView | null, kind: string): { office: OfficeView; open: boolean; iStand: boolean; iHold: boolean } | null {
+  const office = offices?.offices.find((o) => o.kind === kind);
+  if (!office) return null;
+  return { office, open: office.election != null, iStand: office.election?.i_stand ?? false, iHold: office.i_hold };
 }

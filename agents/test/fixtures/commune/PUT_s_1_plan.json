@@ -1,0 +1,39 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "first_seq": 237,
+  "events": [
+   {
+    "seq": 237,
+    "tick": 1,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "PlanChanged",
+    "payload": {
+     "PlanChanged": {
+      "citizen": 40,
+      "plan": {
+       "buy_wares_when": null,
+       "keep_balance_at_least": 0,
+       "keep_food_at_least": 24,
+       "labor": "explicit",
+       "max_food_price": null,
+       "standing_orders": [],
+       "vote_default": {
+        "follow": 41
+       }
+      }
+     }
+    }
+   }
+  ]
+ }
+}

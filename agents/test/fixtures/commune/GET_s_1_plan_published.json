@@ -1,0 +1,355 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "i_coordinate": false,
+  "advisory": true,
+  "published_cycle": null,
+  "published_tick": null,
+  "published_by": null,
+  "targets": [
+   {
+    "workplace": 0,
+    "org": 0,
+    "org_name": "Legacy Farm No. 1",
+    "collective": true,
+    "kind": "farm",
+    "slot": 0,
+    "workers": 4,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 1,
+    "org": 1,
+    "org_name": "Legacy Farm No. 2",
+    "collective": true,
+    "kind": "farm",
+    "slot": 1,
+    "workers": 4,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 2,
+    "org": 2,
+    "org_name": "Legacy Farm No. 3",
+    "collective": true,
+    "kind": "farm",
+    "slot": 2,
+    "workers": 3,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 3,
+    "org": 3,
+    "org_name": "Legacy Mine No. 1",
+    "collective": true,
+    "kind": "mine",
+    "slot": 8,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 4,
+    "org": 4,
+    "org_name": "Legacy Mine No. 2",
+    "collective": true,
+    "kind": "mine",
+    "slot": 9,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 5,
+    "org": 5,
+    "org_name": "Legacy Mine No. 3",
+    "collective": true,
+    "kind": "mine",
+    "slot": 10,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 6,
+    "org": 6,
+    "org_name": "Legacy Foundry No. 1",
+    "collective": true,
+    "kind": "foundry",
+    "slot": null,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 7,
+    "org": 7,
+    "org_name": "Legacy Foundry No. 2",
+    "collective": true,
+    "kind": "foundry",
+    "slot": null,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 8,
+    "org": 8,
+    "org_name": "Legacy Foundry No. 3",
+    "collective": true,
+    "kind": "foundry",
+    "slot": null,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 9,
+    "org": 9,
+    "org_name": "Legacy Mill No. 1",
+    "collective": true,
+    "kind": "mill",
+    "slot": null,
+    "workers": 3,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 10,
+    "org": 10,
+    "org_name": "Legacy Mill No. 2",
+    "collective": true,
+    "kind": "mill",
+    "slot": null,
+    "workers": 3,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 11,
+    "org": 11,
+    "org_name": "Legacy Mill No. 3",
+    "collective": true,
+    "kind": "mill",
+    "slot": null,
+    "workers": 3,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 12,
+    "org": 12,
+    "org_name": "Legacy Workshop No. 1",
+    "collective": true,
+    "kind": "workshop",
+    "slot": null,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 13,
+    "org": 13,
+    "org_name": "Legacy Workshop No. 2",
+    "collective": true,
+    "kind": "workshop",
+    "slot": null,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 14,
+    "org": 14,
+    "org_name": "Legacy Workshop No. 3",
+    "collective": true,
+    "kind": "workshop",
+    "slot": null,
+    "workers": 2,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 15,
+    "org": 15,
+    "org_name": "Legacy Machine Shop No. 1",
+    "collective": true,
+    "kind": "machine_shop",
+    "slot": null,
+    "workers": 1,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 16,
+    "org": 16,
+    "org_name": "Legacy Builders No. 1",
+    "collective": true,
+    "kind": "builder",
+    "slot": null,
+    "workers": 1,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   },
+   {
+    "workplace": 17,
+    "org": 17,
+    "org_name": "Legacy Builders No. 2",
+    "collective": true,
+    "kind": "builder",
+    "slot": null,
+    "workers": 1,
+    "machines": 0,
+    "target": null,
+    "cycle_output": 0,
+    "last_cycle_output": 0,
+    "last_fulfillment": null
+   }
+  ],
+  "slots": [
+   {
+    "id": 0,
+    "kind": "farm",
+    "workplace": 0
+   },
+   {
+    "id": 1,
+    "kind": "farm",
+    "workplace": 1
+   },
+   {
+    "id": 2,
+    "kind": "farm",
+    "workplace": 2
+   },
+   {
+    "id": 3,
+    "kind": "farm",
+    "workplace": null
+   },
+   {
+    "id": 4,
+    "kind": "farm",
+    "workplace": null
+   },
+   {
+    "id": 5,
+    "kind": "farm",
+    "workplace": null
+   },
+   {
+    "id": 6,
+    "kind": "farm",
+    "workplace": null
+   },
+   {
+    "id": 7,
+    "kind": "farm",
+    "workplace": null
+   },
+   {
+    "id": 8,
+    "kind": "mine",
+    "workplace": 3
+   },
+   {
+    "id": 9,
+    "kind": "mine",
+    "workplace": 4
+   },
+   {
+    "id": 10,
+    "kind": "mine",
+    "workplace": 5
+   },
+   {
+    "id": 11,
+    "kind": "mine",
+    "workplace": null
+   },
+   {
+    "id": 12,
+    "kind": "mine",
+    "workplace": null
+   },
+   {
+    "id": 13,
+    "kind": "mine",
+    "workplace": null
+   }
+  ],
+  "unlimited_kinds": [
+   "foundry",
+   "mill",
+   "workshop",
+   "machine_shop",
+   "builder"
+  ],
+  "collective": 0,
+  "founding_materials": 20,
+  "store_materials": 0,
+  "max_workplaces": 2
+ }
+}

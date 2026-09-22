@@ -1,0 +1,12 @@
+{
+ "status": 201,
+ "body": {
+  "id": 1,
+  "channel": "assembly:1",
+  "sender": 40,
+  "handle": "founder-1",
+  "body": "Six was never enough.",
+  "tick": 1,
+  "created_at": "2026-09-22T01:07:23.755715Z"
+ }
+}

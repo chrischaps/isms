@@ -1,0 +1,37 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "first_seq": 239,
+  "events": [
+   {
+    "seq": 239,
+    "tick": 1,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "Proposed",
+    "payload": {
+     "Proposed": {
+      "by": 41,
+      "closes_cycle": 0,
+      "kind": {
+       "honor": {
+        "citizen": 40
+       }
+      },
+      "proposal": 1,
+      "text": "",
+      "title": "Honor founder-1"
+     }
+    }
+   }
+  ]
+ }
+}

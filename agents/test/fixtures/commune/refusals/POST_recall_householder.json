@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "H-0 does not hold that office",
+  "code": "not_an_office_holder"
+ }
+}

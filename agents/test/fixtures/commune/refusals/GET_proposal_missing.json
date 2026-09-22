@@ -1,0 +1,9 @@
+{
+ "status": 404,
+ "body": {
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "no proposal 999999"
+ }
+}

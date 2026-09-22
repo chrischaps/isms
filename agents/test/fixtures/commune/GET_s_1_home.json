@@ -1,0 +1,205 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "citizen": {
+   "id": 40,
+   "handle": "founder-1",
+   "dormant": false,
+   "joined_tick": 1,
+   "last_seen_tick": 1,
+   "flags": {
+    "defaulted": false,
+    "destitute": false,
+    "in_hardship": false,
+    "options_narrowed": false
+   }
+  },
+  "household": {
+   "balance": 0,
+   "pantry": {},
+   "pantry_capacity": {
+    "food": 48,
+    "wares": 48
+   },
+   "dwelling": null
+  },
+  "needs": {
+   "food": 100,
+   "shelter": 100,
+   "comfort": 100,
+   "low_food_ticks_this_cycle": 0
+  },
+  "labor": {
+   "budget": 8,
+   "fatigue_debt": 0,
+   "output_mult": 1,
+   "allocations": [
+    {
+     "workplace": 1,
+     "org": 1,
+     "org_name": "Legacy Farm No. 2",
+     "kind": "farm",
+     "hours": 6,
+     "effort": "normal"
+    }
+   ],
+   "skills": [],
+   "employment": [],
+   "positions": [
+    {
+     "workplace": 1,
+     "org": 1,
+     "org_name": "Legacy Farm No. 2",
+     "kind": "farm",
+     "contract": null
+    }
+   ],
+   "effort": {
+    "output_mult": [
+     0.6,
+     1,
+     1.3
+    ],
+    "food_decay_mult": [
+     0.8,
+     1,
+     1.3
+    ],
+    "high_effort_debt_after_cycles": 2,
+    "high_effort_debt_hours": 1,
+    "max_workplaces": 2
+   }
+  },
+  "plan": {
+   "buy_wares_when": null,
+   "keep_balance_at_least": 0,
+   "keep_food_at_least": 24,
+   "labor": "explicit",
+   "max_food_price": null,
+   "standing_orders": [],
+   "vote_default": {
+    "follow": 41
+   }
+  },
+  "since_last_seen": {
+   "since_tick": 1,
+   "events": [
+    {
+     "seq": 227,
+     "tick": 1,
+     "cycle": 0,
+     "epoch": 0,
+     "kind": "CitizenJoined",
+     "payload": {
+      "CitizenJoined": {
+       "citizen": 40,
+       "dwelling": null,
+       "endowment": 0,
+       "explain": null,
+       "handle": "founder-1",
+       "kind": "human"
+      }
+     }
+    },
+    {
+     "seq": 235,
+     "tick": 1,
+     "cycle": 0,
+     "epoch": 0,
+     "kind": "Assigned",
+     "payload": {
+      "Assigned": {
+       "citizen": 40,
+       "contract": null,
+       "workplace": 1
+      }
+     }
+    },
+    {
+     "seq": 236,
+     "tick": 1,
+     "cycle": 0,
+     "epoch": 0,
+     "kind": "LaborSet",
+     "payload": {
+      "LaborSet": {
+       "allocations": [
+        {
+         "effort": "normal",
+         "hours": 6,
+         "workplace": 1
+        }
+       ],
+       "citizen": 40
+      }
+     }
+    },
+    {
+     "seq": 237,
+     "tick": 1,
+     "cycle": 0,
+     "epoch": 0,
+     "kind": "PlanChanged",
+     "payload": {
+      "PlanChanged": {
+       "citizen": 40,
+       "plan": {
+        "buy_wares_when": null,
+        "keep_balance_at_least": 0,
+        "keep_food_at_least": 24,
+        "labor": "explicit",
+        "max_food_price": null,
+        "standing_orders": [],
+        "vote_default": {
+         "follow": 41
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  "headlines": [
+   {
+    "seq": 230,
+    "tick": 1,
+    "text": "saver-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 231,
+    "tick": 1,
+    "text": "slacker-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 232,
+    "tick": 1,
+    "text": "borrower-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 233,
+    "tick": 1,
+    "text": "landlord-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 234,
+    "tick": 1,
+    "text": "rule-prober-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   }
+  ],
+  "society": {
+   "population": 48,
+   "active_humans": 8,
+   "price_index": null,
+   "food_last_price": 130,
+   "unemployed": 47
+  }
+ }
+}

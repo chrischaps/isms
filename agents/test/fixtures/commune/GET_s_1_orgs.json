@@ -1,0 +1,913 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "orgs": [
+   {
+    "id": 0,
+    "kind": "collective",
+    "name": "Legacy Farm No. 1",
+    "manager": 0,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 0,
+      "kind": "farm",
+      "slot": 0,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 0,
+        "handle": "H-0",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 18,
+        "handle": "H-18",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 33,
+        "handle": "H-33",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 39,
+        "handle": "H-39",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 1,
+    "kind": "collective",
+    "name": "Legacy Farm No. 2",
+    "manager": 1,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 1,
+      "kind": "farm",
+      "slot": 1,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 1,
+        "handle": "H-1",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 19,
+        "handle": "H-19",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 34,
+        "handle": "H-34",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 40,
+        "handle": "founder-1",
+        "hours": 6,
+        "attributed_this_cycle": 0
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 2,
+    "kind": "collective",
+    "name": "Legacy Farm No. 3",
+    "manager": 2,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 2,
+      "kind": "farm",
+      "slot": 2,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 2,
+        "handle": "H-2",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 20,
+        "handle": "H-20",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 35,
+        "handle": "H-35",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 3,
+    "kind": "collective",
+    "name": "Legacy Mine No. 1",
+    "manager": 3,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 3,
+      "kind": "mine",
+      "slot": 8,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 3,
+        "handle": "H-3",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 24,
+        "handle": "H-24",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 4,
+    "kind": "collective",
+    "name": "Legacy Mine No. 2",
+    "manager": 4,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 4,
+      "kind": "mine",
+      "slot": 9,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 4,
+        "handle": "H-4",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 25,
+        "handle": "H-25",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 5,
+    "kind": "collective",
+    "name": "Legacy Mine No. 3",
+    "manager": 5,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 5,
+      "kind": "mine",
+      "slot": 10,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 5,
+        "handle": "H-5",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 26,
+        "handle": "H-26",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 6,
+    "kind": "collective",
+    "name": "Legacy Foundry No. 1",
+    "manager": 6,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 6,
+      "kind": "foundry",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 6,
+        "handle": "H-6",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 27,
+        "handle": "H-27",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 7,
+    "kind": "collective",
+    "name": "Legacy Foundry No. 2",
+    "manager": 7,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 7,
+      "kind": "foundry",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 7,
+        "handle": "H-7",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 28,
+        "handle": "H-28",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 8,
+    "kind": "collective",
+    "name": "Legacy Foundry No. 3",
+    "manager": 8,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 8,
+      "kind": "foundry",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 8,
+        "handle": "H-8",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 29,
+        "handle": "H-29",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 9,
+    "kind": "collective",
+    "name": "Legacy Mill No. 1",
+    "manager": 9,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 9,
+      "kind": "mill",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 9,
+        "handle": "H-9",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 21,
+        "handle": "H-21",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 36,
+        "handle": "H-36",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 10,
+    "kind": "collective",
+    "name": "Legacy Mill No. 2",
+    "manager": 10,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 10,
+      "kind": "mill",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 10,
+        "handle": "H-10",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 22,
+        "handle": "H-22",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 37,
+        "handle": "H-37",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 11,
+    "kind": "collective",
+    "name": "Legacy Mill No. 3",
+    "manager": 11,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 11,
+      "kind": "mill",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 11,
+        "handle": "H-11",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 23,
+        "handle": "H-23",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 38,
+        "handle": "H-38",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 12,
+    "kind": "collective",
+    "name": "Legacy Workshop No. 1",
+    "manager": 12,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 12,
+      "kind": "workshop",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 12,
+        "handle": "H-12",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 30,
+        "handle": "H-30",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 13,
+    "kind": "collective",
+    "name": "Legacy Workshop No. 2",
+    "manager": 13,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 13,
+      "kind": "workshop",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 13,
+        "handle": "H-13",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 31,
+        "handle": "H-31",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 14,
+    "kind": "collective",
+    "name": "Legacy Workshop No. 3",
+    "manager": 14,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 14,
+      "kind": "workshop",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 14,
+        "handle": "H-14",
+        "hours": 0,
+        "attributed_this_cycle": null
+       },
+       {
+        "citizen": 32,
+        "handle": "H-32",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 15,
+    "kind": "collective",
+    "name": "Legacy Machine Shop No. 1",
+    "manager": 15,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 15,
+      "kind": "machine_shop",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 15,
+        "handle": "H-15",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 16,
+    "kind": "collective",
+    "name": "Legacy Builders No. 1",
+    "manager": 16,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 16,
+      "kind": "builder",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 16,
+        "handle": "H-16",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   },
+   {
+    "id": 17,
+    "kind": "collective",
+    "name": "Legacy Builders No. 2",
+    "manager": 17,
+    "treasury": 0,
+    "inventory": {},
+    "ownership": "society",
+    "book_value": 0,
+    "escrow": 0,
+    "declared_dividend": null,
+    "payment_missed": false,
+    "last_payment_missed": null,
+    "employees": 0,
+    "members": [],
+    "workplaces": [
+     {
+      "id": 17,
+      "kind": "builder",
+      "slot": null,
+      "machines": 0,
+      "cycle_output": 0,
+      "target": null,
+      "last_cycle_output": 0,
+      "workers": [
+       {
+        "citizen": 17,
+        "handle": "H-17",
+        "hours": 0,
+        "attributed_this_cycle": null
+       }
+      ]
+     }
+    ],
+    "dwellings": [],
+    "my_shares": 0,
+    "i_manage": false
+   }
+  ],
+  "former": [],
+  "recipes": [
+   {
+    "workplace_kind": "farm",
+    "produces": "grain",
+    "produces_asset": false,
+    "consumes": {},
+    "base_rate": 15
+   },
+   {
+    "workplace_kind": "mine",
+    "produces": "ore",
+    "produces_asset": false,
+    "consumes": {},
+    "base_rate": 10
+   },
+   {
+    "workplace_kind": "foundry",
+    "produces": "materials",
+    "produces_asset": false,
+    "consumes": {
+     "ore": 1
+    },
+    "base_rate": 10
+   },
+   {
+    "workplace_kind": "mill",
+    "produces": "food",
+    "produces_asset": false,
+    "consumes": {
+     "grain": 1
+    },
+    "base_rate": 15
+   },
+   {
+    "workplace_kind": "workshop",
+    "produces": "wares",
+    "produces_asset": false,
+    "consumes": {
+     "materials": 1
+    },
+    "base_rate": 5
+   },
+   {
+    "workplace_kind": "machine_shop",
+    "produces": "machines",
+    "produces_asset": false,
+    "consumes": {
+     "materials": 2
+    },
+    "base_rate": 2
+   },
+   {
+    "workplace_kind": "builder",
+    "produces": "dwelling",
+    "produces_asset": true,
+    "consumes": {
+     "materials": 10
+    },
+    "base_rate": 0.5
+   }
+  ],
+  "founding": {
+   "money": 0,
+   "materials": 20
+  },
+  "slots": {
+   "farm": {
+    "total": 8,
+    "free": 5
+   },
+   "mine": {
+    "total": 6,
+    "free": 3
+   }
+  }
+ }
+}

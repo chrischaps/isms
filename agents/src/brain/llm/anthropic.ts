@@ -21,7 +21,8 @@ import { endTurn } from "../../tools/end_turn.ts";
 import { READ_TOOLS } from "../../tools/read.ts";
 import type { Brain, Persona, ReflectionInput, ReflectionOutcome, TurnInput, TurnOutcome } from "../brain.ts";
 import { callClaudeCode } from "./claude_code.ts";
-import { REFLECT_PROMPT, RULES, TURN_TEMPLATE } from "./prompts.ts";
+import { REFLECT_PROMPT, rulesFor, TURN_TEMPLATE } from "./prompts.ts";
+import { FREEPORT, type SocietyFacts } from "../../society.ts";
 
 export type LlmOpts = {
   client: Anthropic;
@@ -29,6 +30,8 @@ export type LlmOpts = {
   player: string;
   cfg: Config;
   budget: Budget;
+  /** The society played (S2.10); Freeport when absent. */
+  facts?: SocietyFacts;
 };
 
 const Reflection = z.object({
@@ -51,14 +54,16 @@ export class AnthropicBrain implements Brain {
   private readonly cycleModel: string;
   private readonly opts: LlmOpts;
   private readonly system: Anthropic.Beta.Messages.BetaTextBlockParam[];
+  private readonly rules: string;
   /** Set when the API refused us for a reason no retry fixes (credit, key); every later turn is an error without a request. */
   dead: string | null = null;
   constructor(opts: LlmOpts) {
     this.opts = opts;
     this.model = opts.persona.model.turn ?? opts.cfg.models.turn;
     this.cycleModel = opts.persona.model.cycle ?? opts.cfg.models.cycle;
+    this.rules = rulesFor(opts.facts ?? FREEPORT);
     this.system = [
-      { type: "text", text: RULES },
+      { type: "text", text: this.rules },
       { type: "text", text: personaText(opts.persona), cache_control: { type: "ephemeral" } },
     ];
   }
@@ -161,7 +166,7 @@ export class AnthropicBrain implements Brain {
       const r = await callClaudeCode({
         concurrency: this.opts.cfg.models.claude_code_concurrency,
         model: this.cycleModel,
-        system: `${RULES}
+        system: `${this.rules}
 
 ${personaText(this.opts.persona)}`,
         prompt: REFLECT_PROMPT(input.digest, input.notes),
@@ -176,7 +181,7 @@ ${personaText(this.opts.persona)}`,
       model: this.cycleModel,
       max_tokens: 4096,
       system: [
-        { type: "text", text: RULES },
+        { type: "text", text: this.rules },
         { type: "text", text: personaText(this.opts.persona), cache_control: { type: "ephemeral" } },
       ],
       messages: [{ role: "user", content: REFLECT_PROMPT(input.digest, input.notes) }],

@@ -10,9 +10,9 @@ const DIR = join(import.meta.dirname, "..", "personas");
 
 describe("personas", () => {
   const files = readdirSync(DIR).filter((f) => f.endsWith(".md"));
-  it("are the eight the card names", () => {
+  it("are the eight the S1.16 card names and the four the S2.10 card adds", () => {
     expect(files.map((f) => f.replace(/\.md$/, "")).sort()).toEqual(
-      ["borrower", "founder", "landlord", "rule-prober", "saver", "slacker", "speculator", "wage-maximiser"],
+      ["borrower", "chronicler", "founder", "free-rider", "landlord", "rationer", "rule-prober", "saver", "slacker", "speculator", "steward", "wage-maximiser"],
     );
   });
   for (const f of files) {

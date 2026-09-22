@@ -18,7 +18,36 @@ const ENDPOINT_WORDS: [RegExp, string][] = [
   [/\b(lease|rent|dwelling|house|housing|move)\b/i, "housing"],
   [/\b(food|wares|comfort|shelter|hardship|pantry|needs?)\b/i, "needs"],
   [/\b(chronicle|headline|stats|scoreboard|explain)\b/i, "society"],
+  [/\b(proposal|propose|ballot|vote|assembly|quorum|office|coordinator|recall|honou?r|floor|store|ledger|norm|ration|position|entitlement|draw)\b/i, "governance"],
 ];
+
+/** The act tools that touch the assembly, the offices, the coordinator's powers and the norm (S2.10). */
+export const GOVERNANCE_TOOLS = ["propose", "vote", "approve", "stand", "withdraw_candidacy", "publish_plan", "open_workplace", "close_workplace", "post_floor", "take_position", "leave_position"] as const;
+
+/** One paragraph on what the cohort did with the governance tools: counts accepted / refused per tool, the motions moved and who moved them. */
+export function governanceParagraph(turns: TurnRecord[]): string {
+  const counts = new Map<string, { ok: number; refused: number; players: Set<string> }>();
+  const moved: string[] = [];
+  for (const t of turns) {
+    for (const c of t.calls) {
+      if (!(GOVERNANCE_TOOLS as readonly string[]).includes(c.tool)) continue;
+      const row = counts.get(c.tool) ?? { ok: 0, refused: 0, players: new Set<string>() };
+      if (c.ok) row.ok += 1;
+      else row.refused += 1;
+      row.players.add(t.player);
+      counts.set(c.tool, row);
+      if (c.tool === "propose" && c.ok) {
+        const i = c.input as { title?: string; kind?: unknown };
+        const kind = typeof i.kind === "string" ? i.kind : Object.keys((i.kind as Record<string, unknown>) ?? {})[0] ?? "?";
+        moved.push(`"${i.title ?? "?"}" (${kind}, ${t.player}, day ${t.cycle})`);
+      }
+    }
+  }
+  if (counts.size === 0) return "No governance tool was used: there is no assembly in this society, or nobody reached for it.";
+  const parts = [...counts].map(([tool, r]) => `${tool} ${r.ok} accepted${r.refused ? `, ${r.refused} refused` : ""} (${[...r.players].join(", ")})`);
+  const motions = moved.length ? ` Motions moved: ${moved.join("; ")}.` : " No motion was moved.";
+  return `Governance tools: ${parts.join("; ")}.${motions}`;
+}
 
 export function endpointOf(text: string): string {
   for (const [re, name] of ENDPOINT_WORDS) if (re.test(text)) return name;
@@ -199,6 +228,7 @@ export function buildReport(f: Folded): string {
     out.push("");
   }
 
+  out.push("## Governance", "", governanceParagraph(f.turns), "");
   out.push("## Each player's arc", "");
   for (const [name, records] of f.players) out.push(arc(name, records), "");
 

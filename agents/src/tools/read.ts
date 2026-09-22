@@ -158,6 +158,56 @@ export const messages = read(
   },
 );
 
+// -- the assembly, the Common Store, the Ledger, the Plan (S2.10) --------------
+
+export const proposals = read<None>(
+  "proposals",
+  "The assembly: open proposals (id, title, what each would do, the tally so far, the roll, your ballot, whether the floor takes posts) and those closed this epoch with their outcomes; the electorate, the quorum fraction and how many you may keep open.",
+  none,
+  async (_, ctx) => unwrap(await ctx.client.GET("/s/{id}/proposals", { params: path(ctx) })),
+);
+
+export const proposal = read(
+  "proposal",
+  "One proposal in full, open or closed this epoch.",
+  z.object({ proposal: z.number().int().min(0) }),
+  async (i, ctx) => unwrap(await ctx.client.GET("/s/{id}/proposals/{pid}", { params: { path: { id: ctx.sid, pid: i.proposal } } })),
+);
+
+export const offices = read<None>(
+  "offices",
+  "Every office the constitution seats: its rule (seats, term, recall), who sits and through which day, whether you hold it, and the election open for it (candidates with approvals, your approvals, whether you stand, and why you could not).",
+  none,
+  async (_, ctx) => unwrap(await ctx.client.GET("/s/{id}/offices", { params: path(ctx) })),
+);
+
+export const store = read<None>(
+  "store",
+  "The Common Store: each shelf's stock, this hour's requests, what you may still draw (your entitlement) and your pending draw, the share each citizen would get if the day ended now; the rationing rule in force; today and yesterday as asked / served / short / shared; your draw record.",
+  none,
+  async (_, ctx) => {
+    const v = unwrap(await ctx.client.GET("/s/{id}/store", { params: path(ctx) }));
+    return { ...v, my_draws: capRows(v.my_draws).rows };
+  },
+);
+
+export const ledger = read<None>(
+  "ledger",
+  "The Ledger of Contribution: the work norm in hours, the monitoring level and its sigma, and every citizen's row (hours today and yesterday exact, output as attributed, the norm met or not, honors, workplaces; your row marked), plus the least-staffed workplace and the position caps.",
+  none,
+  async (_, ctx) => {
+    const v = unwrap(await ctx.client.GET("/s/{id}/ledger", { params: path(ctx) }));
+    return { ...v, ...capRows(v.rows, 80) };
+  },
+);
+
+export const publishedPlan = read<None>(
+  "published_plan",
+  "The Plan as published: every workplace's target beside yesterday's output and today's so far, workers and machines; the land slots and which are free; what a new workplace costs in Materials against the Store's; whether you coordinate.",
+  none,
+  async (_, ctx) => unwrap(await ctx.client.GET("/s/{id}/plan/published", { params: path(ctx) })),
+);
+
 export const READ_TOOLS: AnyTool[] = [
   home,
   plan,
@@ -176,4 +226,10 @@ export const READ_TOOLS: AnyTool[] = [
   scoreboard,
   explain,
   messages,
+  proposals,
+  proposal,
+  offices,
+  store,
+  ledger,
+  publishedPlan,
 ];

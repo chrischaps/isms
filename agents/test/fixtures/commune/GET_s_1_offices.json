@@ -1,0 +1,41 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "offices": [
+   {
+    "kind": "coordinator",
+    "seats": 3,
+    "term_cycles": 5,
+    "consecutive": false,
+    "recall": "majority",
+    "holders": [],
+    "i_hold": false,
+    "election": {
+     "seats": 3,
+     "opened_cycle": 0,
+     "closes_cycle": 0,
+     "candidates": [
+      {
+       "citizen": 40,
+       "handle": "founder-1",
+       "approvals": 1
+      }
+     ],
+     "ballots_cast": 1,
+     "my_approvals": [],
+     "i_stand": true,
+     "stand_refusal": null
+    },
+    "short_since": 0
+   }
+  ]
+ }
+}

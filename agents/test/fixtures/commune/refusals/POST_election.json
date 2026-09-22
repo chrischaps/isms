@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "Elections open by the calendar; stand for the office instead",
+  "code": "not_authorized"
+ }
+}

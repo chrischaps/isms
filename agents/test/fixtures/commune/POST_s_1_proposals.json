@@ -1,0 +1,42 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "first_seq": 238,
+  "events": [
+   {
+    "seq": 238,
+    "tick": 1,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "Proposed",
+    "payload": {
+     "Proposed": {
+      "by": 40,
+      "closes_cycle": 0,
+      "kind": {
+       "policy_change": {
+        "patch": {
+         "materials_split": null,
+         "monitoring": null,
+         "rationing": null,
+         "work_norm_hours": 7
+        }
+       }
+      },
+      "proposal": 0,
+      "text": "The Store ran short.",
+      "title": "Seven hours"
+     }
+    }
+   }
+  ]
+ }
+}

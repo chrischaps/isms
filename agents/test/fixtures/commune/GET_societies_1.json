@@ -1,0 +1,24 @@
+{
+ "status": 200,
+ "body": {
+  "id": 2,
+  "name": "fix2-1790039210",
+  "preset": "commune",
+  "class": "lab",
+  "display": "The Commune",
+  "status": "active",
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "population": 48,
+  "active_humans": 8,
+  "householders": 40,
+  "tick_seconds": 60,
+  "next_tick_at": "2026-09-22T01:07:50.849757Z"
+ }
+}

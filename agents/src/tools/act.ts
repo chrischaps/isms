@@ -56,13 +56,17 @@ export const setPlan = act(
       )
       .max(8)
       .default([]),
+    vote_default: z
+      .union([z.enum(["abstain", "none"]), z.object({ follow: id })])
+      .default("abstain")
+      .describe("how the assembly counts you at a close you missed: abstain, none (no ballot), or follow a citizen's ballot"),
   }),
   async (i, ctx) =>
     committed(
       unwrap(
         await ctx.client.PUT("/s/{id}/plan", {
           params: { path: { id: ctx.sid } },
-          body: { plan: { ...i, vote_default: "abstain" } as never },
+          body: { plan: { ...i } as never },
         }),
       ),
     ),
@@ -321,6 +325,111 @@ export const postMessage = act(
   async (i, ctx) => unwrap(await ctx.client.POST("/s/{id}/channels/{channel}/messages", { params: { path: { id: ctx.sid, channel: i.channel } }, body: { body: i.body } })),
 );
 
+// -- the assembly, offices, the coordinator's powers, positions (S2.10) --------
+
+const office = z.string().describe("coordinator, planning_committee, legislator, union_steward or bank_board");
+const proposalKind = z.union([
+  z.literal("resolution").describe("a resolution: its text is the motion"),
+  z.object({
+    policy_change: z.object({
+      patch: z
+        .object({
+          work_norm_hours: z.number().int().min(0).max(24).optional(),
+          rationing: z.enum(["need_first", "equal_shortfall", "lottery"]).optional().describe("a coordinator's to propose"),
+          monitoring: z.enum(["high", "medium", "low"]).optional(),
+          materials_split: z.object({ wares: z.number(), machines: z.number(), dwellings: z.number() }).optional(),
+        })
+        .passthrough()
+        .describe("only the fields you move; the rest stay as they are"),
+    }),
+  }),
+  z.object({ honor: z.object({ citizen: id }) }),
+  z.object({ recall: z.object({ office, citizen: id }) }),
+  z.object({ election: z.object({ office }) }).describe("never accepted: elections open by the calendar; stand instead"),
+]);
+
+export const propose = act(
+  "propose",
+  "Open a proposal before the assembly; it closes at the end of this day. Kinds: resolution (the text is the motion), policy_change (a patch of the policy: work_norm_hours, rationing, monitoring, materials_split), honor (a citizen), recall (an office-holder). Elections are not proposed: stand for the office.",
+  z.object({ title: z.string().min(1).max(80), text: z.string().max(2000).default(""), kind: proposalKind }),
+  async (i, ctx) =>
+    committed(unwrap(await ctx.client.POST("/s/{id}/proposals", { params: { path: { id: ctx.sid } }, body: { title: i.title, text: i.text, kind: i.kind as never } }))),
+);
+
+export const vote = act(
+  "vote",
+  "Cast or replace your ballot on an open proposal: yes, no or abstain. The roll is public.",
+  z.object({ proposal: id, ballot: z.enum(["yes", "no", "abstain"]) }),
+  async (i, ctx) =>
+    committed(unwrap(await ctx.client.PUT("/s/{id}/proposals/{pid}/ballot", { params: { path: { id: ctx.sid, pid: i.proposal } }, body: { ballot: i.ballot } }))),
+);
+
+export const stand = act(
+  "stand",
+  "Stand in the open election for an office. Seats are filled at the day's end by approvals.",
+  z.object({ office }),
+  async (i, ctx) => committed(unwrap(await ctx.client.POST("/s/{id}/offices/{kind}/candidacy", { params: { path: { id: ctx.sid, kind: i.office } } }))),
+);
+
+export const withdrawCandidacy = act(
+  "withdraw_candidacy",
+  "Withdraw your candidacy for an office.",
+  z.object({ office }),
+  async (i, ctx) => committed(unwrap(await ctx.client.DELETE("/s/{id}/offices/{kind}/candidacy", { params: { path: { id: ctx.sid, kind: i.office } } }))),
+);
+
+export const approve = act(
+  "approve",
+  "Cast or replace your approval ballot in an office's election: any subset of the candidates' citizen ids (an empty list approves nobody).",
+  z.object({ office, candidates: z.array(id).max(20) }),
+  async (i, ctx) =>
+    committed(unwrap(await ctx.client.PUT("/s/{id}/offices/{kind}/ballot", { params: { path: { id: ctx.sid, kind: i.office } }, body: { candidates: i.candidates } }))),
+);
+
+export const publishPlan = act(
+  "publish_plan",
+  "As a coordinator, publish the Plan: a target in units a day per workplace id (see published_plan). Advisory under a direct assembly.",
+  z.object({ targets: z.record(z.string(), z.number().min(0)) }),
+  async (i, ctx) =>
+    committed(unwrap(await ctx.client.PUT("/s/{id}/offices/coordinator/plan", { params: { path: { id: ctx.sid } }, body: { targets: i.targets } }))),
+);
+
+export const openWorkplace = act(
+  "open_workplace",
+  "As a coordinator, open a workplace of the collective on a free land slot of its kind (any, when slot is null); the founding Materials come out of the Common Store.",
+  z.object({ kind: workplaceKind, slot: id.nullable().default(null) }),
+  async (i, ctx) => committed(unwrap(await ctx.client.POST("/s/{id}/workplaces", { params: { path: { id: ctx.sid } }, body: { kind: i.kind, slot: i.slot } }))),
+);
+
+export const closeWorkplace = act(
+  "close_workplace",
+  "As a coordinator, close a workplace of the collective: its workers lose the hour and its slot is freed.",
+  z.object({ workplace: id }),
+  async (i, ctx) => committed(unwrap(await ctx.client.DELETE("/s/{id}/workplaces/{wid}", { params: { path: { id: ctx.sid, wid: i.workplace } } }))),
+);
+
+export const postFloor = act(
+  "post_floor",
+  "Speak on a proposal's floor (open while it is, and for one day after it closes).",
+  z.object({ proposal: id, body: z.string().min(1).max(500) }),
+  async (i, ctx) =>
+    unwrap(await ctx.client.POST("/s/{id}/channels/{channel}/messages", { params: { path: { id: ctx.sid, channel: `assembly:${i.proposal}` } }, body: { body: i.body } })),
+);
+
+export const takePosition = act(
+  "take_position",
+  "Under a work norm: take a position at a workplace (no contract; see ledger for the least-staffed one and the caps). Then set_labor names it.",
+  z.object({ workplace: id }),
+  async (i, ctx) => committed(unwrap(await ctx.client.POST("/s/{id}/workplaces/{wid}/position", { params: { path: { id: ctx.sid, wid: i.workplace } } }))),
+);
+
+export const leavePosition = act(
+  "leave_position",
+  "Give up a norm position at a workplace.",
+  z.object({ workplace: id }),
+  async (i, ctx) => committed(unwrap(await ctx.client.DELETE("/s/{id}/workplaces/{wid}/position", { params: { path: { id: ctx.sid, wid: i.workplace } } }))),
+);
+
 export const ACT_TOOLS: AnyTool[] = [
   setLabor,
   setPlan,
@@ -344,4 +453,15 @@ export const ACT_TOOLS: AnyTool[] = [
   moveIn,
   moveOut,
   postMessage,
+  propose,
+  vote,
+  stand,
+  withdrawCandidacy,
+  approve,
+  publishPlan,
+  openWorkplace,
+  closeWorkplace,
+  postFloor,
+  takePosition,
+  leavePosition,
 ];

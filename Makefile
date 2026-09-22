@@ -109,13 +109,17 @@ PLAYERS ?= 8
 TICK_SECONDS ?= 10
 EPOCH_CYCLES ?= 7
 BRAIN ?= mixed
+# PRESET=commune plays the Commune personas (S2.10).
+PRESET ?= freeport
 agents:
-	set -a; [ -f .env ] && . ./.env; set +a; RUN=$(RUN) PLAYERS=$(PLAYERS) TICK_SECONDS=$(TICK_SECONDS) EPOCH_CYCLES=$(EPOCH_CYCLES) BRAIN=$(BRAIN) bash scripts/agents/run.sh
+	set -a; [ -f .env ] && . ./.env; set +a; RUN=$(RUN) PRESET=$(PRESET) PLAYERS=$(PLAYERS) TICK_SECONDS=$(TICK_SECONDS) EPOCH_CYCLES=$(EPOCH_CYCLES) BRAIN=$(BRAIN) bash scripts/agents/run.sh
 
 # The S1.15 load test (TDD 17): 100 householders and 20 scripted players at 5 s an hour for an epoch; report in docs/playtest/load/.
 load:
 	set -a; [ -f .env ] && . ./.env; set +a; bash scripts/load/run.sh
 
 # The scripted cohort as a regression: two fast days, every probe refused, no 5xx, no turn in error (CI).
+# Freeport, then the Commune (S2.10): two fast days each with eight scripted players, red on any new fuzzer defect.
 e2e-agents:
-	set -a; [ -f .env ] && . ./.env; set +a; RUN=e2e-$(shell date +%s) PLAYERS=8 TICK_SECONDS=1 EPOCH_CYCLES=2 BRAIN=scripted ASSERT_CLEAN=1 bash scripts/agents/run.sh
+	set -a; [ -f .env ] && . ./.env; set +a; RUN=e2e-$(shell date +%s)-freeport PRESET=freeport PLAYERS=8 TICK_SECONDS=1 EPOCH_CYCLES=2 BRAIN=scripted ASSERT_CLEAN=1 bash scripts/agents/run.sh
+	set -a; [ -f .env ] && . ./.env; set +a; RUN=e2e-$(shell date +%s)-commune PRESET=commune PLAYERS=8 TICK_SECONDS=1 EPOCH_CYCLES=2 BRAIN=scripted ASSERT_CLEAN=1 bash scripts/agents/run.sh

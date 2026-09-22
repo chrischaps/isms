@@ -1,0 +1,62 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "money": false,
+  "order_books": false,
+  "administered_prices": false,
+  "common_store": true,
+  "contracts": [
+   "sale_direct",
+   "pledge"
+  ],
+  "org_kinds": [
+   "collective",
+   "association"
+  ],
+  "labor": "norm",
+  "pay": "need",
+  "capital": "none",
+  "redistribution": "total",
+  "monitoring": "low",
+  "monitoring_sigma": 0.6,
+  "governance": "direct",
+  "offices": [
+   {
+    "kind": "coordinator",
+    "seats": 3,
+    "term_cycles": 5,
+    "consecutive": false,
+    "recall": "majority"
+   }
+  ],
+  "proposal_kinds": [
+   "policy_change",
+   "resolution",
+   "election",
+   "recall",
+   "honor"
+  ],
+  "proposers": "anyone",
+  "land_slots": {
+   "farm": 8,
+   "mine": 6,
+   "foundry": null,
+   "mill": null,
+   "workshop": null,
+   "machine_shop": null,
+   "builder": null
+  },
+  "rate_limit": {
+   "per_second": 5,
+   "burst": 20
+  }
+ }
+}

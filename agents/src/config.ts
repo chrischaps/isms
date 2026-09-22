@@ -62,6 +62,8 @@ export const ConfigSchema = z.object({
       personas: z
         .array(z.string())
         .default(["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord", "rule-prober"]),
+      /** A preset's own persona list (S2.10); `personas` is Freeport's and the fallback. */
+      personas_for: z.record(z.string(), z.array(z.string())).default({}),
       brain: z.enum(["scripted", "llm", "mixed"]).default("mixed"),
     })
     .prefault({}),

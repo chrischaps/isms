@@ -1,0 +1,114 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "cycle": 1,
+  "headlines": [
+   {
+    "seq": 1,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 0,
+    "text": "Epoch 0 opens. The Store is stocked and the assembly sits tonight."
+   },
+   {
+    "seq": 145,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 0,
+    "text": "An election opens for the office of coordinator: 3 seats, closing at the end of day 0. Any citizen may stand."
+   },
+   {
+    "seq": 227,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "founder-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 228,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "wage-maximiser-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 229,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "speculator-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 230,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "saver-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 231,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "slacker-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 232,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "borrower-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 233,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "landlord-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 234,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "rule-prober-1 joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+   },
+   {
+    "seq": 238,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "founder-1 moves before the assembly: Seven hours. The vote closes at the end of day 0."
+   },
+   {
+    "seq": 239,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "wage-maximiser-1 moves before the assembly: Honor founder-1. The vote closes at the end of day 0."
+   },
+   {
+    "seq": 242,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "founder-1 stands for coordinator."
+   },
+   {
+    "seq": 244,
+    "ordinal": 0,
+    "cycle": 1,
+    "tick": 1,
+    "text": "founder-1 withdraws from the coordinator election."
+   }
+  ]
+ }
+}

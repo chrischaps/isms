@@ -1,0 +1,43 @@
+{
+ "status": 200,
+ "body": {
+  "id": 1,
+  "by": 41,
+  "by_handle": "wage-maximiser-1",
+  "title": "Honor founder-1",
+  "text": "",
+  "kind": {
+   "honor": {
+    "citizen": 40
+   }
+  },
+  "kind_tag": "honor",
+  "org": null,
+  "opened_tick": 1,
+  "closes_cycle": 0,
+  "open": true,
+  "tally": {
+   "yes": 1,
+   "no": 1,
+   "abstain": 0,
+   "cast": 2,
+   "quorum": 2,
+   "eligible": 8
+  },
+  "ballots": [
+   {
+    "citizen": 40,
+    "handle": "founder-1",
+    "ballot": "yes"
+   },
+   {
+    "citizen": 41,
+    "handle": "wage-maximiser-1",
+    "ballot": "no"
+   }
+  ],
+  "my_ballot": "yes",
+  "floor_open": true,
+  "outcome": null
+ }
+}

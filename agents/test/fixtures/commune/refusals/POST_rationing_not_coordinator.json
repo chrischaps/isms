@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "The rationing rule is a coordinator's to propose",
+  "code": "not_authorized"
+ }
+}

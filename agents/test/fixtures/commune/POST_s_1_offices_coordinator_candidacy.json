@@ -1,0 +1,29 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "first_seq": 242,
+  "events": [
+   {
+    "seq": 242,
+    "tick": 1,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "CandidacyDeclared",
+    "payload": {
+     "CandidacyDeclared": {
+      "citizen": 40,
+      "office": "coordinator"
+     }
+    }
+   }
+  ]
+ }
+}

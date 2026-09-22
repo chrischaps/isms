@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # A synthetic cohort (S1.16) against a throwaway lab society: fresh database,
-# seed a lab Freeport, serve it on a side port, run the players to the epoch's
-# end, write the report, then replay the log with `rebuild` as the conservation
-# check. Mirrors scripts/e2e/core-loop.sh.
+# seed a lab society of PRESET (freeport or commune, S2.10), serve it on a side
+# port, run the players to the epoch's end, write the report, then replay the
+# log with `rebuild` as the conservation check. Mirrors scripts/e2e/core-loop.sh.
 #
-#   RUN=<name> PLAYERS=8 TICK_SECONDS=10 EPOCH_CYCLES=7 BRAIN=mixed bash scripts/agents/run.sh
+#   RUN=<name> PRESET=commune PLAYERS=8 TICK_SECONDS=10 EPOCH_CYCLES=7 BRAIN=mixed bash scripts/agents/run.sh
 #
-# BRAIN=scripted needs no ANTHROPIC_API_KEY and is what CI runs (make e2e-agents).
+# BRAIN=scripted needs no ANTHROPIC_API_KEY and is what CI runs (make e2e-agents, both presets).
 # ASSERT_CLEAN=1 fails the script when the report has a fuzzer defect or a 5xx.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 RUN="${RUN:-$(date +%Y%m%d-%H%M)}"
+PRESET="${PRESET:-freeport}"
 PLAYERS="${PLAYERS:-8}"
 TICK_SECONDS="${TICK_SECONDS:-10}"
 EPOCH_CYCLES="${EPOCH_CYCLES:-7}"
@@ -43,9 +44,9 @@ say "build the server and the harness"
 SQLX_OFFLINE=true cargo build -q -p isms-server
 pnpm --dir agents install --frozen-lockfile --silent
 
-say "a fresh database and a lab Freeport ($EPOCH_CYCLES-day epoch, $TICK_SECONDS s an hour)"
+say "a fresh database and a lab $PRESET ($EPOCH_CYCLES-day epoch, $TICK_SECONDS s an hour)"
 RUST_LOG=warn "$SERVER" migrate
-SID="$(RUST_LOG=warn "$SERVER" seed --preset freeport --class lab --name "lab-$RUN" --tick-seconds "$TICK_SECONDS" \
+SID="$(RUST_LOG=warn "$SERVER" seed --preset "$PRESET" --class lab --name "lab-$RUN" --tick-seconds "$TICK_SECONDS" \
   --param "params.time.epoch_cycles=$EPOCH_CYCLES" \
   --param "params.time.closing_window_minutes=${CLOSING_WINDOW_MINUTES:-1}" \
   --param params.population.collapse_enabled=false | tail -n 1)"
@@ -63,7 +64,7 @@ curl -fsS "$ISMS_URL/public/societies" | grep -q "\"id\":$SID," && fail "the lab
 
 say "run the cohort: $PLAYERS players, brain $BRAIN"
 # AGENTS_CMD=record records one player's every exchange for the replay test (agents/test/replay.test.ts).
-pnpm --dir agents "${AGENTS_CMD:-play}" --run "$RUN" --players "$PLAYERS" --brain "$BRAIN" ${AGENTS_ARGS:-}
+pnpm --dir agents "${AGENTS_CMD:-play}" --run "$RUN" --preset "$PRESET" --players "$PLAYERS" --brain "$BRAIN" ${AGENTS_ARGS:-}
 
 say "the epoch's end: a closing statement, the archive, the rollover (S1.15)"
 # The lab seed keeps the statements window to a minute, so the next epoch starts inside the run.

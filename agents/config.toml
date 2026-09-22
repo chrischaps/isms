@@ -37,5 +37,7 @@ players = 8
 # Poll /home this often when the WebSocket is down.
 poll_ms = 3000
 personas = ["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord", "rule-prober"]
+# A preset with its own list (S2.10): `pnpm play --preset commune` (run.sh passes PRESET through). Others fall back to `personas`.
+personas_for = { commune = ["steward", "rationer", "free-rider", "chronicler", "steward", "rationer", "chronicler", "rule-prober"] }
 # scripted (free, deterministic) | llm (every persona on a model) | mixed (each persona's own choice)
 brain = "mixed"

@@ -1,0 +1,21 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "open": [],
+  "closed": [],
+  "electorate": 8,
+  "quorum_fraction": 0.2,
+  "open_per_citizen": 3,
+  "my_vote_default": {
+   "follow": 41
+  }
+ }
+}

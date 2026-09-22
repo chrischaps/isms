@@ -3,6 +3,7 @@
 
 import { ZERO_USAGE } from "../../journal/journal.ts";
 import type { ToolContext } from "../../tools/context.ts";
+import { FREEPORT, type SocietyFacts } from "../../society.ts";
 import type { Brain, Persona, TurnInput, TurnOutcome } from "../brain.ts";
 import { ruleProber } from "./fuzz.ts";
 import { Script, type Memory } from "./script.ts";
@@ -19,12 +20,15 @@ export class ScriptedBrain implements Brain {
   private readonly strategy: Strategy;
   private readonly memory: Memory = {};
   private readonly handle: string;
-  constructor(persona: Persona, handle: string) {
+  private readonly facts: SocietyFacts;
+  /** `facts` are the society's capabilities (S2.10); a brain built without them plays Freeport. */
+  constructor(persona: Persona, handle: string, facts: SocietyFacts = FREEPORT) {
     this.strategy = strategyFor(persona.slug);
     this.handle = handle;
+    this.facts = facts;
   }
   async takeTurn(ctx: ToolContext, input: TurnInput): Promise<TurnOutcome> {
-    const s = new Script(ctx, input, this.memory, this.handle);
+    const s = new Script(ctx, input, this.memory, this.handle, this.facts);
     try {
       const intent = await this.strategy(s);
       return { intent, did_not_understand: s.notes, ended_by: "script", error: null, usage: ZERO_USAGE };

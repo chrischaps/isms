@@ -1,0 +1,96 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "open": [
+   {
+    "id": 0,
+    "by": 40,
+    "by_handle": "founder-1",
+    "title": "Seven hours",
+    "text": "The Store ran short.",
+    "kind": {
+     "policy_change": {
+      "patch": {
+       "materials_split": null,
+       "monitoring": null,
+       "rationing": null,
+       "work_norm_hours": 7
+      }
+     }
+    },
+    "kind_tag": "policy_change",
+    "org": null,
+    "opened_tick": 1,
+    "closes_cycle": 0,
+    "open": true,
+    "tally": {
+     "yes": 0,
+     "no": 0,
+     "abstain": 0,
+     "cast": 0,
+     "quorum": 2,
+     "eligible": 8
+    },
+    "ballots": [],
+    "my_ballot": null,
+    "floor_open": true,
+    "outcome": null
+   },
+   {
+    "id": 1,
+    "by": 41,
+    "by_handle": "wage-maximiser-1",
+    "title": "Honor founder-1",
+    "text": "",
+    "kind": {
+     "honor": {
+      "citizen": 40
+     }
+    },
+    "kind_tag": "honor",
+    "org": null,
+    "opened_tick": 1,
+    "closes_cycle": 0,
+    "open": true,
+    "tally": {
+     "yes": 1,
+     "no": 1,
+     "abstain": 0,
+     "cast": 2,
+     "quorum": 2,
+     "eligible": 8
+    },
+    "ballots": [
+     {
+      "citizen": 40,
+      "handle": "founder-1",
+      "ballot": "yes"
+     },
+     {
+      "citizen": 41,
+      "handle": "wage-maximiser-1",
+      "ballot": "no"
+     }
+    ],
+    "my_ballot": "yes",
+    "floor_open": true,
+    "outcome": null
+   }
+  ],
+  "closed": [],
+  "electorate": 8,
+  "quorum_fraction": 0.2,
+  "open_per_citizen": 3,
+  "my_vote_default": {
+   "follow": 41
+  }
+ }
+}

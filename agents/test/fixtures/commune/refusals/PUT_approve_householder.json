@@ -1,0 +1,10 @@
+{
+ "status": 422,
+ "body": {
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "H-0 does not stand for Coordinator",
+  "code": "not_a_candidate"
+ }
+}

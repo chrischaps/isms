@@ -1,0 +1,29 @@
+{
+ "status": 200,
+ "body": {
+  "clock": {
+   "epoch": 1,
+   "cycle": 1,
+   "tick": 2,
+   "ticks_per_cycle": 24,
+   "engine_tick": 1,
+   "epoch_ended": false
+  },
+  "first_seq": 244,
+  "events": [
+   {
+    "seq": 244,
+    "tick": 1,
+    "cycle": 0,
+    "epoch": 0,
+    "kind": "CandidacyWithdrawn",
+    "payload": {
+     "CandidacyWithdrawn": {
+      "citizen": 40,
+      "office": "coordinator"
+     }
+    }
+   }
+  ]
+ }
+}
