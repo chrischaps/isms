@@ -1,12 +1,16 @@
-// The ballot builder (GDD 15 "role tooling", TDD 4 roles/; S2.6): one typed
-// form per proposal kind the constitution enables. The form knows what a
-// kind needs and nothing about whether the assembly will have it: the engine
-// refuses, and the refusal is shown in the mover's own words with the ids
-// named. S2.8's rationing form mounts this with `only={["policy_change"]}`.
+// The ballot builder (GDD 15 "role tooling", TDD 4 roles/; S2.6; docs/style.md
+// §7.18): one typed form per proposal kind the constitution enables. The
+// form knows what a kind needs and nothing about whether the assembly will
+// have it: the engine refuses, and the refusal is shown in the mover's own
+// words with the ids named. S2.8's rationing form mounts this with
+// `only={["policy_change"]}`. Every control carries an aria-label of its
+// own, so the specs find it by the bare name and not the label's hint.
 
 import { useState } from "react";
 import { type ProposalKind, usePropose } from "../../api/assembly";
 import type { CapabilitiesView } from "../../api/client";
+import { Button, ButtonRow } from "../../components/Button";
+import { Field, Input, Select } from "../../components/Field";
 import { fieldName, kindTitle } from "../../lib/policy";
 
 export type Citizen = { id: number; handle: string };
@@ -69,6 +73,8 @@ export function splitToFractions(s: Split): Split {
 export function movableKinds(kinds: string[], only?: string[]): string[] {
   return kinds.filter((k) => k !== "election" && k !== "disbursement" && k !== "admission" && (!only || only.includes(k)));
 }
+
+const TEXTAREA = "border-line bg-surface text-ink focus:border-accent focus:ring-accent-soft min-h-24 w-full rounded-sm border px-3 py-2 focus:ring-2 focus:outline-none";
 
 export function BallotBuilder({
   id,
@@ -173,7 +179,7 @@ export function BallotBuilder({
 
   return (
     <form
-      className="flex flex-col gap-4"
+      className="grid gap-4"
       data-testid="ballot-builder"
       onSubmit={(e) => {
         e.preventDefault();
@@ -181,11 +187,9 @@ export function BallotBuilder({
       }}
     >
       {kinds.length > 1 ? (
-        <label className="flex items-center gap-2 text-sm">
-          <span>Kind</span>
-          <select
+        <Field label="Kind">
+          <Select
             aria-label="Proposal kind"
-            className="border-line rounded-sm border px-1"
             value={current}
             onChange={(e) => {
               setKind(e.target.value);
@@ -197,33 +201,27 @@ export function BallotBuilder({
                 {kindTitle(k)}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       ) : (
-        <p className="text-sm">{kindTitle(current)}</p>
+        <p className="m-0 font-bold">{kindTitle(current)}</p>
       )}
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span>Title</span>
-        <input
-          aria-label="Proposal title"
-          maxLength={120}
-          className="border-line rounded-sm border px-2 py-1"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-      </label>
+      <Field label="Title" className="max-w-none">
+        <Input aria-label="Proposal title" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} />
+      </Field>
 
       {current === "policy_change" ? (
-        <fieldset className="flex flex-col gap-3" data-testid="policy-fields">
-          <legend className="text-muted text-xs">Tick the fields the change sets; the rest stay as they are.</legend>
+        <fieldset className="m-0 grid gap-3 border-0 p-0" data-testid="policy-fields">
+          <legend className="text-muted mb-1 p-0 text-sm">Tick the fields the change sets; the rest stay as they are.</legend>
           {fields.map((f) => {
             const on = f.key in patch;
             return (
-              <div key={f.key} className="flex flex-col gap-1 text-sm">
-                <label className="flex items-baseline gap-2">
+              <div key={f.key} className="grid gap-2">
+                <label className="flex min-h-touch items-start gap-2.5">
                   <input
                     type="checkbox"
+                    className="mt-1.5"
                     aria-label={`Change ${f.label.toLowerCase()}`}
                     checked={on}
                     onChange={(e) => {
@@ -234,63 +232,53 @@ export function BallotBuilder({
                     }}
                   />
                   <span>
-                    {f.label} <span className="text-muted text-xs">{f.hint}</span>
-                    {f.note ? <span className="text-warn ml-1 text-xs">({f.note})</span> : null}
+                    <b>{f.label}</b> <span className="text-muted text-sm">{f.hint}</span>
+                    {f.note ? <span className="text-attn ml-1 text-sm">({f.note})</span> : null}
                   </span>
                 </label>
                 {on && f.kind === "select" ? (
-                  <select
-                    aria-label={f.label}
-                    className="border-line ml-6 w-48 rounded-sm border px-1"
-                    value={String(patch[f.key])}
-                    onChange={(e) => setField(f.key, e.target.value)}
-                  >
-                    {f.options!.map((o) => (
-                      <option key={o} value={o}>
-                        {fieldName(o)}
-                      </option>
-                    ))}
-                  </select>
+                  <Field label={f.label} className="ml-7">
+                    <Select aria-label={f.label} value={String(patch[f.key])} onChange={(e) => setField(f.key, e.target.value)}>
+                      {f.options!.map((o) => (
+                        <option key={o} value={o}>
+                          {fieldName(o)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                 ) : null}
                 {on && f.kind === "hours" ? (
-                  <span className="ml-6 flex items-center gap-2">
-                    <input
+                  <Field label={f.label} unit="hours a day" className="ml-7 max-w-[14rem]">
+                    <Input
                       type="number"
                       inputMode="numeric"
                       min={0}
                       max={24}
                       step={1}
                       aria-label={f.label}
-                      className="border-line num w-20 rounded-sm border px-1"
                       value={Number(patch[f.key])}
                       onChange={(e) => setField(f.key, Math.min(24, Math.max(0, Math.trunc(Number(e.target.value) || 0))))}
                     />
-                    <span className="text-muted text-xs">hours a day</span>
-                  </span>
+                  </Field>
                 ) : null}
                 {on && f.kind === "split" ? (
-                  <span className="ml-6 flex flex-wrap items-center gap-3">
+                  <div className="ml-7 flex flex-wrap items-end gap-3">
                     {(["wares", "machines", "dwellings"] as const).map((sink) => (
-                      <label key={sink} className="flex items-center gap-1">
-                        <span className="text-muted text-xs capitalize">{sink}</span>
-                        <input
+                      <Field key={sink} label={<span className="capitalize">{sink}</span>} unit="%" className="w-[7.5rem]">
+                        <Input
                           type="number"
                           inputMode="numeric"
                           min={0}
                           max={100}
                           step={1}
                           aria-label={`${f.label}: ${sink}`}
-                          className="border-line num w-16 rounded-sm border px-1"
                           value={split[sink]}
-                          onChange={(e) =>
-                            setSplit((s) => ({ ...s, [sink]: Math.min(100, Math.max(0, Math.trunc(Number(e.target.value) || 0))) }))
-                          }
+                          onChange={(e) => setSplit((s) => ({ ...s, [sink]: Math.min(100, Math.max(0, Math.trunc(Number(e.target.value) || 0))) }))}
                         />
-                        <span className="text-muted text-xs">%</span>
-                      </label>
+                      </Field>
                     ))}
-                    <span className={`num text-xs ${splitSum === 100 ? "text-muted" : "text-bad"}`}>= {splitSum}%</span>
-                  </span>
+                    <span className={`min-h-touch flex items-center text-sm tabular-nums ${splitSum === 100 ? "text-muted" : "text-crit"}`}>= {splitSum} %</span>
+                  </div>
                 ) : null}
               </div>
             );
@@ -299,32 +287,23 @@ export function BallotBuilder({
       ) : null}
 
       {current === "honor" ? (
-        <label className="flex flex-col gap-1 text-sm">
-          <span>Citizen to honor</span>
-          <select
-            aria-label="Citizen to honor"
-            className="border-line w-56 rounded-sm border px-1"
-            value={honoree}
-            onChange={(e) => setHonoree(e.target.value === "" ? "" : Number(e.target.value))}
-          >
+        <Field label="Citizen to honor" hint="One line on their record and the scoreboard's count; never revoked.">
+          <Select aria-label="Citizen to honor" value={honoree} onChange={(e) => setHonoree(e.target.value === "" ? "" : Number(e.target.value))}>
             <option value="">choose</option>
             {citizens.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.handle}
               </option>
             ))}
-          </select>
-          <span className="text-muted text-xs">One line on their record and the scoreboard's count; never revoked.</span>
-        </label>
+          </Select>
+        </Field>
       ) : null}
 
       {current === "recall" ? (
-        <div className="flex flex-wrap gap-4 text-sm">
-          <label className="flex flex-col gap-1">
-            <span>Office</span>
-            <select
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Office">
+            <Select
               aria-label="Office to recall from"
-              className="border-line w-48 rounded-sm border px-1"
               value={recallOffice}
               onChange={(e) => {
                 setRecallOffice(e.target.value);
@@ -337,57 +316,48 @@ export function BallotBuilder({
                   {fieldName(o.kind)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span>Holder</span>
-            <select
-              aria-label="Holder to recall"
-              className="border-line w-48 rounded-sm border px-1"
-              value={recallWho}
-              disabled={recallOffice === ""}
-              onChange={(e) => setRecallWho(e.target.value === "" ? "" : Number(e.target.value))}
-            >
+            </Select>
+          </Field>
+          <Field label="Holder">
+            <Select aria-label="Holder to recall" value={recallWho} disabled={recallOffice === ""} onChange={(e) => setRecallWho(e.target.value === "" ? "" : Number(e.target.value))}>
               <option value="">choose</option>
               {recallHolders.map((h) => (
                 <option key={h.citizen} value={h.citizen}>
                   {h.handle}
                 </option>
               ))}
-            </select>
-          </label>
-          {heldOffices.length === 0 ? <p className="text-muted self-end text-xs">No office is held; there is nobody to recall.</p> : null}
+            </Select>
+          </Field>
+          {heldOffices.length === 0 ? <p className="text-muted m-0 text-sm sm:col-span-2">No office is held; there is nobody to recall.</p> : null}
         </div>
       ) : null}
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span>{current === "resolution" ? "The resolution" : "Your case"}</span>
+      <label className="grid gap-1.5">
+        <span className="text-sm font-bold">{current === "resolution" ? "The resolution" : "Your case"}</span>
         <textarea
           aria-label={current === "resolution" ? "Resolution text" : "Proposal text"}
           rows={3}
           maxLength={4000}
-          className="border-line rounded-sm border px-2 py-1"
+          className={TEXTAREA}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        {current === "resolution" ? (
-          <span className="text-muted text-xs">Recorded as the assembly's minutes; it changes no rule.</span>
-        ) : (
-          <span className="text-muted text-xs">Optional. The floor is for the argument; this is the motion.</span>
-        )}
+        <span className="text-muted text-sm">
+          {current === "resolution" ? "Recorded as the assembly's minutes; it changes no rule." : "Optional. The floor is for the argument; this is the motion."}
+        </span>
       </label>
 
-      <div className="flex flex-wrap items-baseline gap-3 text-sm">
-        <button type="submit" disabled={propose.isPending} className="bg-ink text-paper rounded-sm px-3 py-1 disabled:opacity-50">
+      <ButtonRow>
+        <Button type="submit" variant="primary" disabled={propose.isPending}>
           Move it
-        </button>
-        {moved ? <span className="text-muted">Moved. It closes at the end of the day.</span> : null}
+        </Button>
+        {moved ? <span className="text-muted text-sm">Moved. It closes at the end of the day.</span> : null}
         {error ? (
-          <span className="text-bad" role="alert">
+          <span className="text-crit text-sm" role="alert">
             {error}
           </span>
         ) : null}
-      </div>
+      </ButtonRow>
     </form>
   );
 }

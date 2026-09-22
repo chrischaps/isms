@@ -1,7 +1,8 @@
 // The style bible's one hard rule (docs/style.md §4.5, §11): components read
 // tokens only. This fails `pnpm check` on a colour literal, a `dark:` variant,
-// or a pre-Companion class name outside the LEGACY allowlist below. The
-// allowlist shrinks as screens are restyled and is emptied by the sweep (SB.5).
+// or a pre-Companion class name. The allowlist that carried the screens
+// through SB.1–SB.4 was emptied by the sweep (SB.5); every file is held to
+// the same rule now.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -9,34 +10,15 @@ import { join, relative } from "node:path";
 const ROOT = new URL("../src/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const SKIP = [/[\\/]styles[\\/]tokens\.css$/, /[\\/]styles[\\/]components\.css$/, /\.test\.tsx?$/, /[\\/]api[\\/]schema\.d\.ts$/];
 
-// Files still carrying the old names, until their card lands. Remove a path
-// here when you restyle it; the sweep removes the whole list.
-const LEGACY_FILES = new Set([
-  "screens/Admin.tsx",
-  "screens/Assembly.tsx",
-  "screens/Ledger.tsx",
-  "screens/Login.tsx",
-  "screens/Onboarding.tsx",
-  "screens/Profile.tsx",
-  "screens/Public.tsx",
-  "screens/Societies.tsx",
-  "screens/Store.tsx",
-  "screens/roles/BallotBuilder.tsx",
-  "screens/roles/Coordinator.tsx",
-  "components/DiffSinceLastSeen.tsx",
-  "lib/markdown.tsx",
-]);
-
 const RULES = [
-  { name: "hex colour", re: /(?<![\w&])#[0-9a-f]{3,8}\b/gi, legacyOk: false },
-  { name: "rgb()/hsl()", re: /\b(?:rgb|hsl)a?\(/g, legacyOk: false },
-  { name: "dark: variant", re: /(?<![\w-])dark:/g, legacyOk: false },
+  { name: "hex colour", re: /(?<![\w&])#[0-9a-f]{3,8}\b/gi },
+  { name: "rgb()/hsl()", re: /\b(?:rgb|hsl)a?\(/g },
+  { name: "dark: variant", re: /(?<![\w-])dark:/g },
   {
     name: "legacy class",
     re: /(?<![\w-])(?:text|bg|border|fill|stroke|decoration)-(?:bad|warn|paper|paper-2|ink-2|accent-2)(?![\w-])/g,
-    legacyOk: true,
   },
-  { name: "legacy helper class", re: /(?<![\w-])(?:num|rule|explain)(?=["'\s`])/g, legacyOk: true, classOnly: true },
+  { name: "legacy helper class", re: /(?<![\w-])(?:num|rule|explain)(?=["'\s`])/g, classOnly: true },
 ];
 
 function walk(dir, out = []) {
@@ -52,7 +34,6 @@ let failures = 0;
 for (const file of walk(ROOT)) {
   if (SKIP.some((s) => s.test(file))) continue;
   const rel = relative(ROOT, file).replaceAll("\\", "/");
-  const legacy = LEGACY_FILES.has(rel);
   const text = readFileSync(file, "utf8");
   const lines = text.split("\n");
   lines.forEach((line, i) => {
@@ -63,7 +44,6 @@ for (const file of walk(ROOT)) {
       r.re.lastIndex = 0;
       const m = r.re.exec(code);
       if (!m) continue;
-      if (r.legacyOk && legacy) continue;
       failures++;
       console.error(`${rel}:${i + 1}: ${r.name} "${m[0]}" — use a token (docs/style.md §4)`);
     }

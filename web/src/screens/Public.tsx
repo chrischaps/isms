@@ -1,96 +1,93 @@
-// The spectator views (GDD 9.2, TDD 10.2; S1.13): the society list, one
-// society's numbers and Chronicle, readable with no login. What a society
-// keeps in public is its own choice; these show what the API publishes.
+// The spectator views (GDD 9.2, TDD 10.2; S1.13; docs/style.md §10): the
+// society list, one society's numbers and Chronicle, readable with no login.
+// What a society keeps in public is its own choice; these show what the API
+// publishes, on the same tiles and reader the citizen's Society screen uses.
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useLexicon } from "../api/hooks";
 import { usePublicChronicle, usePublicSocieties, usePublicStats } from "../api/civic";
-import { hourOfClock } from "../lib/when";
+import { Card, Stack, Two } from "../components/Card";
 import { ChronicleReader } from "../components/ChronicleReader";
+import { PageHeader } from "../components/PageHeader";
 import { StatTiles } from "../components/StatTiles";
+import { hourOfClock } from "../lib/when";
+
+const FALLBACK: Record<string, string> = { chronicle: "Chronicle", society_stat: "Price index" };
 
 export function PublicSocieties() {
   const societies = usePublicSocieties();
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-2xl">Isms</h1>
-        <nav className="flex gap-4 text-sm">
-          <Link to="/" className="text-muted underline">
-            Sign in
-          </Link>
-        </nav>
-      </header>
-      <p className="text-muted text-sm">Societies running on this server, each under its own constitution. Anyone may read; citizens act.</p>
-      {societies.isPending ? (
-        <p className="text-muted">Loading.</p>
-      ) : societies.error ? (
-        <p className="text-bad">Could not load: {String(societies.error)}</p>
-      ) : (
-        <ul className="flex flex-col gap-2" data-testid="public-society-list">
-          {societies.data!.map((s) => (
-            <li key={s.id} className="rule flex flex-wrap items-baseline justify-between gap-2 pt-2">
-              <Link to="/public/s/$id" params={{ id: String(s.id) }} className="text-xl underline decoration-dotted">
-                {s.display}
-              </Link>
-              <span className="num text-muted text-sm">
-                {s.preset} · Epoch {s.clock.epoch}, Day {s.clock.cycle} · {s.population} citizens, {s.active_humans} people
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div>
+      <PageHeader title="Isms" meta={<Link to="/">Sign in</Link>} />
+      <Card title="Societies" icon="globe" subtitle="Running on this server, each under its own constitution. Anyone may read; citizens act.">
+        {societies.isPending ? (
+          <p className="text-muted m-0">Loading.</p>
+        ) : societies.error ? (
+          <p className="text-crit m-0">Could not load: {String(societies.error)}</p>
+        ) : (
+          <ul className="m-0 grid list-none gap-3 p-0" data-testid="public-society-list">
+            {societies.data!.map((s) => (
+              <li key={s.id} className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t pt-3 first:border-t-0 first:pt-0">
+                <Link to="/public/s/$id" params={{ id: String(s.id) }} className="text-lg">
+                  {s.display}
+                </Link>
+                <span className="text-muted text-sm tabular-nums">
+                  {s.preset} · Epoch {s.clock.epoch}, Day {s.clock.cycle} · {s.population} citizens, {s.active_humans} people
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }
 
 export function PublicSociety({ id }: { id: number }) {
-  const { t } = useLexicon(id);
+  // The lexicon is served to citizens; a reader with no session gets the shell's own words (Q155).
+  const lexicon = useLexicon(id);
+  const t = (k: string) => (lexicon.t(k) === k ? (FALLBACK[k] ?? k) : lexicon.t(k));
   const stats = usePublicStats(id);
   const [cycle, setCycle] = useState<number | null>(null);
   const chronicle = usePublicChronicle(id, cycle);
   if (stats.isPending) return <p className="text-muted">Loading.</p>;
-  if (stats.error) return <p className="text-bad">Could not load: {String(stats.error)}</p>;
+  if (stats.error) return <p className="text-crit">Could not load: {String(stats.error)}</p>;
   const s = stats.data!;
   const current = s.clock.cycle;
   const shown = chronicle.data?.cycle ?? cycle ?? current;
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          <Link to="/public" className="text-muted text-sm">
-            Societies
-          </Link>
-          <h1 className="text-2xl">{s.name}</h1>
-          <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>
-          <Link to="/public/s/$id/archives" params={{ id: String(id) }} className="text-muted text-sm underline decoration-dotted">
-            Past epochs
-          </Link>
-        </div>
-        <span className="num text-muted text-sm">
-          Epoch {s.clock.epoch} · Day {s.clock.cycle} · {hourOfClock(s.clock)}
-        </span>
-      </header>
-      <section>
-        <h2 className="text-lg">The numbers it keeps</h2>
-        <div className="mt-3">
+    <div>
+      <PageHeader
+        title={s.name}
+        meta={
+          <>
+            <span className="tracking-caps uppercase">{s.preset}</span>
+            <span className="tabular-nums">
+              Epoch <b>{s.clock.epoch}</b> · Day <b>{s.clock.cycle}</b> · {hourOfClock(s.clock)}
+            </span>
+            <Link to="/public">Societies</Link>
+            <Link to="/public/s/$id/archives" params={{ id: String(id) }}>
+              Past epochs
+            </Link>
+          </>
+        }
+      />
+      <Stack>
+        <Card title="The numbers it keeps" icon="people">
           <StatTiles stats={s} money={s.money} credit={s.credit} orgs={s.orgs} t={t} />
-        </div>
-      </section>
-      <section className="max-w-2xl">
-        <h2 className="text-lg">{t("chronicle")}</h2>
-        <div className="mt-2">
-          <ChronicleReader id={id} cycle={shown} setCycle={setCycle} current={current} headlines={chronicle.data?.headlines ?? []} pending={chronicle.isPending} link={false} />
-        </div>
-      </section>
-      <p className="text-muted text-sm">
-        To act here,{" "}
-        <Link to="/login" className="underline">
-          sign in
-        </Link>{" "}
-        and join.
-      </p>
+        </Card>
+        <Two>
+          <Card title={t("chronicle")} icon="page" subtitle="What the society says about itself, day by day.">
+            <ChronicleReader id={id} cycle={shown} setCycle={setCycle} current={current} headlines={chronicle.data?.headlines ?? []} pending={chronicle.isPending} link={false} />
+          </Card>
+          <Card title="To act here" icon="person">
+            <p className="m-0">
+              <Link to="/login">Sign in</Link> and join. A citizen works, trades and votes; a reader only watches.
+            </p>
+          </Card>
+        </Two>
+      </Stack>
     </div>
   );
 }

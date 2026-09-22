@@ -1,9 +1,13 @@
-// Magic-link sign-in (TDD 10.2): email, invite code the first time, then
-// "check your mail". The link itself lands on the server, which sets the
-// cookie and redirects here.
+// Magic-link sign-in (TDD 10.2; docs/style.md §7.18): email, invite code the
+// first time, then "check your mail". One card, one primary button. The link
+// itself lands on the server, which sets the cookie and redirects here.
 
 import { useState } from "react";
 import { ApiError, api, unwrap } from "../api/client";
+import { Button } from "../components/Button";
+import { Card } from "../components/Card";
+import { Field, Input } from "../components/Field";
+import { PageHeader } from "../components/PageHeader";
 
 export function Login() {
   const [email, setEmail] = useState("");
@@ -32,50 +36,38 @@ export function Login() {
 
   if (sent) {
     return (
-      <section className="max-w-md">
-        <h1 className="text-2xl">Check your mail</h1>
-        <p className="mt-3">
-          A sign-in link is on its way to <span className="font-mono">{email}</span>. It works once and
-          for fifteen minutes.
-        </p>
-      </section>
+      <div className="mx-auto max-w-md pt-6 sm:pt-12">
+        <PageHeader title="Check your mail" />
+        <Card icon="talk">
+          <p className="m-0 text-lg">
+            A sign-in link is on its way to <b className="font-mono">{email}</b>. It works once and for fifteen minutes.
+          </p>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <section className="max-w-md">
-      <h1 className="text-2xl">Sign in</h1>
-      <p className="text-muted mt-2 text-sm">
-        No passwords. You get a link by mail. The first time, you need an invitation.
-      </p>
-      <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          Email
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="border-line bg-paper-2 rounded-sm border px-2 py-1"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Invite code <span className="text-muted">(first sign-in only)</span>
-          <input
-            value={invite}
-            onChange={(e) => setInvite(e.target.value)}
-            className="border-line bg-paper-2 rounded-sm border px-2 py-1 font-mono"
-          />
-        </label>
-        {error ? <p className="text-bad text-sm">{error}</p> : null}
-        <button
-          type="submit"
-          disabled={busy}
-          className="bg-ink text-paper self-start rounded-sm px-3 py-1 disabled:opacity-50"
-        >
-          Send me a link
-        </button>
-      </form>
-    </section>
+    <div className="mx-auto max-w-md pt-6 sm:pt-12">
+      <PageHeader title="Sign in" />
+      <Card subtitle="No passwords. You get a link by mail. The first time, you need an invitation.">
+        <form onSubmit={submit} className="grid gap-4">
+          <Field label="Email" className="max-w-none">
+            <Input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="Invite code" hint="First sign-in only." className="max-w-none">
+            <Input className="font-mono" autoComplete="off" value={invite} onChange={(e) => setInvite(e.target.value)} />
+          </Field>
+          {error ? (
+            <p className="text-crit m-0 text-sm" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" variant="primary" disabled={busy}>
+            Send me a link
+          </Button>
+        </form>
+      </Card>
+    </div>
   );
 }

@@ -1,9 +1,16 @@
-// The landing: the societies on this server, and where you stand in each.
+// The landing (docs/style.md §10 Societies): the societies on this server,
+// one card each with its clock and its people, and where you stand in it —
+// your handle, or Join. Signed out, it is the one sentence about the game
+// and the way in.
 
 import { Link } from "@tanstack/react-router";
 import { ApiError } from "../api/client";
 import { useMe, useSocieties } from "../api/hooks";
+import { ButtonLink } from "../components/Button";
+import { Card } from "../components/Card";
 import { Countdown } from "../components/Countdown";
+import { PageHeader } from "../components/PageHeader";
+import { Pill } from "../components/Pill";
 import { hourOfClock } from "../lib/when";
 
 export function Societies() {
@@ -18,65 +25,80 @@ export function Societies() {
     (societies.error instanceof ApiError && societies.error.status === 401);
   if (signedOut) {
     return (
-      <section>
-        <h1 className="text-3xl">Isms</h1>
-        <p className="mt-3 max-w-prose">
-          Societies that run on one economic system each. You live in one; the economy is the game.
-        </p>
-        <p className="mt-6">
-          <Link to="/login" className="bg-ink text-paper rounded-sm px-3 py-1">
+      <div className="mx-auto max-w-md pt-6 sm:pt-12">
+        <Card title="Isms" icon="globe">
+          <p className="mt-0 text-lg">Societies that run on one economic system each. You live in one; the economy is the game.</p>
+          <p className="text-muted mt-0">
+            Anyone may read a society from the <Link to="/public">public pages</Link>; citizens act.
+          </p>
+          <ButtonLink to="/login" variant="primary">
             Sign in
-          </Link>
-        </p>
-      </section>
+          </ButtonLink>
+        </Card>
+      </div>
     );
   }
   if (societies.error || me.error) {
-    return <p className="text-bad">Could not load: {String(societies.error ?? me.error)}</p>;
+    return <p className="text-crit">Could not load: {String(societies.error ?? me.error)}</p>;
   }
   const mine = new Map(me.data!.citizenships.map((c) => [c.society_id, c]));
   return (
-    <section>
-      <header className="flex items-baseline justify-between">
-        <h1 className="text-3xl">Societies</h1>
-        <span className="text-muted text-sm">{me.data!.account.email}</span>
-      </header>
-      <ul className="mt-6 flex flex-col gap-4" data-testid="society-list">
+    <div>
+      <PageHeader
+        title="Societies"
+        meta={
+          <>
+            <span>{me.data!.account.email}</span>
+            <Link to="/profile">Profile</Link>
+            {me.data!.account.operator ? <Link to="/admin">Operator</Link> : null}
+          </>
+        }
+      />
+      <ul className="m-0 grid list-none gap-4 p-0" data-testid="society-list">
         {societies.data!.map((s) => {
           const c = mine.get(s.id);
           return (
-            <li key={s.id} className="rule flex flex-wrap items-baseline justify-between gap-2 pt-4">
-              <div>
-                <Link to="/s/$id" params={{ id: String(s.id) }} className="text-xl">
-                  {s.display}
-                </Link>
-                <span className="text-muted ml-2 text-sm">{s.name}</span>
-                {s.class === "lab" && (
-                  <span className="text-muted ml-2 text-xs uppercase" title="A lab society: synthetic players may play here; it is not public.">
-                    lab
-                  </span>
-                )}
-                <div className="text-muted text-sm">
-                  Epoch {s.clock.epoch}, Day {s.clock.cycle}, {hourOfClock(s.clock)};{" "}
-                  {s.population} citizens, {s.active_humans} people
-                </div>
-              </div>
-              <div className="flex items-baseline gap-4">
-                <Countdown at={s.next_tick_at} label="next hour" />
-                {c ? (
-                  <span className="text-sm">
-                    you are <span className="font-mono">{c.handle}</span>
-                  </span>
-                ) : (
-                  <Link to="/s/$id" params={{ id: String(s.id) }} className="text-sm">
-                    Join
+            <li key={s.id}>
+              <Card
+                title={
+                  <Link to="/s/$id" params={{ id: String(s.id) }} className="text-ink hover:text-accent">
+                    {s.display}
                   </Link>
-                )}
-              </div>
+                }
+                icon="globe"
+                aside={
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-normal">
+                    <span className="text-muted">{s.name}</span>
+                    {s.class === "lab" ? (
+                      <span title="A lab society: synthetic players may play here; it is not public.">
+                        <Pill tone="info">lab</Pill>
+                      </span>
+                    ) : null}
+                  </span>
+                }
+                subtitle={
+                  <>
+                    Epoch {s.clock.epoch}, Day {s.clock.cycle}, {hourOfClock(s.clock)} · {s.population} citizens, {s.active_humans} people
+                  </>
+                }
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Countdown at={s.next_tick_at} label="next hour" />
+                  {c ? (
+                    <span>
+                      you are <b>{c.handle}</b>
+                    </span>
+                  ) : (
+                    <Link to="/s/$id" params={{ id: String(s.id) }}>
+                      Join
+                    </Link>
+                  )}
+                </div>
+              </Card>
             </li>
           );
         })}
       </ul>
-    </section>
+    </div>
   );
 }

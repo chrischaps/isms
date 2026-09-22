@@ -1,41 +1,73 @@
-// The Ledger of Contribution (GDD 6.2, 15; S2.7): every citizen's hours,
-// exactly, and their output as the society's monitoring attributes it, with
-// the sigma stated so nobody mistakes an estimate for a count; the norm, met
-// or not, today and over every day on the record; the assembly's honors.
-// Your row is marked. Nobody can be made to work, and everyone can see what
-// you did. Mounted where `caps.labor` is "norm".
+// The Ledger of Contribution (GDD 6.2, 15; S2.7; docs/style.md §10 by
+// analogy): every citizen's hours, exactly, and their output as the
+// society's monitoring attributes it, with the sigma stated so nobody
+// mistakes an estimate for a count; the norm, met or not, today and over
+// every day on the record; the assembly's honors. The Verdict is your own
+// line — what you have given today, against the norm — and your row is
+// marked. Nobody can be made to work, and everyone can see what you did.
+// Mounted where `caps.labor` is "norm".
 
 import { Link } from "@tanstack/react-router";
 import { ApiError } from "../api/client";
 import { useLedger, type ContributionRow } from "../api/commons";
 import { useCapabilities, useHome, useLexicon } from "../api/hooks";
+import { ButtonLink } from "../components/Button";
+import { Card, Stack } from "../components/Card";
+import { Figure, Figures } from "../components/Figure";
+import { TD, TD_NUM, TH, TH_NUM } from "../components/Ledger";
+import { PageHeader } from "../components/PageHeader";
+import { Pill } from "../components/Pill";
+import { Verdict } from "../components/Verdict";
 import { useNames, type Names } from "../lib/names";
+import { ledgerVerdict } from "../lib/verdict";
 
 function hours(h: number): string {
   return Number.isInteger(h) ? String(h) : h.toFixed(1);
 }
 
+/** One citizen's line: three columns on a phone, the rest folded under the name (§3). */
 function Row({ r, norm, names, sigma }: { r: ContributionRow; norm: number | null; names: Names; sigma: number }) {
-  const cls = r.is_me ? "text-ink bg-paper-2" : r.dormant ? "text-muted" : "";
+  const est = sigma > 0 ? "~" : "";
+  const workplaces = r.workplaces.map((w) => names.workplaceTitle(w)).join(", ");
   return (
-    <tr className={`rule ${cls}`} data-testid={r.is_me ? "ledger-row-me" : `ledger-row-${r.citizen}`}>
-      <td className="py-1 pr-2 align-top">
-        {r.is_me ? "you" : r.handle}
-        {r.dormant ? <span className="text-muted text-xs"> · away</span> : null}
-        {r.workplaces.length > 0 ? <span className="text-muted block text-xs">{r.workplaces.map((w) => names.workplaceTitle(w)).join(", ")}</span> : null}
+    <tr className={`hover:bg-surface-2 ${r.dormant ? "text-muted" : ""}`} data-testid={r.is_me ? "ledger-row-me" : `ledger-row-${r.citizen}`}>
+      <td className={TD}>
+        {r.handle}
+        {r.is_me ? (
+          <>
+            {" "}
+            <Pill>you</Pill>
+          </>
+        ) : null}
+        {r.dormant ? <span className="text-muted text-sm"> · away</span> : null}
+        {workplaces ? <span className="text-muted block text-sm">{workplaces}</span> : null}
+        <span className="text-muted block text-sm md:hidden">
+          yesterday {hours(r.hours_yesterday)} h, {est}
+          {r.attributed_yesterday.toFixed(1)} out · norm met {r.days === 0 ? "—" : `${r.norm_met_days} of ${r.days}`} · {hours(r.hours_total)} h ever
+          {r.honors > 0 ? ` · ${r.honors} ${r.honors === 1 ? "honor" : "honors"}` : ""}
+        </span>
       </td>
-      <td className="num py-1 pr-2 text-right align-top" data-testid="hours-today">
+      <td className={TD_NUM} data-testid="hours-today">
         {hours(r.hours_today)}
-        {norm != null ? <span className={`text-xs ${r.norm_met_today ? "text-good" : "text-muted"}`}> {r.norm_met_today ? "met" : `of ${norm}`}</span> : null}
+        {norm != null ? (
+          <>
+            {" "}
+            <span className={`block text-sm ${r.norm_met_today ? "text-good" : "text-muted"}`}>{r.norm_met_today ? "met" : `of ${norm}`}</span>
+          </>
+        ) : null}
       </td>
-      <td className="num py-1 pr-2 text-right align-top">{sigma > 0 ? "~" : ""}{r.attributed_today.toFixed(1)}</td>
-      <td className="num py-1 pr-2 text-right align-top">{hours(r.hours_yesterday)}</td>
-      <td className="num py-1 pr-2 text-right align-top">{sigma > 0 ? "~" : ""}{r.attributed_yesterday.toFixed(1)}</td>
-      <td className="num py-1 pr-2 text-right align-top">
-        {r.days === 0 ? <span className="text-muted">—</span> : `${r.norm_met_days} of ${r.days}`}
+      <td className={TD_NUM}>
+        {est}
+        {r.attributed_today.toFixed(1)}
       </td>
-      <td className="num py-1 pr-2 text-right align-top">{hours(r.hours_total)}</td>
-      <td className="num py-1 text-right align-top">{r.honors > 0 ? r.honors : <span className="text-muted">—</span>}</td>
+      <td className={`${TD_NUM} hidden md:table-cell`}>{hours(r.hours_yesterday)}</td>
+      <td className={`${TD_NUM} hidden md:table-cell`}>
+        {est}
+        {r.attributed_yesterday.toFixed(1)}
+      </td>
+      <td className={`${TD_NUM} hidden md:table-cell`}>{r.days === 0 ? <span className="text-muted">—</span> : `${r.norm_met_days} of ${r.days}`}</td>
+      <td className={`${TD_NUM} hidden md:table-cell`}>{hours(r.hours_total)}</td>
+      <td className={`${TD_NUM} hidden md:table-cell`}>{r.honors > 0 ? r.honors : <span className="text-muted">—</span>}</td>
     </tr>
   );
 }
@@ -49,7 +81,7 @@ export function LedgerScreen({ id }: { id: number }) {
   const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
 
   if (caps.isPending) return <p className="text-muted">Loading.</p>;
-  if (caps.error) return <p className="text-bad">Could not load: {String(caps.error)}</p>;
+  if (caps.error) return <p className="text-crit">Could not load: {String(caps.error)}</p>;
   // No norm, no Ledger: said before anyone is asked to join.
   if (!byNorm) {
     return <p className="text-muted">There is no Ledger of Contribution in this society: labor here is not by norm.</p>;
@@ -59,114 +91,117 @@ export function LedgerScreen({ id }: { id: number }) {
     return (
       <p className="text-muted">
         Join first, from the{" "}
-        <Link to="/s/$id" params={{ id: String(id) }} className="underline">
+        <Link to="/s/$id" params={{ id: String(id) }}>
           {t("home_title")}
         </Link>{" "}
         screen.
       </p>
     );
   }
-  if (home.error) return <p className="text-bad">Could not load: {String(home.error)}</p>;
+  if (home.error) return <p className="text-crit">Could not load: {String(home.error)}</p>;
   if (ledger.isPending) return <p className="text-muted">Loading.</p>;
-  if (ledger.error) return <p className="text-bad">Could not load: {String(ledger.error)}</p>;
+  if (ledger.error) return <p className="text-crit">Could not load: {String(ledger.error)}</p>;
   const v = ledger.data!;
   const norm = v.norm_hours ?? null;
   const active = v.rows.filter((r) => !r.dormant);
   const away = v.rows.filter((r) => r.dormant);
   const me = v.rows.find((r) => r.is_me);
   const metToday = active.filter((r) => r.norm_met_today).length;
+  const verdict = me
+    ? ledgerVerdict({
+        norm,
+        hoursToday: me.hours_today,
+        normMet: me.norm_met_today,
+        workplaces: me.workplaces.map((w) => names.workplaceTitle(w)),
+        days: me.days,
+        metDays: me.norm_met_days,
+        leastStaffed: v.least_staffed != null ? names.workplace(v.least_staffed) : null,
+      })
+    : ["You are not on the record yet."];
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl">{t("ledger_screen")}</h2>
-        <p className="text-muted text-sm" data-testid="ledger-rule">
-          {norm != null ? (
-            <>
-              The norm asks <span className="text-ink">{norm} hours</span> a day of everyone.{" "}
-            </>
-          ) : (
-            "No norm is published. "
-          )}
-          Output is attributed under <span className="text-ink">{v.monitoring}</span> monitoring
-          {v.sigma > 0 ? (
-            <>
-              {" "}
-              (σ {v.sigma.toFixed(2)}): the ~ figures are estimates. Hours are exact.
-            </>
-          ) : (
-            ": the figures are exact."
-          )}
-        </p>
-      </header>
-
-      {me ? (
-        <p className="text-sm" data-testid="my-line">
-          {me.workplaces.length === 0 ? (
-            <>
-              You hold no position today.{" "}
-              <Link to="/s/$id/work" params={{ id: String(id) }} className="underline">
-                Take one
-              </Link>
-              {v.least_staffed != null ? <> ; labor is scarcest at the {names.workplace(v.least_staffed)}.</> : "."}
-            </>
-          ) : (
-            <>
-              You have given <span className="num">{hours(me.hours_today)}</span> hours today
-              {norm != null ? (me.norm_met_today ? ", the norm met" : ` of the norm's ${norm}`) : ""}, at the {me.workplaces.map((w) => names.workplaceTitle(w)).join(" and ")}.
-              {me.days > 0 ? ` Over ${me.days} ${me.days === 1 ? "day" : "days"} on the record you met the norm ${me.norm_met_days} ${me.norm_met_days === 1 ? "time" : "times"}.` : ""}{" "}
-              <Link to="/s/$id/work" params={{ id: String(id) }} className="text-muted underline">
-                adjust
-              </Link>
-            </>
-          )}
-        </p>
-      ) : null}
-
-      <section>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h3 className="text-lg">Everyone</h3>
-          {norm != null ? (
-            <span className="num text-muted text-sm" data-testid="met-today">
-              {metToday} of {active.length} at the norm so far today
-            </span>
+    <div>
+      <PageHeader
+        title={t("ledger_screen")}
+        meta={
+          <span data-testid="ledger-rule">
+            {norm != null ? (
+              <>
+                The norm asks <b>{norm} hours</b> a day of everyone.{" "}
+              </>
+            ) : (
+              "No norm is published. "
+            )}
+            Output is attributed under <b>{v.monitoring}</b> monitoring
+            {v.sigma > 0 ? <> (σ {v.sigma.toFixed(2)}): the ~ figures are estimates. Hours are exact.</> : ": the figures are exact."}
+          </span>
+        }
+      />
+      <Stack>
+        <Card title="Your line" icon="ledger">
+          <div data-testid="my-line">
+            <Verdict parts={verdict} />
+          </div>
+          {me ? (
+            <Figures className="mb-3">
+              <Figure label="Hours today" value={hours(me.hours_today)} unit={norm != null ? `/ ${norm}` : "h"} tone={norm != null && !me.norm_met_today && me.hours_today === 0 ? "attn" : "good"} status={norm != null ? (me.norm_met_today ? "The norm is met." : `${hours(Math.max(0, norm - me.hours_today))} more meet the norm.`) : "Counted, not estimated."} />
+              <Figure label="Output today" value={`${v.sigma > 0 ? "~" : ""}${me.attributed_today.toFixed(1)}`} status={v.sigma > 0 ? "An estimate under this monitoring." : "Exact under this monitoring."} />
+              <Figure label="Norm met" value={me.days === 0 ? "—" : String(me.norm_met_days)} unit={me.days === 0 ? undefined : `/ ${me.days} days`} status={me.days === 0 ? "No day on the record yet." : "Over every day on the record."} />
+              <Figure label="Honors" value={String(me.honors)} status={me.honors > 0 ? "From the assembly." : "None yet."} />
+            </Figures>
           ) : null}
-        </div>
-        <table className="mt-2 w-full text-sm" data-testid="ledger">
-          <thead className="text-muted text-left text-xs uppercase tracking-wide">
-            <tr>
-              <th className="py-1 font-normal">Citizen</th>
-              <th className="py-1 text-right font-normal">Hours today</th>
-              <th className="py-1 text-right font-normal">Output today</th>
-              <th className="py-1 text-right font-normal">Hours yesterday</th>
-              <th className="py-1 text-right font-normal">Output yesterday</th>
-              <th className="py-1 text-right font-normal">Norm met</th>
-              <th className="py-1 text-right font-normal">Hours ever</th>
-              <th className="py-1 text-right font-normal">Honors</th>
-            </tr>
-          </thead>
-          <tbody>
-            {active.map((r) => (
-              <Row key={r.citizen} r={r} norm={norm} names={names} sigma={v.sigma} />
-            ))}
-            {away.length > 0 ? (
+          <ButtonLink to="/s/$id/work" params={{ id: String(id) }}>
+            {me && me.workplaces.length === 0 ? "Take a position" : "Adjust your hours"}
+          </ButtonLink>
+        </Card>
+
+        <Card
+          title="Everyone"
+          icon="people"
+          aside={
+            norm != null ? (
+              <span className="text-muted text-sm font-normal tabular-nums" data-testid="met-today">
+                {metToday} of {active.length} at the norm so far today
+              </span>
+            ) : null
+          }
+        >
+          <table className="w-full border-collapse text-[15px]" data-testid="ledger">
+            <thead>
               <tr>
-                <td colSpan={8} className="text-muted border-line border-t-2 pt-3 pb-1 text-xs uppercase tracking-wide">
-                  Away
-                </td>
+                <th className={TH}>Citizen</th>
+                <th className={TH_NUM}>Hours today</th>
+                <th className={TH_NUM}>Output today</th>
+                <th className={`${TH_NUM} hidden md:table-cell`}>Hours yesterday</th>
+                <th className={`${TH_NUM} hidden md:table-cell`}>Output yesterday</th>
+                <th className={`${TH_NUM} hidden md:table-cell`}>Norm met</th>
+                <th className={`${TH_NUM} hidden md:table-cell`}>Hours ever</th>
+                <th className={`${TH_NUM} hidden md:table-cell`}>Honors</th>
               </tr>
-            ) : null}
-            {away.map((r) => (
-              <Row key={r.citizen} r={r} norm={norm} names={names} sigma={v.sigma} />
-            ))}
-          </tbody>
-        </table>
-        <p className="text-muted mt-3 max-w-prose text-xs">
-          Hours are what each citizen chose to give; they are counted, not estimated. Output is what the workplace could attribute to them under the monitoring the
-          assembly keeps: with no foreman the figure is noisy by design, and whether to meter it exactly is a policy the assembly can vote. The record closes at the end
-          of every day; nobody can be fired for it, and nobody can be made to work.
-        </p>
-      </section>
+            </thead>
+            <tbody>
+              {active.map((r) => (
+                <Row key={r.citizen} r={r} norm={norm} names={names} sigma={v.sigma} />
+              ))}
+              {away.length > 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-muted border-line border-b pt-4 pb-1 text-xs font-bold tracking-caps uppercase">
+                    Away
+                  </td>
+                </tr>
+              ) : null}
+              {away.map((r) => (
+                <Row key={r.citizen} r={r} norm={norm} names={names} sigma={v.sigma} />
+              ))}
+            </tbody>
+          </table>
+          <p className="text-muted mt-3 mb-0 text-sm">
+            Hours are what each citizen chose to give; they are counted, not estimated. Output is what the workplace could attribute to them under the monitoring the
+            assembly keeps: with no foreman the figure is noisy by design, and whether to meter it exactly is a policy the assembly can vote. The record closes at the end
+            of every day; nobody can be fired for it, and nobody can be made to work.
+          </p>
+        </Card>
+      </Stack>
     </div>
   );
 }

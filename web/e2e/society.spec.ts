@@ -48,6 +48,7 @@ test("society, talk, profile and the public view", async ({ page, context, brows
   await page.getByRole("button", { name: "Save" }).click();
   await page.reload();
   await expect(page.getByLabel("Biography")).toHaveValue("Came for the prices, stayed for the Chronicle.");
+  await page.getByTestId("new-key-more").locator("summary").click();
   await page.getByLabel("Key label").fill("test-agent");
   await page.getByRole("button", { name: "Create key" }).click();
   const key = (await page.getByTestId("minted-key-value").textContent())!.trim();

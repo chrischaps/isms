@@ -269,7 +269,15 @@ For each screen: Verdict (layer 1), Glance (2), Facts (3), Detail (4). Explain (
 
 **Archive** — Verdict: "Epoch 1 closed after 41 cycles." Glance: closing statement figures. Facts: per-epoch tables. Detail: exports.
 
-**Profile / Societies / Operator** — plain `FactList`s and forms; API keys in a `More` with the agent-use notice. No Verdict needed.
+**Assembly** (Q154) — Verdict: "Two proposals are before the assembly tonight, but you haven't cast on one of them yet." Glance: each open proposal as a tile — the tally, the quorum `Meter`, "carries / fails / short of a quorum" as a status line, your ballot as three pressed buttons. Facts: the builder; the offices with their holders and the open election; the decided ledger with what each motion did. Detail: the floor, opened in place. Phone: the decided ledger keeps Proposal, Outcome, Did; the close day and tally fold under the title.
+
+**Coordinator** (Q154) — Verdict: "You sit as coordinator through Day 12, and the Plan is published, but the Store is short of Materials to open a workplace." Glance: four `Figure`s — Materials in the Store, collective workplaces, targets set, working now. Facts: the Plan editor (a target field per workplace beside yesterday and today), the land's slots, the collective's workplaces with "Close", the rationing rule with the builder. Phone: working and yesterday fold under the workplace's name.
+
+**Common Store** (Q154) — Verdict: "The shelves are stocked, and you may draw 3 Food this hour." Glance: a `Figure` per shelf a household draws from, crit at zero, attn when more was asked than is there. Facts: the shelves table (good, on the shelf, you may draw; asked, pantry and tonight's share fold under the good on a phone), today and yesterday side by side, the draw record as a `Ledger`. Detail: the rule's sentence in the header.
+
+**Ledger of Contribution** (Q154) — Verdict: "You have given 4 of the norm's 6 hours today at the workshop." Glance: hours today against the norm, output today with its ~, norm met over the record, honors. Facts: everyone's table — citizen, hours today, output today at every width; yesterday, norm met, hours ever and honors fold under the name on a phone; the away rows last. Your row carries the "you" pill.
+
+**Profile / Societies / Operator** — plain `FactList`s and forms; API keys in a `More` with the agent-use notice. No Verdict needed. The Operator's societies are a card each (state as a `Pill`, the clock as facts, the actions in a `ButtonRow`); the landing is a card per society with Join or your handle.
 
 **Onboarding** — the only place for illustration. Each step is one card, one primary button; the Welcome Brief is the society voice, set in body face at `--text-lg`. Target: working within two minutes (TDD S1.8).
 

@@ -81,6 +81,9 @@ function join(parts: VerdictPart[][]): VerdictPart[] {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** A list of plain words in prose. */
+const list = (words: string[]): string => words.map((w, n) => (n === 0 ? w : `${n === words.length - 1 ? " and " : ", "}${w}`)).join("");
+
 export type WorkVerdictInput = {
   /** Hours allocated today, as the engine holds them. */
   hours: number;
@@ -343,6 +346,113 @@ export function archiveVerdict(i: ArchiveVerdictInput): VerdictPart[] {
   else if (a.reason === "collapse") parts.push({ text: "collapsed", tone: "crit" }, ` on Day ${a.final_cycle}`);
   else parts.push({ text: "was ended by the operator", tone: "ink" }, ` on Day ${a.final_cycle}`);
   parts.push(a.open ? ", and " : "; ", a.open ? { text: "closing statements are still open", tone: "good" } : `epoch ${i.clock.epoch} is on Day ${i.clock.cycle}`, ".");
+  return parts;
+}
+
+export type AssemblyVerdictInput = {
+  /** Proposals before the assembly tonight. */
+  open: number;
+  /** Of those, the ones you may vote on and have not. */
+  uncast: number;
+  /** Of those, the ones you moved. */
+  mine: number;
+  offices: { kind: string; seats: number; holders: number; iHold: boolean; election: boolean; iStand: boolean }[];
+};
+
+/** Assembly (§10 by analogy): "Two proposals are before the assembly tonight, but you haven't cast on one of them." */
+export function assemblyVerdict(i: AssemblyVerdictInput): VerdictPart[] {
+  const parts: VerdictPart[] = [];
+  if (i.open === 0) parts.push("Nothing is before the assembly tonight");
+  else parts.push({ text: `${i.open === 1 ? "One proposal is" : `${i.open} proposals are`} before the assembly tonight`, tone: "ink" });
+  const held = i.offices.filter((o) => o.iHold);
+  if (held.length > 0) parts.push(", and you ", { text: `hold ${list(held.map((o) => o.kind))}`, tone: "good" });
+  const cast = i.open > 0 && i.uncast === 0 ? (i.open === 1 ? "your ballot is cast" : "your ballots are cast") : null;
+  if (cast) parts.push(", and ", { text: cast, tone: "good" });
+  // The one thing to act on, worst first: a ballot owed, an election you are not in, an empty seat.
+  const election = i.offices.find((o) => o.election && !o.iStand && !o.iHold);
+  const short = i.offices.find((o) => o.holders < o.seats && !o.election);
+  if (i.uncast > 0) parts.push(", but you ", { text: `haven't cast on ${i.uncast === 1 ? (i.open === 1 ? "it" : "one of them") : `${i.uncast} of them`}`, tone: "attn" }, " yet.");
+  else if (election) parts.push(", but ", { text: `an election for ${election.kind} is open`, tone: "attn" }, " — approve a candidate or stand.");
+  else if (short) parts.push(", but ", { text: `the ${short.kind} ${short.seats - short.holders === 1 ? "seat is" : "seats are"} empty`, tone: "attn" }, ".");
+  else parts.push(". Nothing needs you right now.");
+  return parts;
+}
+
+export type CoordinatorVerdictInput = {
+  office: string;
+  termEnds: number | null;
+  planPublished: boolean;
+  /** Targets published and how many were met yesterday, where the record has one. */
+  targets: { set: number; met: number; measured: number };
+  materials: { held: number; cost: number };
+  /** Free slots on the land; null where the land has no limit. */
+  freeSlots: number | null;
+};
+
+/** Coordinator (§10 by analogy): "You sit as coordinator through Day 12 and the Plan is published, but the Store is short of Materials to open a workplace." */
+export function coordinatorVerdict(i: CoordinatorVerdictInput): VerdictPart[] {
+  const parts: VerdictPart[] = ["You ", { text: `sit as ${i.office}`, tone: "good" }, i.termEnds != null ? ` through Day ${i.termEnds}` : ""];
+  if (i.planPublished) {
+    parts.push(", and ", { text: "the Plan is published", tone: "good" });
+    if (i.targets.measured > 0) parts.push(` (${i.targets.met} of ${i.targets.measured} targets met yesterday)`);
+  }
+  const canPay = i.materials.held >= i.materials.cost;
+  if (!i.planPublished) parts.push(", but ", { text: "no Plan is published yet", tone: "attn" }, " — set the targets below.");
+  else if (!canPay) parts.push(", but ", { text: "the Store is short of Materials", tone: "attn" }, ` to open a workplace (${i.materials.held} of ${i.materials.cost}).`);
+  else if (i.freeSlots === 0) parts.push(", but ", { text: "every slot on the land is taken", tone: "attn" }, ".");
+  else parts.push(". Nothing needs you right now.");
+  return parts;
+}
+
+export type StoreVerdictInput = {
+  /** Goods a household draws by need with nothing on the shelf. */
+  bare: string[];
+  /** Food's shelf, as the Store sees you: what you may draw now and what your plan has asked. */
+  food: { stock: number; entitlement: number; pending: number } | null;
+  /** The rule the Store serves a short shelf by, in the engine's words. */
+  rule: string;
+};
+
+/** Store (§10 by analogy): "The shelves are stocked, and you may draw 3 Food this hour." */
+export function storeVerdict(i: StoreVerdictInput): VerdictPart[] {
+  const parts: VerdictPart[] = [];
+  if (i.bare.length > 0) {
+    parts.push("The shelf is ", { text: `bare of ${list(i.bare)}`, tone: "crit" }, " — what the workplaces make this hour is served this hour, by the rule");
+  } else parts.push("The ", { text: "shelves are stocked", tone: "good" });
+  const f = i.food;
+  if (f) {
+    if (f.pending > 0) parts.push(", and your plan has ", { text: `asked for ${f.pending} Food`, tone: "ink" }, " this hour.");
+    else if (f.entitlement > 0 && f.stock > 0) parts.push(", and you ", { text: `may draw ${f.entitlement} Food`, tone: "ink" }, " this hour; your plan asks at the next.");
+    else if (f.entitlement > 0) parts.push(", and you have ", { text: `room for ${f.entitlement} Food`, tone: "attn" }, " with none to draw.");
+    else parts.push(", and your ", { text: "pantry is full", tone: "good" }, ".");
+  } else parts.push(".");
+  return parts;
+}
+
+export type LedgerVerdictInput = {
+  norm: number | null;
+  hoursToday: number;
+  normMet: boolean;
+  workplaces: string[];
+  days: number;
+  metDays: number;
+  /** Where labor is scarcest, for someone with no position. */
+  leastStaffed: string | null;
+};
+
+/** Ledger (§10 by analogy): "You have given 4 hours today of the norm's 6, at the workshop." */
+export function ledgerVerdict(i: LedgerVerdictInput): VerdictPart[] {
+  if (i.workplaces.length === 0) {
+    return ["You ", { text: "hold no position", tone: "attn" }, " today — take one on the Work screen", i.leastStaffed ? `; labor is scarcest at the ${i.leastStaffed}.` : "."];
+  }
+  const hours = Number.isInteger(i.hoursToday) ? String(i.hoursToday) : i.hoursToday.toFixed(1);
+  const parts: VerdictPart[] = ["You have given "];
+  if (i.norm == null) parts.push({ text: `${hours} ${i.hoursToday === 1 ? "hour" : "hours"} today`, tone: "ink" });
+  else if (i.normMet) parts.push({ text: `${hours} hours today, the norm met`, tone: "good" });
+  else parts.push({ text: `${hours} of the norm's ${i.norm} hours`, tone: i.hoursToday === 0 ? "attn" : "ink" }, " today");
+  parts.push(` at the ${list(i.workplaces)}`);
+  if (i.days > 0) parts.push(`. Over ${plural(i.days, "day")} on the record you met the norm ${i.metDays === 1 ? "once" : `${i.metDays} times`}.`);
+  else parts.push(".");
   return parts;
 }
 

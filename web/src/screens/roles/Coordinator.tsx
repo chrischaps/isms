@@ -1,12 +1,13 @@
-// The Coordinator workspace (GDD 6.2 Governance, 8.2; TDD 4 roles/; S2.8):
-// the three powers of the Commune's elected office on one screen. The Plan
-// editor sets a target per workplace beside what each made yesterday and so
-// far today; the land shows every slot and opens or closes a workplace of
-// the collective at the Materials cost, against what the Store holds; the
-// rationing rule is moved from here alone, through the assembly's builder.
-// Mounted when the offices list the caller as a holder: anyone else gets the
-// refusal page, which names who does sit and where to stand. The check is
-// the pattern every later role workspace mounts on.
+// The Coordinator workspace (GDD 6.2 Governance, 8.2; TDD 4 roles/; S2.8;
+// docs/style.md §10 by analogy): the three powers of the Commune's elected
+// office on one screen. The Verdict says the seat, the term, and whether a
+// Plan stands. The Plan editor sets a target per workplace beside what each
+// made yesterday and so far today; the land shows every slot and opens or
+// closes a workplace of the collective at the Materials cost, against what
+// the Store holds; the rationing rule is moved from here alone, through the
+// assembly's builder. Mounted when the offices list the caller as a holder:
+// anyone else gets the refusal page, which names who does sit and where to
+// stand. The check is the pattern every later role workspace mounts on.
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
@@ -15,9 +16,18 @@ import { ApiError, type CapabilitiesView } from "../../api/client";
 import { useStore } from "../../api/commons";
 import { useCloseWorkplace, useOpenWorkplace, usePublishPlan, usePublishedPlan, type PlanTargetView, type PublishedPlanView } from "../../api/coordinator";
 import { useCapabilities, useHome, useLexicon } from "../../api/hooks";
+import { Button, ButtonRow } from "../../components/Button";
+import { Card, Stack, Tile } from "../../components/Card";
+import { BareInput } from "../../components/Field";
+import { Figure, Figures } from "../../components/Figure";
+import { TD, TD_NUM, TH, TH_NUM } from "../../components/Ledger";
+import { PageHeader } from "../../components/PageHeader";
+import { Pill } from "../../components/Pill";
+import { Verdict } from "../../components/Verdict";
 import { ruleText } from "../../lib/draws";
 import { useNames, type Names } from "../../lib/names";
 import { fieldName } from "../../lib/policy";
+import { coordinatorVerdict } from "../../lib/verdict";
 import { dayOf, whenOfTick } from "../../lib/when";
 import { BallotBuilder } from "./BallotBuilder";
 
@@ -49,7 +59,7 @@ export function targetsToPublish(edits: Record<number, string>): Record<string, 
 
 function fulfilment(t: PlanTargetView): string {
   if (t.last_fulfillment == null) return "";
-  return ` (${(t.last_fulfillment * 100).toFixed(0)}% of the target then)`;
+  return ` (${(t.last_fulfillment * 100).toFixed(0)} % of the target then)`;
 }
 
 function PlanEditor({ id, plan, names }: { id: number; plan: PublishedPlanView; names: Names }) {
@@ -73,52 +83,58 @@ function PlanEditor({ id, plan, names }: { id: number; plan: PublishedPlanView; 
     });
   };
   return (
-    <section className="flex flex-col gap-3" data-testid="plan-editor">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg">The Plan</h3>
-        <span className="text-muted text-sm" data-testid="plan-signature">
-          {plan.published_cycle != null && plan.published_tick != null
-            ? `Last published ${whenOfTick(plan.published_tick, plan.clock.ticks_per_cycle)}${plan.published_by != null ? ` by ${names.citizen(plan.published_by)}` : ""}`
-            : "No Plan has been published this epoch."}
-        </span>
-      </header>
-      <p className="text-muted max-w-prose text-xs">
-        {plan.advisory
-          ? "Advisory: a target here pays no bonus and moves no rule. It is the number the Ledger of Contribution is read against, and everyone sees it on their Work screen."
-          : "The Committee's targets."}{" "}
-        Blank rows keep the target they have.
-      </p>
-      <table className="w-full text-sm">
-        <thead className="text-muted text-left text-xs uppercase tracking-wide">
+    <Card
+      title="The Plan"
+      icon="plan"
+      testId="plan-editor"
+      subtitle={
+        <>
+          <span data-testid="plan-signature">
+            {plan.published_cycle != null && plan.published_tick != null
+              ? `Last published ${whenOfTick(plan.published_tick, plan.clock.ticks_per_cycle)}${plan.published_by != null ? ` by ${names.citizen(plan.published_by)}` : ""}.`
+              : "No Plan has been published this epoch."}
+          </span>{" "}
+          {plan.advisory
+            ? "Advisory: a target here pays no bonus and moves no rule. It is the number the Ledger of Contribution is read against, and everyone sees it on their Work screen."
+            : "The Committee's targets."}{" "}
+          Blank rows keep the target they have.
+        </>
+      }
+    >
+      <table className="w-full border-collapse text-[15px]">
+        <thead>
           <tr>
-            <th className="py-1 font-normal">Workplace</th>
-            <th className="py-1 text-right font-normal">Working</th>
-            <th className="py-1 text-right font-normal">Yesterday</th>
-            <th className="py-1 text-right font-normal">Today so far</th>
-            <th className="py-1 text-right font-normal">Target a day</th>
+            <th className={TH}>Workplace</th>
+            <th className={`${TH_NUM} hidden md:table-cell`}>Working</th>
+            <th className={`${TH_NUM} hidden md:table-cell`}>Yesterday</th>
+            <th className={TH_NUM}>Today so far</th>
+            <th className={TH_NUM}>Target a day</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((t) => (
-            <tr key={t.workplace} className={`rule align-top ${t.collective ? "" : "text-muted"}`} data-testid={`target-${t.workplace}`}>
-              <td className="py-1 pr-3">
+            <tr key={t.workplace} className={`hover:bg-surface-2 ${t.collective ? "" : "text-muted"}`} data-testid={`target-${t.workplace}`}>
+              <td className={TD}>
                 {names.workplace(t.workplace)}
-                {!t.collective ? <span className="block text-xs">not the collective&apos;s; the target is a request</span> : null}
+                {!t.collective ? <span className="text-muted block text-sm">not the collective's; the target is a request</span> : null}
+                <span className="text-muted block text-sm md:hidden">
+                  {t.workers} working · {t.last_cycle_output.toFixed(0)} yesterday{fulfilment(t)}
+                </span>
               </td>
-              <td className="num py-1 pr-3 text-right">{t.workers}</td>
-              <td className="num py-1 pr-3 text-right">
+              <td className={`${TD_NUM} hidden md:table-cell`}>{t.workers}</td>
+              <td className={`${TD_NUM} hidden md:table-cell`}>
                 {t.last_cycle_output.toFixed(0)}
-                <span className="text-muted text-xs">{fulfilment(t)}</span>
+                <span className="text-muted text-sm">{fulfilment(t)}</span>
               </td>
-              <td className="num py-1 pr-3 text-right">{t.cycle_output.toFixed(0)}</td>
-              <td className="py-1 text-right">
-                <input
+              <td className={TD_NUM}>{t.cycle_output.toFixed(0)}</td>
+              <td className={`${TD} text-right`}>
+                <BareInput
                   type="number"
                   inputMode="decimal"
                   min={0}
                   step={1}
                   aria-label={`Target at ${names.workplace(t.workplace)}`}
-                  className="border-line num w-24 rounded-sm border px-1 text-right"
+                  className="w-24 text-right"
                   value={current[t.workplace] ?? ""}
                   onChange={(e) => set(t.workplace, e.target.value)}
                 />
@@ -127,18 +143,18 @@ function PlanEditor({ id, plan, names }: { id: number; plan: PublishedPlanView; 
           ))}
         </tbody>
       </table>
-      <div className="flex flex-wrap items-baseline gap-3 text-sm">
-        <button type="button" disabled={publish.isPending} className="bg-ink text-paper rounded-sm px-3 py-1 disabled:opacity-50" onClick={submit} data-testid="publish-plan">
+      <ButtonRow>
+        <Button variant="primary" disabled={publish.isPending} onClick={submit} data-testid="publish-plan">
           Publish the Plan
-        </button>
-        {published ? <span className="text-muted">Published. It is on the record and on every Work screen.</span> : null}
+        </Button>
+        {published ? <span className="text-good text-sm">Published. It is on the record and on every Work screen.</span> : null}
         {error ? (
-          <span className="text-bad" role="alert">
+          <span className="text-crit text-sm" role="alert">
             {error}
           </span>
         ) : null}
-      </div>
-    </section>
+      </ButtonRow>
+    </Card>
   );
 }
 
@@ -153,24 +169,22 @@ function Land({ id, plan, names }: { id: number; plan: PublishedPlanView; names:
   const collective = plan.targets.filter((t) => t.collective);
   const fail = (e: Error) => setError(e.message);
   return (
-    <section className="flex flex-col gap-3" data-testid="land">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg">The land</h3>
-        <span className={`num text-sm ${canPay ? "text-muted" : "text-warn"}`} data-testid="materials">
-          A workplace costs {plan.founding_materials} Materials; the Store holds {plan.store_materials}.
-        </span>
-      </header>
-      <p className="text-muted max-w-prose text-xs">
-        Opening is your word, not a vote: the Materials leave the Store the same hour. Closing sends its workers home this hour, its machines back to the
-        Store, and frees the slot. Both go on the record with your name.
+    <Card
+      title="The land"
+      icon="org"
+      testId="land"
+      subtitle="Opening is your word, not a vote: the Materials leave the Store the same hour. Closing sends its workers home this hour, its machines back to the Store, and frees the slot. Both go on the record with your name."
+    >
+      <p className={`m-0 mb-3 text-sm tabular-nums ${canPay ? "text-muted" : "text-attn"}`} data-testid="materials">
+        A workplace costs <b className="text-ink">{plan.founding_materials} Materials</b>; the Store holds <b className={canPay ? "text-ink" : "text-attn"}>{plan.store_materials}</b>.
       </p>
-      <table className="w-full text-sm" data-testid="slots">
-        <thead className="text-muted text-left text-xs uppercase tracking-wide">
+      <table className="w-full border-collapse text-[15px]" data-testid="slots">
+        <thead>
           <tr>
-            <th className="py-1 font-normal">Kind</th>
-            <th className="py-1 text-right font-normal">Open</th>
-            <th className="py-1 text-right font-normal">Slots</th>
-            <th className="py-1 font-normal" />
+            <th className={TH}>Kind</th>
+            <th className={`${TH_NUM} hidden md:table-cell`}>Open</th>
+            <th className={`${TH_NUM} hidden md:table-cell`}>Slots</th>
+            <th className={TH} />
           </tr>
         </thead>
         <tbody>
@@ -181,16 +195,20 @@ function Land({ id, plan, names }: { id: number; plan: PublishedPlanView; names:
             const openHere = plan.targets.filter((t) => (t.kind as string) === k).length;
             const blocked = (limited && free === 0) || !canPay;
             return (
-              <tr key={k} className="rule" data-testid={`land-${k}`}>
-                <td className="py-1 pr-3">{fieldName(k)}</td>
-                <td className="num py-1 pr-3 text-right">{openHere}</td>
-                <td className="num py-1 pr-3 text-right">{limited ? `${free} of ${slots.length} free` : <span className="text-muted">no limit</span>}</td>
-                <td className="py-1 text-right">
-                  <button
-                    type="button"
+              <tr key={k} className="hover:bg-surface-2" data-testid={`land-${k}`}>
+                <td className={TD}>
+                  {fieldName(k)}
+                  <span className="text-muted block text-sm md:hidden">
+                    {openHere} open · {limited ? `${free} of ${slots.length} slots free` : "no limit"}
+                  </span>
+                </td>
+                <td className={`${TD_NUM} hidden md:table-cell`}>{openHere}</td>
+                <td className={`${TD_NUM} hidden md:table-cell`}>{limited ? `${free} of ${slots.length} free` : <span className="text-muted">no limit</span>}</td>
+                <td className={`${TD} text-right`}>
+                  <Button
+                    inline
                     disabled={open.isPending || blocked}
                     title={!canPay ? "The Store holds too few Materials." : limited && free === 0 ? "No free slot of this kind." : undefined}
-                    className="border-line rounded-sm border px-2 py-0.5 text-xs disabled:opacity-50"
                     onClick={() => {
                       setError(null);
                       setNote(null);
@@ -198,7 +216,7 @@ function Land({ id, plan, names }: { id: number; plan: PublishedPlanView; names:
                     }}
                   >
                     Open a {fieldName(k)}
-                  </button>
+                  </Button>
                 </td>
               </tr>
             );
@@ -206,88 +224,94 @@ function Land({ id, plan, names }: { id: number; plan: PublishedPlanView; names:
         </tbody>
       </table>
 
-      <h4 className="text-base">The collective&apos;s workplaces</h4>
+      <h3 className="text-muted mt-5 mb-2 text-xs font-bold tracking-caps uppercase">The collective's workplaces</h3>
       {collective.length === 0 ? (
-        <p className="text-muted text-sm">The collective has no workplace open.</p>
+        <p className="text-muted m-0">The collective has no workplace open.</p>
       ) : (
-        <ul className="flex flex-col gap-1 text-sm" data-testid="collective-workplaces">
+        <ul className="m-0 grid list-none gap-2 p-0" data-testid="collective-workplaces">
           {collective.map((t) => (
-            <li key={t.workplace} className="flex flex-wrap items-baseline justify-between gap-2" data-testid={`workplace-${t.workplace}`}>
-              <span>
-                {names.workplace(t.workplace)}
-                <span className="text-muted text-xs">
-                  {t.slot != null ? ` · slot ${t.slot}` : ""} · {t.machines} machines · {t.workers} working
+            <li key={t.workplace} data-testid={`workplace-${t.workplace}`}>
+              <Tile className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  <b>{names.workplace(t.workplace)}</b>
+                  <span className="text-muted block text-sm">
+                    {t.slot != null ? `slot ${t.slot} · ` : ""}
+                    {t.machines} machines · {t.workers} working
+                  </span>
                 </span>
-              </span>
-              {closing === t.workplace ? (
-                <span className="flex items-baseline gap-2">
-                  <button
-                    type="button"
-                    disabled={close.isPending}
-                    className="bg-bad text-paper rounded-sm px-2 py-0.5 text-xs disabled:opacity-50"
-                    onClick={() => {
-                      setError(null);
-                      setNote(null);
-                      close.mutate(t.workplace, {
-                        onSuccess: () => {
-                          setClosing(null);
-                          setNote(`Closed the ${names.workplace(t.workplace)}.`);
-                        },
-                        onError: fail,
-                      });
-                    }}
-                  >
-                    Close it{t.workers > 0 ? `: ${t.workers} ${t.workers === 1 ? "worker loses" : "workers lose"} this hour` : ""}
-                  </button>
-                  <button type="button" className="text-muted text-xs underline" onClick={() => setClosing(null)}>
-                    keep it
-                  </button>
-                </span>
-              ) : (
-                <button type="button" className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => setClosing(t.workplace)}>
-                  Close
-                </button>
-              )}
+                {closing === t.workplace ? (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="danger"
+                      inline
+                      disabled={close.isPending}
+                      onClick={() => {
+                        setError(null);
+                        setNote(null);
+                        close.mutate(t.workplace, {
+                          onSuccess: () => {
+                            setClosing(null);
+                            setNote(`Closed the ${names.workplace(t.workplace)}.`);
+                          },
+                          onError: fail,
+                        });
+                      }}
+                    >
+                      Close it{t.workers > 0 ? `: ${t.workers} ${t.workers === 1 ? "worker loses" : "workers lose"} this hour` : ""}
+                    </Button>
+                    <Button variant="quiet" inline onClick={() => setClosing(null)}>
+                      keep it
+                    </Button>
+                  </span>
+                ) : (
+                  <Button inline onClick={() => setClosing(t.workplace)}>
+                    Close
+                  </Button>
+                )}
+              </Tile>
             </li>
           ))}
         </ul>
       )}
       {note ? (
-        <p className="text-muted text-sm" data-testid="land-note">
+        <p className="text-good mt-3 mb-0 text-sm" data-testid="land-note">
           {note}
         </p>
       ) : null}
       {error ? (
-        <p className="text-bad text-sm" role="alert">
+        <p className="text-crit mt-3 mb-0 text-sm" role="alert">
           {error}
         </p>
       ) : null}
-    </section>
+    </Card>
   );
 }
 
 function Rationing({ id, caps, office }: { id: number; caps: CapabilitiesView; office: OfficeView }) {
   const store = useStore(id, caps.common_store);
   return (
-    <section className="flex flex-col gap-3" data-testid="rationing">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg">The rationing rule</h3>
-        {store.data ? (
-          <span className="text-muted text-sm" data-testid="rule-in-force">
+    <Card
+      title="The rationing rule"
+      icon="store"
+      testId="rationing"
+      aside={
+        store.data ? (
+          <Pill tone="info" testId="rule-in-force">
             In force: {fieldName(store.data.rule)}
-          </span>
-        ) : null}
-      </header>
-      {store.data ? <p className="text-muted max-w-prose text-xs">{ruleText(store.data.rule)}</p> : null}
-      <p className="text-muted max-w-prose text-xs">
+          </Pill>
+        ) : null
+      }
+      subtitle={store.data ? ruleText(store.data.rule) : null}
+    >
+      <p className="text-muted mt-0 mb-3 text-sm">
         Only a coordinator may move the rule; the assembly decides it like any other motion, at the end of the day. Take the argument to the floor on the{" "}
-        <Link to="/s/$id/assembly" params={{ id: String(id) }} className="underline">
+        <Link to="/s/$id/assembly" params={{ id: String(id) }}>
           assembly
         </Link>{" "}
         screen.
       </p>
       <BallotBuilder id={id} caps={caps} citizens={[]} offices={[office]} only={["policy_change"]} fields={["rationing"]} />
-    </section>
+    </Card>
   );
 }
 
@@ -304,7 +328,7 @@ export function Coordinator({ id }: { id: number }) {
   const names = useNames(id, home.data?.citizen.id, citizen);
 
   if (caps.isPending) return <p className="text-muted">Loading.</p>;
-  if (caps.error) return <p className="text-bad">Could not load: {String(caps.error)}</p>;
+  if (caps.error) return <p className="text-crit">Could not load: {String(caps.error)}</p>;
   // No governance, no office to sit in: said before anyone is asked to join.
   if (!governed) return <p className="text-muted">There is no {OFFICE} in this society.</p>;
   if (home.isPending) return <p className="text-muted">Loading.</p>;
@@ -312,16 +336,16 @@ export function Coordinator({ id }: { id: number }) {
     return (
       <p className="text-muted">
         Join first, from the{" "}
-        <Link to="/s/$id" params={{ id: String(id) }} className="underline">
+        <Link to="/s/$id" params={{ id: String(id) }}>
           {t("home_title")}
         </Link>{" "}
         screen.
       </p>
     );
   }
-  if (home.error) return <p className="text-bad">Could not load: {String(home.error)}</p>;
+  if (home.error) return <p className="text-crit">Could not load: {String(home.error)}</p>;
   if (offices.isPending) return <p className="text-muted">Loading.</p>;
-  if (offices.error) return <p className="text-bad">Could not load: {String(offices.error)}</p>;
+  if (offices.error) return <p className="text-crit">Could not load: {String(offices.error)}</p>;
   if (!office) return <p className="text-muted">This society has no {OFFICE}s.</p>;
   const me = home.data!.citizen.id;
   const fellows = office.holders.filter((h) => h.citizen !== me);
@@ -329,42 +353,75 @@ export function Coordinator({ id }: { id: number }) {
   // The refusal page (the done gate): who does sit, and where to stand.
   if (!holder) {
     return (
-      <section className="flex flex-col gap-3" data-testid="not-a-coordinator">
-        <h2 className="text-2xl capitalize">{fieldName(OFFICE)}</h2>
-        <p>You do not sit as {fieldName(OFFICE)}, so this workspace is not yours.</p>
-        <p className="text-muted text-sm">
-          {office.holders.length === 0
-            ? "Nobody sits; the seats are open."
-            : `Sitting now: ${office.holders.map((h) => `${h.handle} through ${dayOf(h.term_ends_cycle)}`).join(", ")}.`}{" "}
-          {office.election ? "An election is open: " : "The next election opens when a seat empties: "}
-          stand on the{" "}
-          <Link to="/s/$id/assembly" params={{ id: String(id) }} className="underline">
-            {t("assembly")}
-          </Link>{" "}
-          screen.
-        </p>
-      </section>
+      <div>
+        <PageHeader title={<span className="capitalize">{fieldName(OFFICE)}</span>} />
+        <Card title="Not your workspace" icon="office" testId="not-a-coordinator">
+          <p className="mt-0">You do not sit as {fieldName(OFFICE)}, so this workspace is not yours.</p>
+          <p className="text-muted m-0">
+            {office.holders.length === 0
+              ? "Nobody sits; the seats are open."
+              : `Sitting now: ${office.holders.map((h) => `${h.handle} through ${dayOf(h.term_ends_cycle)}`).join(", ")}.`}{" "}
+            {office.election ? "An election is open: " : "The next election opens when a seat empties: "}
+            stand on the{" "}
+            <Link to="/s/$id/assembly" params={{ id: String(id) }}>
+              {t("assembly")}
+            </Link>{" "}
+            screen.
+          </p>
+        </Card>
+      </div>
     );
   }
   if (plan.isPending) return <p className="text-muted">Loading.</p>;
-  if (plan.error) return <p className="text-bad">Could not load: {String(plan.error)}</p>;
+  if (plan.error) return <p className="text-crit">Could not load: {String(plan.error)}</p>;
   const p = plan.data!;
   const myTerm = office.holders.find((h) => h.citizen === me);
   const c = caps.data as CapabilitiesView;
+  const measured = p.targets.filter((t) => t.last_fulfillment != null);
+  const limited = p.slots.length > 0;
+  const freeSlots = limited ? p.slots.filter((s) => s.workplace == null).length : null;
+  const verdict = coordinatorVerdict({
+    office: fieldName(OFFICE),
+    termEnds: myTerm?.term_ends_cycle ?? null,
+    planPublished: p.published_cycle != null,
+    targets: { set: p.targets.filter((t) => t.target != null).length, met: measured.filter((t) => (t.last_fulfillment ?? 0) >= 1).length, measured: measured.length },
+    materials: { held: p.store_materials, cost: p.founding_materials },
+    freeSlots,
+  });
+  const collective = p.targets.filter((t) => t.collective);
 
   return (
-    <div className="flex flex-col gap-10" data-testid="coordinator">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl capitalize">{fieldName(OFFICE)}</h2>
-        <p className="text-muted text-sm" data-testid="fellows">
-          {myTerm ? `Your term runs through ${dayOf(myTerm.term_ends_cycle)}` : "You sit"}
-          {fellows.length > 0 ? `, with ${fellows.map((h) => h.handle).join(" and ")}` : office.seats > 1 ? `; ${office.seats - 1} ${office.seats - 1 === 1 ? "seat is" : "seats are"} empty` : ""}
-          . Recall is by {fieldName(office.recall)}, any day.
-        </p>
-      </header>
-      <PlanEditor id={id} plan={p} names={names} />
-      <Land id={id} plan={p} names={names} />
-      <Rationing id={id} caps={c} office={office} />
+    <div data-testid="coordinator">
+      <PageHeader
+        title={<span className="capitalize">{fieldName(OFFICE)}</span>}
+        meta={
+          <span data-testid="fellows">
+            {myTerm ? (
+              <>
+                Your term runs through <b>{dayOf(myTerm.term_ends_cycle)}</b>
+              </>
+            ) : (
+              "You sit"
+            )}
+            {fellows.length > 0 ? `, with ${fellows.map((h) => h.handle).join(" and ")}` : office.seats > 1 ? `; ${office.seats - 1} ${office.seats - 1 === 1 ? "seat is" : "seats are"} empty` : ""}. Recall is by{" "}
+            {fieldName(office.recall)}, any day.
+          </span>
+        }
+      />
+      <Stack>
+        <Card title="Where you stand" icon="office">
+          <Verdict parts={verdict} />
+          <Figures>
+            <Figure label="Materials in the Store" value={String(p.store_materials)} status={`${p.founding_materials} open a workplace`} tone={p.store_materials >= p.founding_materials ? "good" : "attn"} />
+            <Figure label="Collective workplaces" value={String(collective.length)} status={limited ? `${freeSlots} of ${p.slots.length} slots free` : "no limit on the land"} tone={limited && freeSlots === 0 ? "attn" : "good"} />
+            <Figure label="Targets set" value={String(p.targets.filter((t) => t.target != null).length)} unit={`/ ${p.targets.length}`} status={measured.length > 0 ? `${measured.filter((t) => (t.last_fulfillment ?? 0) >= 1).length} of ${measured.length} met yesterday` : "nothing measured yet"} />
+            <Figure label="Working now" value={String(collective.reduce((n, t) => n + t.workers, 0))} status="at the collective's workplaces" />
+          </Figures>
+        </Card>
+        <PlanEditor id={id} plan={p} names={names} />
+        <Land id={id} plan={p} names={names} />
+        <Rationing id={id} caps={c} office={office} />
+      </Stack>
     </div>
   );
 }

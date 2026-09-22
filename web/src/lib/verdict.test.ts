@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { verdictText } from "../components/Verdict";
 import { needStatus } from "./needs";
-import { archiveVerdict, contractsVerdict, greeting, homeVerdict, marketVerdict, needTone, orgVerdict, orgsVerdict, planVerdict, societyVerdict, workVerdict } from "./verdict";
+import { archiveVerdict, assemblyVerdict, contractsVerdict, coordinatorVerdict, greeting, homeVerdict, ledgerVerdict, marketVerdict, needTone, orgVerdict, orgsVerdict, planVerdict, societyVerdict, storeVerdict, workVerdict } from "./verdict";
 
 const fine = { food: 100, shelter: 100, comfort: 94, hardship: false, housed: true, hours: 8, hired: true };
 const t = (k: string) => k;
@@ -247,5 +247,72 @@ describe("archiveVerdict", () => {
   });
   it("says so when nothing has closed", () => {
     expect(verdictText(archiveVerdict({ latest: null, clock: { epoch: 1, cycle: 5 } }))).toBe("No epoch has closed here yet; this is epoch 1, Day 5.");
+  });
+});
+
+// SB.5 done gate: the four screens of the last card speak the same way.
+const office = { kind: "coordinator", seats: 1, holders: 1, iHold: false, election: false, iStand: false };
+
+describe("assemblyVerdict", () => {
+  it("counts the proposals and owes a ballot as the one but", () => {
+    const parts = assemblyVerdict({ open: 2, uncast: 1, mine: 0, offices: [office] });
+    expect(verdictText(parts)).toBe("2 proposals are before the assembly tonight, but you haven't cast on one of them yet.");
+    expect(parts).toContainEqual({ text: "haven't cast on one of them", tone: "attn" });
+    expect(verdictText(assemblyVerdict({ open: 1, uncast: 1, mine: 1, offices: [office] }))).toBe("One proposal is before the assembly tonight, but you haven't cast on it yet.");
+  });
+  it("leads with the office you hold and rests when every ballot is cast", () => {
+    const parts = assemblyVerdict({ open: 1, uncast: 0, mine: 0, offices: [{ ...office, iHold: true }] });
+    expect(verdictText(parts)).toBe("One proposal is before the assembly tonight, and you hold coordinator, and your ballot is cast. Nothing needs you right now.");
+    expect(parts).toContainEqual({ text: "hold coordinator", tone: "good" });
+  });
+  it("points at an open election you are not in, then at an empty seat", () => {
+    expect(verdictText(assemblyVerdict({ open: 0, uncast: 0, mine: 0, offices: [{ ...office, holders: 0, election: true }] }))).toBe("Nothing is before the assembly tonight, but an election for coordinator is open — approve a candidate or stand.");
+    expect(verdictText(assemblyVerdict({ open: 0, uncast: 0, mine: 0, offices: [{ ...office, holders: 0, election: true, iStand: true }] }))).toBe("Nothing is before the assembly tonight. Nothing needs you right now.");
+    expect(verdictText(assemblyVerdict({ open: 0, uncast: 0, mine: 0, offices: [{ ...office, holders: 0 }] }))).toBe("Nothing is before the assembly tonight, but the coordinator seat is empty.");
+  });
+});
+
+describe("coordinatorVerdict", () => {
+  const sits = { office: "coordinator", termEnds: 12, planPublished: true, targets: { set: 3, met: 2, measured: 3 }, materials: { held: 40, cost: 20 }, freeSlots: 2 };
+  it("says the seat, the term, the Plan and rests", () => {
+    const parts = coordinatorVerdict(sits);
+    expect(verdictText(parts)).toBe("You sit as coordinator through Day 12, and the Plan is published (2 of 3 targets met yesterday). Nothing needs you right now.");
+    expect(parts).toContainEqual({ text: "sit as coordinator", tone: "good" });
+  });
+  it("asks for a Plan first, then Materials, then a slot", () => {
+    expect(verdictText(coordinatorVerdict({ ...sits, planPublished: false, materials: { held: 0, cost: 20 } }))).toBe("You sit as coordinator through Day 12, but no Plan is published yet — set the targets below.");
+    expect(verdictText(coordinatorVerdict({ ...sits, targets: { set: 0, met: 0, measured: 0 }, materials: { held: 5, cost: 20 } }))).toBe("You sit as coordinator through Day 12, and the Plan is published, but the Store is short of Materials to open a workplace (5 of 20).");
+    expect(verdictText(coordinatorVerdict({ ...sits, targets: { set: 0, met: 0, measured: 0 }, freeSlots: 0 }))).toBe("You sit as coordinator through Day 12, and the Plan is published, but every slot on the land is taken.");
+  });
+});
+
+describe("storeVerdict", () => {
+  it("says the shelves are stocked and what you may draw", () => {
+    const parts = storeVerdict({ bare: [], food: { stock: 40, entitlement: 3, pending: 0 }, rule: "need_first" });
+    expect(verdictText(parts)).toBe("The shelves are stocked, and you may draw 3 Food this hour; your plan asks at the next.");
+    expect(parts).toContainEqual({ text: "shelves are stocked", tone: "good" });
+    expect(verdictText(storeVerdict({ bare: [], food: { stock: 40, entitlement: 0, pending: 0 }, rule: "need_first" }))).toBe("The shelves are stocked, and your pantry is full.");
+    expect(verdictText(storeVerdict({ bare: [], food: { stock: 40, entitlement: 2, pending: 2 }, rule: "need_first" }))).toBe("The shelves are stocked, and your plan has asked for 2 Food this hour.");
+  });
+  it("names a bare shelf in crit", () => {
+    const parts = storeVerdict({ bare: ["food", "wares"], food: { stock: 0, entitlement: 3, pending: 0 }, rule: "need_first" });
+    expect(verdictText(parts)).toBe("The shelf is bare of food and wares — what the workplaces make this hour is served this hour, by the rule, and you have room for 3 Food with none to draw.");
+    expect(parts).toContainEqual({ text: "bare of food and wares", tone: "crit" });
+  });
+});
+
+describe("ledgerVerdict", () => {
+  it("keeps the spec's opening words and the norm", () => {
+    const parts = ledgerVerdict({ norm: 6, hoursToday: 4, normMet: false, workplaces: ["workshop"], days: 2, metDays: 1, leastStaffed: null });
+    expect(verdictText(parts)).toBe("You have given 4 of the norm's 6 hours today at the workshop. Over 2 days on the record you met the norm once.");
+    const met = ledgerVerdict({ norm: 6, hoursToday: 6.5, normMet: true, workplaces: ["farm", "workshop"], days: 0, metDays: 0, leastStaffed: null });
+    expect(verdictText(met)).toBe("You have given 6.5 hours today, the norm met at the farm and workshop.");
+    expect(met).toContainEqual({ text: "6.5 hours today, the norm met", tone: "good" });
+    expect(verdictText(ledgerVerdict({ norm: null, hoursToday: 1, normMet: false, workplaces: ["farm"], days: 0, metDays: 0, leastStaffed: null }))).toBe("You have given 1 hour today at the farm.");
+  });
+  it("sends someone with no position to Work and names where labor is scarcest", () => {
+    const parts = ledgerVerdict({ norm: 6, hoursToday: 0, normMet: false, workplaces: [], days: 0, metDays: 0, leastStaffed: "farm" });
+    expect(verdictText(parts)).toBe("You hold no position today — take one on the Work screen; labor is scarcest at the farm.");
+    expect(parts).toContainEqual({ text: "hold no position", tone: "attn" });
   });
 });

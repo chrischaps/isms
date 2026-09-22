@@ -1,14 +1,21 @@
-// The operator's room (S1.13c): every society with its clock, and the hold
-// on it. Pause stops the scheduler; step resolves one tick while held;
-// resume releases with no catch-up; the tick length can change; an epoch
-// can be ended by hand, and an ended society can start its next epoch (the
-// roster stays, material state resets). Ending asks twice; it cannot be undone.
+// The operator's room (S1.13c; docs/style.md §10 Operator): every society as
+// a card with its clock, its people and the hold on it. Pause stops the
+// scheduler; step resolves one tick while held; resume releases with no
+// catch-up; the tick length can change; an epoch can be ended by hand, and
+// an ended society can start its next epoch (the roster stays, material
+// state resets). Ending asks twice; it cannot be undone.
 
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMe } from "../api/hooks";
 import { useAdminAct, useAdminSocieties, useAdminTickSeconds } from "../api/admin";
+import { Button, ButtonRow } from "../components/Button";
+import { Card, Stack } from "../components/Card";
 import { Countdown } from "../components/Countdown";
+import { FactList } from "../components/FactList";
+import { Field, Input } from "../components/Field";
+import { PageHeader } from "../components/PageHeader";
+import { Pill } from "../components/Pill";
 
 export function Admin() {
   const me = useMe();
@@ -25,10 +32,7 @@ export function Admin() {
   if (!operator) {
     return (
       <p className="text-muted">
-        Operators only.{" "}
-        <Link to="/" className="underline">
-          Societies
-        </Link>
+        Operators only. <Link to="/">Societies</Link>
       </p>
     );
   }
@@ -60,144 +64,144 @@ export function Admin() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-2xl">Operator</h1>
-        <nav className="flex gap-4 text-sm">
-          <Link to="/" className="text-muted underline">
-            Societies
-          </Link>
-          <Link to="/profile" className="text-muted underline">
-            Profile
-          </Link>
-        </nav>
-      </header>
-      <p className="text-muted text-sm">
+    <div>
+      <PageHeader
+        title="Operator"
+        meta={
+          <>
+            <Link to="/">Societies</Link>
+            <Link to="/profile">Profile</Link>
+          </>
+        }
+      />
+      <p className="text-muted mt-0 mb-4 text-sm">
         A held clock resolves nothing until released; releasing puts the next tick one tick length from now, with no catch-up. Everything here is logged with your
         account.
       </p>
       {error ?? societies.error ? (
-        <p className="text-bad text-sm" role="alert">
+        <p className="text-crit mt-0 mb-4 text-sm" role="alert">
           {error ?? String(societies.error)}
         </p>
       ) : null}
-      <table className="w-full text-sm" data-testid="admin-societies">
-        <thead className="text-muted text-left text-xs uppercase tracking-wide">
-          <tr>
-            <th className="py-1 font-normal">Society</th>
-            <th className="py-1 font-normal">Clock</th>
-            <th className="py-1 font-normal">People</th>
-            <th className="py-1 font-normal">State</th>
-            <th className="py-1 font-normal">Tick length</th>
-            <th className="py-1 font-normal" />
-          </tr>
-        </thead>
-        <tbody>
-          {(societies.data ?? []).map((v) => {
-            const s = v.summary;
-            const ended = s.clock.epoch_ended;
-            const state = ended ? "epoch ended" : v.paused ? "held" : "running";
-            return (
-              <tr key={s.id} className="rule align-top" data-testid={`admin-society-${s.id}`}>
-                <td className="py-2 pr-2">
-                  <Link to="/s/$id" params={{ id: String(s.id) }} className="underline">
-                    {s.display}
-                  </Link>
-                  <span className="text-muted block text-xs">
-                    #{s.id} {s.name} · {s.preset}
-                  </span>
-                </td>
-                <td className="num py-2 pr-2" data-testid="admin-clock">
-                  epoch {s.clock.epoch} · day {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle}
-                  <span className="text-muted block text-xs">
-                    {!ended && !v.paused ? (
-                      <Countdown at={s.next_tick_at} label="next tick" />
-                    ) : ended && v.statements_close_at ? (
-                      <Countdown at={v.statements_close_at} label="statements close in" />
-                    ) : (
-                      "no tick due"
-                    )}
-                  </span>
-                  {note[s.id] ? (
-                    <span className="text-ink block max-w-xs text-xs" role="status" data-testid="admin-note">
-                      {note[s.id]}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="num py-2 pr-2">
-                  {s.active_humans} of {s.population}
-                </td>
-                <td className="py-2 pr-2" data-testid="admin-state">
-                  <span className={v.paused ? "text-warn" : ended ? "text-muted" : "text-good"}>{state}</span>
-                </td>
-                <td className="py-2 pr-2">
-                  <form
-                    className="flex items-center gap-1"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const n = Number(tick[s.id] ?? s.tick_seconds);
-                      if (!Number.isFinite(n) || n < 0) return;
-                      setError(null);
-                      setTick.mutate({ id: s.id, tick_seconds: Math.trunc(n) }, { onError: fail });
-                    }}
-                  >
-                    <input
+      <Stack testId="admin-societies">
+        {(societies.data ?? []).map((v) => {
+          const s = v.summary;
+          const ended = s.clock.epoch_ended;
+          const state = ended ? "epoch ended" : v.paused ? "held" : "running";
+          const tone = ended ? "neutral" : v.paused ? "attn" : "good";
+          return (
+            <Card
+              key={s.id}
+              title={
+                <Link to="/s/$id" params={{ id: String(s.id) }} className="text-ink hover:text-accent">
+                  {s.display}
+                </Link>
+              }
+              icon="globe"
+              testId={`admin-society-${s.id}`}
+              aside={
+                <Pill tone={tone} testId="admin-state">
+                  {state}
+                </Pill>
+              }
+              subtitle={
+                <>
+                  #{s.id} {s.name} · {s.preset}
+                </>
+              }
+            >
+              <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+                <FactList
+                  items={[
+                    {
+                      key: "clock",
+                      label: "Clock",
+                      value: (
+                        <span data-testid="admin-clock">
+                          epoch {s.clock.epoch} · day {s.clock.cycle} · tick {s.clock.tick}/{s.clock.ticks_per_cycle}
+                        </span>
+                      ),
+                      gloss:
+                        !ended && !v.paused ? (
+                          <Countdown at={s.next_tick_at} label="next tick" />
+                        ) : ended && v.statements_close_at ? (
+                          <Countdown at={v.statements_close_at} label="statements close in" />
+                        ) : (
+                          "no tick due"
+                        ),
+                    },
+                    { key: "people", label: "People", value: `${s.active_humans} of ${s.population}`, gloss: "citizens" },
+                  ]}
+                />
+                <form
+                  className="flex items-end gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const n = Number(tick[s.id] ?? s.tick_seconds);
+                    if (!Number.isFinite(n) || n < 0) return;
+                    setError(null);
+                    setTick.mutate({ id: s.id, tick_seconds: Math.trunc(n) }, { onError: fail });
+                  }}
+                >
+                  <Field label="Tick length" unit="s" className="w-[9rem]">
+                    <Input
                       aria-label={`Tick seconds for ${s.display}`}
                       type="number"
                       min={0}
-                      className="border-line num w-16 rounded-sm border px-1"
                       value={tick[s.id] ?? String(s.tick_seconds)}
                       onChange={(e) => setTickInput({ ...tick, [s.id]: e.target.value })}
                     />
-                    <span className="text-muted text-xs">s</span>
-                    <button type="submit" className="border-line rounded-sm border px-2 py-0.5 text-xs">
-                      Set
-                    </button>
-                  </form>
-                </td>
-                <td className="py-2">
-                  <div className="flex flex-wrap gap-2">
-                    {ended ? (
-                      <button type="button" disabled={act.isPending} className="bg-ink text-paper rounded-sm px-2 py-0.5 text-xs" onClick={() => act.mutate({ id: s.id, act: "new-epoch" }, { onError: fail })}>
-                        Start epoch {s.clock.epoch + 1}
-                        {v.statements_close_at ? " now" : ""}
-                      </button>
-                    ) : v.paused ? (
-                      <>
-                        <button type="button" disabled={act.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => run(s.id, "step")}>
-                          Step one tick
-                        </button>
-                        <button type="button" disabled={act.isPending} className="bg-ink text-paper rounded-sm px-2 py-0.5 text-xs" onClick={() => run(s.id, "resume")}>
-                          Resume
-                        </button>
-                      </>
-                    ) : (
-                      <button type="button" disabled={act.isPending} className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => run(s.id, "pause")}>
-                        Pause
-                      </button>
-                    )}
-                    {ended ? null : arming === s.id ? (
-                      <>
-                        <button type="button" disabled={act.isPending} className="bg-bad text-paper rounded-sm px-2 py-0.5 text-xs" onClick={() => act.mutate({ id: s.id, act: "end-epoch" }, { onError: fail, onSettled: () => setArming(null) })}>
-                          Yes, end it
-                        </button>
-                        <button type="button" className="text-muted text-xs underline" onClick={() => setArming(null)}>
-                          keep going
-                        </button>
-                      </>
-                    ) : (
-                      <button type="button" className="text-muted text-xs underline" onClick={() => setArming(s.id)}>
-                        end epoch
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {societies.data && societies.data.length === 0 ? <p className="text-muted text-sm">No societies loaded.</p> : null}
+                  </Field>
+                  <Button type="submit" inline>
+                    Set
+                  </Button>
+                </form>
+              </div>
+              {note[s.id] ? (
+                <p className="text-good mt-3 mb-0 text-sm" role="status" data-testid="admin-note">
+                  {note[s.id]}
+                </p>
+              ) : null}
+              <ButtonRow>
+                {ended ? (
+                  <Button variant="primary" disabled={act.isPending} onClick={() => act.mutate({ id: s.id, act: "new-epoch" }, { onError: fail })}>
+                    Start epoch {s.clock.epoch + 1}
+                    {v.statements_close_at ? " now" : ""}
+                  </Button>
+                ) : v.paused ? (
+                  <>
+                    <Button disabled={act.isPending} onClick={() => run(s.id, "step")}>
+                      Step one tick
+                    </Button>
+                    <Button variant="primary" disabled={act.isPending} onClick={() => run(s.id, "resume")}>
+                      Resume
+                    </Button>
+                  </>
+                ) : (
+                  <Button disabled={act.isPending} onClick={() => run(s.id, "pause")}>
+                    Pause
+                  </Button>
+                )}
+                {ended ? null : arming === s.id ? (
+                  <>
+                    <Button variant="danger" disabled={act.isPending} onClick={() => act.mutate({ id: s.id, act: "end-epoch" }, { onError: fail, onSettled: () => setArming(null) })}>
+                      Yes, end it
+                    </Button>
+                    <Button variant="quiet" onClick={() => setArming(null)}>
+                      keep going
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="quiet" onClick={() => setArming(s.id)}>
+                    end epoch
+                  </Button>
+                )}
+              </ButtonRow>
+            </Card>
+          );
+        })}
+      </Stack>
+      {societies.data && societies.data.length === 0 ? <p className="text-muted mt-4 text-sm">No societies loaded.</p> : null}
     </div>
   );
 }
