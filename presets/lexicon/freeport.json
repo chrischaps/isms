@@ -10,5 +10,12 @@
   "plan": "Standing plan",
   "scoreboard": "Standing",
   "chronicle": "The Chronicle",
-  "work_screen": "Work"
+  "work_screen": "Work",
+  "assembly": "Assembly",
+  "proposal": "Motion",
+  "ballot": "Ballot",
+  "office": "Office",
+  "honor": "Honors",
+  "store_screen": "Market",
+  "ledger_screen": "Ledger"
 }

@@ -70,6 +70,7 @@ function OpenProposal({
   names: Names;
 }) {
   const ballot = useBallot(id);
+  const { t } = useLexicon(id);
   const [floor, setFloor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const q = quorumBar(p.tally);
@@ -116,7 +117,7 @@ function OpenProposal({
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <span className="text-muted text-xs uppercase tracking-wide">Your ballot</span>
+          <span className="text-muted text-xs uppercase tracking-wide">Your {t("ballot").toLowerCase()}</span>
           <div className="flex gap-2" role="group" aria-label={`Ballot on ${p.title}`}>
             {(["yes", "no", "abstain"] as const).map((b) => (
               <button
@@ -212,6 +213,7 @@ function Effects({ id, p, before, names }: { id: number; p: ProposalView; before
 }
 
 function ClosedLedger({ id, closed, names }: { id: number; closed: ProposalView[]; names: Names }) {
+  const { t } = useLexicon(id);
   // Each carried policy change is read against the policy the previous one left (or none on record).
   const befores = useMemo(() => {
     const changes = closed
@@ -233,7 +235,7 @@ function ClosedLedger({ id, closed, names }: { id: number; closed: ProposalView[
       <thead className="text-muted text-left text-xs uppercase tracking-wide">
         <tr>
           <th className="py-1 font-normal">Closed</th>
-          <th className="py-1 font-normal">Proposal</th>
+          <th className="py-1 font-normal">{t("proposal")}</th>
           <th className="py-1 font-normal">Outcome</th>
           <th className="py-1 font-normal">Tally</th>
           <th className="py-1 font-normal">Did</th>

@@ -13,3 +13,12 @@ plan
 scoreboard
 chronicle
 work_screen
+# Phase 2 (S2.9): the governance screens and the two Commune screens. A preset
+# whose constitution never mounts a screen still names it, so the API is whole.
+assembly
+proposal
+ballot
+office
+honor
+store_screen
+ledger_screen

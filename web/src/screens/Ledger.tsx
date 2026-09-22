@@ -79,7 +79,7 @@ export function LedgerScreen({ id }: { id: number }) {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl">{t("ledger")}</h2>
+        <h2 className="text-2xl">{t("ledger_screen")}</h2>
         <p className="text-muted text-sm" data-testid="ledger-rule">
           {norm != null ? (
             <>

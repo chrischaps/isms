@@ -45,7 +45,7 @@ test("a Commune citizen works under the norm, draws from the Store and reads the
 
   // Work: take a position from the picker; the editor lists it with no contract cap but the budget.
   const nav = page.getByRole("navigation", { name: "Sections" });
-  await nav.getByRole("link", { name: "work_screen" }).click();
+  await nav.getByRole("link", { name: "Hours" }).click();
   const picker = page.getByTestId("workplace-picker");
   await expect(picker).toBeVisible();
   await picker.getByRole("button", { name: "Take a position" }).first().click();
@@ -61,7 +61,7 @@ test("a Commune citizen works under the norm, draws from the Store and reads the
   await expect(page.getByTestId("payslips")).toHaveCount(0);
 
   // The Store: the shelves, the rule in force, and my entitlement as the engine computes it.
-  await nav.getByRole("link", { name: "store" }).click();
+  await nav.getByRole("link", { name: "Common Store" }).click();
   await expect(page.getByTestId("store-rule")).toContainText("need first");
   const shelves = page.getByTestId("shelves");
   await expect(shelves.getByTestId("shelf-food")).toBeVisible();
@@ -84,12 +84,20 @@ test("a Commune citizen works under the norm, draws from the Store and reads the
   const record = page.getByTestId("draw-record");
   await expect(record).toContainText("Drew from the Store", { timeout: 20_000 });
   await expect(record).toContainText(/\+\d+ food/);
-  // And in the pantry.
-  const homeView = await (await page.request.get(`/s/${society}/home`)).json();
-  expect(Number(homeView.household.pantry.food ?? 0)).toBeGreaterThan(0);
+  // And in the pantry: under one-second ticks the unit can be eaten between the
+  // draw and a single read (S2.9 saw it), so poll for the window where it sits there.
+  await expect
+    .poll(
+      async () => {
+        const v = await (await page.request.get(`/s/${society}/home`)).json();
+        return Number(v.household.pantry.food ?? 0);
+      },
+      { timeout: 30_000, intervals: [200] },
+    )
+    .toBeGreaterThan(0);
 
   // The Ledger: my row, marked, with today's hours once an hour has been worked.
-  await nav.getByRole("link", { name: "ledger" }).click();
+  await nav.getByRole("link", { name: "Ledger of Contribution" }).click();
   await expect(page.getByTestId("ledger-rule")).toContainText("The norm asks 6 hours a day");
   await expect(page.getByTestId("ledger-rule")).toContainText("low monitoring");
   const me = page.getByTestId("ledger-row-me");
@@ -121,7 +129,7 @@ test("a Commune citizen works under the norm, draws from the Store and reads the
   await page.goto(freeportHref!);
   const freeportNav = page.getByRole("navigation", { name: "Sections" });
   await expect(freeportNav).toBeVisible();
-  await expect(freeportNav.getByRole("link", { name: "ledger" })).toHaveCount(0);
+  await expect(freeportNav.getByRole("link", { name: "Ledger of Contribution" })).toHaveCount(0);
   await page.goto(`${freeportHref}/ledger`);
   await expect(page.getByText("There is no Ledger of Contribution in this society")).toBeVisible();
   await page.goto(`${freeportHref}/store`);

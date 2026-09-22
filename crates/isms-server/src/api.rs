@@ -779,8 +779,14 @@ async fn lexicon(
     }))
 }
 
-/// Fill the Welcome Brief's placeholders from the live world.
-fn render_welcome(template: &str, world: &isms_core::world::World) -> String {
+/// Fill the Welcome Brief's placeholders from the live world: `{{endowment}}`,
+/// `{{open_slots}}`, and where the policy has them `{{norm_hours}}` and
+/// `{{rationing}}` in the copy's own words (`[words.rationing]`, S2.9).
+fn render_welcome(
+    template: &str,
+    world: &isms_core::world::World,
+    copy: &crate::chronicle::Templates,
+) -> String {
     let endowment = format!("{:.2}", world.params.money.endowment.as_credits_f64());
     let open_slots = world
         .land
@@ -788,9 +794,23 @@ fn render_welcome(template: &str, world: &isms_core::world::World) -> String {
         .values()
         .filter(|s| s.workplace.is_none())
         .count();
+    let norm_hours = world
+        .policy
+        .work_norm_hours
+        .map_or_else(|| "no".to_owned(), |h| h.to_string());
+    let rationing = world
+        .policy
+        .rationing
+        .and_then(|r| serde_json::to_value(r).ok())
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .map_or_else(String::new, |value| {
+            copy.word("rationing", &value).to_owned()
+        });
     template
         .replace("{{endowment}}", &endowment)
         .replace("{{open_slots}}", &open_slots.to_string())
+        .replace("{{norm_hours}}", &norm_hours)
+        .replace("{{rationing}}", &rationing)
 }
 
 #[utoipa::path(
@@ -811,10 +831,12 @@ async fn welcome(
         .join("welcome.md");
     let template = std::fs::read_to_string(&path)
         .map_err(|e| ApiError::Internal(format!("welcome copy {}: {e}", path.display())))?;
+    let copy = crate::chronicle::Templates::load(&state.presets_dir, &entry.row.preset)
+        .map_err(ApiError::Internal)?;
     let world = entry.handle.world.read().await;
     Ok(Json(Welcome {
         clock: clock_of(&world),
-        markdown: render_welcome(&template, &world),
+        markdown: render_welcome(&template, &world, &copy),
     }))
 }
 
@@ -988,4 +1010,40 @@ pub fn router(state: AppState) -> axum::Router {
 #[must_use]
 pub fn client_kind_of(auth: &Auth) -> ClientKind {
     auth.client_kind()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::render_welcome;
+    use crate::chronicle::Templates;
+    use isms_core::WORKSPACE_PRESETS_DIR;
+    use isms_core::config::load_preset;
+    use isms_core::world::World;
+    use std::path::Path;
+
+    /// The Commune's Welcome Brief reads the norm and the rationing rule from
+    /// the policy in force, in the copy's own words (S2.9).
+    #[test]
+    fn commune_welcome_fills_the_norm_and_the_rule() {
+        let dir = Path::new(WORKSPACE_PRESETS_DIR);
+        let preset = load_preset(dir, "commune").unwrap();
+        let world = World::new(1, 1, &preset);
+        let copy = Templates::load(dir, "commune").unwrap();
+        let template = std::fs::read_to_string(dir.join("copy/commune/welcome.md")).unwrap();
+        let text = render_welcome(&template, &world, &copy);
+        assert!(text.contains("The norm asks 6 hours a day"), "{text}");
+        assert!(
+            text.contains("decides who is served: the largest shortfall is served first."),
+            "{text}"
+        );
+        assert!(!text.contains("{{"), "{text}");
+        // Freeport's brief has neither placeholder and keeps its endowment.
+        let preset = load_preset(dir, "freeport").unwrap();
+        let world = World::new(1, 1, &preset);
+        let copy = Templates::load(dir, "freeport").unwrap();
+        let template = std::fs::read_to_string(dir.join("copy/freeport/welcome.md")).unwrap();
+        let text = render_welcome(&template, &world, &copy);
+        assert!(text.contains("credits and nothing else"), "{text}");
+        assert!(!text.contains("{{"), "{text}");
+    }
 }

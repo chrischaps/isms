@@ -39,8 +39,8 @@ test("a coordinator publishes the Plan, opens and closes a workplace, and moves 
 
   // Not a holder: no nav item, and the route is the refusal page.
   const nav = page.getByRole("navigation", { name: "Sections" });
-  await expect(nav.getByRole("link", { name: "assembly" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "office" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Assembly" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Coordination" })).toHaveCount(0);
   await page.goto(`${base}/coordinator`);
   const refusal = page.getByTestId("not-a-coordinator");
   await expect(refusal).toBeVisible();
@@ -52,14 +52,14 @@ test("a coordinator publishes the Plan, opens and closes a workplace, and moves 
   expect((await denied.json()).code).toBe("not_an_office_holder");
 
   // Stand; the day's close seats the one candidate.
-  await refusal.getByRole("link", { name: "assembly" }).click();
+  await refusal.getByRole("link", { name: "Assembly" }).click();
   const office = page.getByTestId("office-coordinator");
   await office.getByRole("button", { name: "Stand for coordinator" }).click();
   await expect(office.getByRole("button", { name: "Withdraw" })).toBeVisible();
   await expect(office.getByTestId("holders")).toContainText("you", { timeout: 60_000 });
 
   // The nav now carries the workspace; the Society screen's Offices tile names me and links to it.
-  await expect(nav.getByRole("link", { name: "office" })).toBeVisible({ timeout: 15_000 });
+  await expect(nav.getByRole("link", { name: "Coordination" })).toBeVisible({ timeout: 15_000 });
   await nav.getByRole("link", { name: "Society" }).click();
   const tile = page.getByTestId("office-tile-coordinator");
   await expect(tile).toContainText("wren");
@@ -113,13 +113,13 @@ test("a coordinator publishes the Plan, opens and closes a workplace, and moves 
   await builder.getByLabel("Rationing rule", { exact: true }).selectOption("equal_shortfall");
   await builder.getByRole("button", { name: "Move it" }).click();
   await expect(builder).toContainText("Moved. It closes at the end of the day.");
-  await nav.getByRole("link", { name: "assembly" }).click();
+  await nav.getByRole("link", { name: "Assembly" }).click();
   const card = page.getByTestId("open-proposals").locator("article", { hasText: "Share the shortfall" });
   await expect(card).toBeVisible();
   await expect(card).toContainText("Sets rationing to equal shortfall.");
 
   // The Work screen reads the advisory target beside the picker.
-  await nav.getByRole("link", { name: "work_screen" }).click();
+  await nav.getByRole("link", { name: "Hours" }).click();
   const picker = page.getByTestId("workplace-picker");
   await expect(picker).toContainText("The Plan asks");
   await expect(picker).toContainText("40 a day");

@@ -259,7 +259,7 @@ export function Work({ id }: { id: number }) {
             Under the norm there is no contract and no wage: any workplace with room is yours to join and yours to leave, at most{" "}
             {ledger.data?.max_workplaces ?? l.effort.max_workplaces} at once, and what you give goes on the{" "}
             <Link to="/s/$id/ledger" params={{ id: String(id) }} className="underline">
-              {t("ledger")}
+              {t("ledger_screen")}
             </Link>
             .{ledger.data?.least_staffed != null ? ` Labor is scarcest at the ${names.workplace(ledger.data.least_staffed)}.` : ""}
           </p>
@@ -344,7 +344,7 @@ export function Work({ id }: { id: number }) {
             <p className="text-muted mt-2 text-sm">
               No payslip here: you draw from the Store by need, and your hours are on the{" "}
               <Link to="/s/$id/ledger" params={{ id: String(id) }} className="underline">
-                {t("ledger")}
+                {t("ledger_screen")}
               </Link>
               .
             </p>

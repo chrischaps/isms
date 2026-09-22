@@ -1,29 +1,89 @@
-# The Chronicle's voice in the Commune (TDD 9.4, GDD 12). A placeholder so a
-# lab Commune can be served before S2.9 writes the real copy: the same
-# templates as Freeport's, worded for a society with no prices and no wages.
-# `{{field}}` reads the event payload, `{{citizen:field}}` and `{{org:field}}`
-# turn ids into names. A template whose field is missing or null is skipped.
+# The Chronicle's voice in the Commune (TDD 9.4, GDD 6.2, 12, 15). Written to
+# be read by a member without a wink: the Store, the Ledger, the assembly and
+# the coordinators are named as the Commune names them. No prices, no wages,
+# no owners.
+#
+# One headline per matching event. `{{field}}` reads the event payload
+# (`a.b` walks into it, `a.0` into a list); `{{citizen:field}}`, `{{org:field}}`,
+# `{{workplace:field}}` and `{{proposal:field}}` turn ids into names learned
+# from the log; `{{pct:field}}` prints a fraction as a whole percentage. A
+# template whose field is missing or null is skipped.
+#
+# A key may pick a variant by a payload field: `Kind.path=value` fires when
+# that field reads `value`, beside any plain `Kind` template (S2.9). Two
+# payloads are prepared by the projector: `ProposalClosed.outcome` is `passed`,
+# `failed` or `no_quorum`; `PolicyChanged` fires once per field that moved,
+# keyed `PolicyChanged.<field>` or `PolicyChanged.<field>=<new value>`, with
+# `{{from}}` and `{{to}}` in its payload.
 
 [thresholds]
-# No prices move here; the threshold is kept so the loader has one.
+# No prices move here; the loader still wants the field.
 price_move_pct = 10.0
+# The night's verdict: `need_met` at or above this fulfilment, `need_short` below it.
+need_met_pct = 100.0
+
+# The three rationing rules in the Commune's words; the Welcome Brief reads them.
+[words.rationing]
+need_first = "the largest shortfall is served first"
+equal_shortfall = "everyone goes short by the same measure"
+lottery = "the lot decides whose request is served whole"
 
 [templates]
-OrgFounded = "{{citizen:founder}} founds {{name}}, a new {{kind}}."
-ManagerAppointed = "{{citizen:citizen}} takes the chair at {{org:org}}."
+# --- people and the Store ---------------------------------------------------
+CitizenJoined = "{{handle}} joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
+HouseholderEmigrated = "{{citizen:citizen}} has left the Commune."
 HardshipBegan = "{{citizen:citizen}} is going hungry. The Store did not reach them."
 HardshipEnded = "{{citizen:citizen}} is eating again."
-DestitutionBegan = "{{citizen:citizen}} is destitute."
+DestitutionBegan = "{{citizen:citizen}} has an empty pantry and nothing coming. The Store must answer for it."
 DestitutionEnded = "{{citizen:citizen}} is back on their feet."
-HouseholderEmigrated = "{{citizen:citizen}} has left the Commune."
-CitizenJoined = "{{handle}} joins the Commune. The Store is theirs to draw from and the norm theirs to meet."
-EpochStarted = "Epoch {{epoch}} opens. The Store is stocked and the assembly sits tonight."
-EpochEnded = "The epoch ends after cycle {{cycle}}. The Ledger closes."
-EpochEnding = "Two days remain in the epoch."
+OrgFounded = "{{citizen:founder}} founds {{name}}, an {{kind}} of members."
+ManagerAppointed = "{{citizen:citizen}} will speak for {{org:org}}."
+AdmissionProposed = "{{citizen:by}} asks that {{org:org}} admit {{citizen:citizen}}. The members decide."
 
-# Cycle-end headlines, evaluated against CycleClosed.aggregates.
+# --- the epoch ---------------------------------------------------------------
+EpochStarted = "Epoch {{epoch}} opens. The Store is stocked and the assembly sits tonight."
+EpochEnding = "Two days remain in the epoch. The Ledger will close with them."
+EpochEnded = "The epoch ends after day {{cycle}}. The Ledger closes."
+
+# --- the assembly (S2.1) -----------------------------------------------------
+Proposed = "{{citizen:by}} moves before the assembly: {{title}}. The vote closes at the end of day {{closes_cycle}}."
+"ProposalClosed.outcome=passed" = "The assembly carries {{proposal:proposal}}, {{tally.yes}} to {{tally.no}}."
+"ProposalClosed.outcome=failed" = "The assembly declines {{proposal:proposal}}, {{tally.no}} against {{tally.yes}}."
+"ProposalClosed.outcome=no_quorum" = "{{proposal:proposal}} lapses: {{tally.cast}} voted and {{tally.quorum}} were needed."
+
+# --- what the assembly changed (S2.1; one line per field that moved) --------
+"PolicyChanged.work_norm_hours" = "The assembly sets the norm at {{to}} hours a day, from {{from}}."
+"PolicyChanged.rationing=need_first" = "The assembly votes the rule for a short shelf: the largest shortfall is served first."
+"PolicyChanged.rationing=equal_shortfall" = "The assembly votes the rule for a short shelf: everyone goes short by the same measure."
+"PolicyChanged.rationing=lottery" = "The assembly votes the rule for a short shelf: the lot decides whose request is served whole."
+"PolicyChanged.materials_split" = "The assembly moves the Materials split: {{pct:to.wares}}% to Wares, {{pct:to.machines}}% to Machines, {{pct:to.dwellings}}% to Dwellings."
+"PolicyChanged.monitoring=high" = "The assembly votes to meter every hour. The Ledger will now say exactly what each of us made."
+"PolicyChanged.monitoring=medium" = "The assembly votes a closer watch on the workplaces. The Ledger's figures tighten."
+"PolicyChanged.monitoring=low" = "The assembly votes the watch off again. The Ledger's figures are estimates, as before."
+"PolicyChanged.monitoring=inherit" = "The assembly leaves the watch as the constitution set it."
+
+# --- the coordinators (S2.2, S2.3) ------------------------------------------
+ElectionOpened = "An election opens for the office of {{office}}: {{seats}} seats, closing at the end of day {{closes_cycle}}. Any citizen may stand."
+CandidacyDeclared = "{{citizen:citizen}} stands for {{office}}."
+CandidacyWithdrawn = "{{citizen:citizen}} withdraws from the {{office}} election."
+ElectionClosed = "The {{office}} election is counted."
+OfficeTaken = "{{citizen:citizen}} is seated as {{office}} through day {{term_ends_cycle}}, with {{approvals}} approvals."
+"OfficeVacated.reason=term_ended" = "{{citizen:citizen}}'s term as {{office}} has run. The seat passes on; nobody sits two terms running."
+"OfficeVacated.reason=absence" = "{{citizen:citizen}} has not been seen for days. Their {{office}} seat is declared vacant."
+"OfficeVacated.reason=recalled" = "The assembly recalls {{citizen:citizen}} from {{office}}."
+ElectionRerun = "Nobody stood for {{office}}. The election runs one more day for {{seats}} seats."
+OfficeUnfilled = "The Commune has no coordinators, or too few. A seat has stood empty for {{cycles}} days."
+PlanPublished = "{{citizen:by.citizen}} publishes the Plan for day {{cycle}}. It asks; it does not command."
+WorkplaceOpened = "{{citizen:by}} opens {{workplace:workplace}} for the collective on the land, {{materials_consumed}} Materials from the Store."
+WorkplaceClosed = "{{citizen:by}} closes {{workplace:workplace}}. Its {{machines_returned}} machines go back to the collective's stock; its slot is free."
+Honored = "The assembly honors {{citizen:citizen}}. The line is on their record for good."
+
+# --- an association's members (S2.4) ----------------------------------------
+Disbursed = "The members of {{org:org}} vote {{asset.good.1}} {{asset.good.0}} from their pantry to {{citizen:to.citizen}}."
+
+# Night lines, evaluated against CycleClosed.aggregates.
 [cycle]
-price_up = "The reference basket rose {{pct}}% over the cycle."
-price_down = "The reference basket fell {{pct}}% over the cycle."
-hardship = "{{count}} went hungry this cycle. The Store fell short."
-unemployed = "{{count}} gave no hours this cycle."
+hardship = "{{count}} went hungry today. The Store fell short."
+stock_out = "The Store has no {{good}} on the shelf tonight."
+need_met = "Everyone ate and everyone was housed today."
+need_short = "The Store reached {{pct}}% of need today."
