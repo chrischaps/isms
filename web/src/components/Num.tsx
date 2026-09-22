@@ -12,7 +12,8 @@ export type Explain = {
   result: unknown;
 };
 
-function show(v: unknown): string {
+/** An engine value as text: `{"Money": cents}` → "1.00 cr", `{"Float": x}`, `{"Int": n}`. */
+export function showValue(v: unknown): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "number") return Number.isInteger(v) ? String(v) : v.toFixed(2);
   if (typeof v === "object") {
@@ -62,11 +63,11 @@ export function Num({
               {inputs.map(([k, v]) => (
                 <span key={k} className="flex justify-between gap-4">
                   <span className="text-muted">{k.replaceAll("_", " ")}</span>
-                  <span className="tabular-nums">{show(v)}</span>
+                  <span className="tabular-nums">{showValue(v)}</span>
                 </span>
               ))}
               <span className="border-line mt-2 block border-t border-dashed pt-2 font-mono text-xs">{explain.formula}</span>
-              <span className="mt-1 block text-right">= {show(explain.result)}</span>
+              <span className="mt-1 block text-right">= {showValue(explain.result)}</span>
             </span>
           ) : null}
         </span>

@@ -22,6 +22,7 @@ import { Num } from "../../components/Num";
 import { OrderBook } from "../../components/OrderBook";
 import { FooterStrip, PageHeader } from "../../components/PageHeader";
 import { Pill } from "../../components/Pill";
+import { Figure, Figures } from "../../components/Figure";
 import { Segmented } from "../../components/Segmented";
 import { Sheet, SheetRow } from "../../components/Sheet";
 import { Tabs } from "../../components/Tabs";
@@ -244,8 +245,8 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "card",
-    title: "Card, Verdict, NeedCard",
-    spec: "§7.4–7.6 — the first card on Home: the Verdict, then three need tiles. Bars and status lines follow the engine's thresholds.",
+    title: "Card, Verdict, NeedCard, Figure",
+    spec: "§7.4–7.6, §10 Society — the first card on Home: the Verdict, then three need tiles; and the Society's four glance figures with their status lines. Bars and status lines follow the engine's thresholds.",
     node: (
       <Stack>
         <PageHeader
@@ -274,6 +275,15 @@ export const SECTIONS: Section[] = [
             <NeedCard label="Shelter" icon="home" value={94} tone="attn" status="Falling 2 an hour — you have no dwelling." note="Shelter only drops while you're unhoused. Rent or buy a dwelling on the Contracts screen and it climbs back." />
             <NeedCard label="Comfort" icon="spark" value={14} status="Low. Wares raise it; you have none in the pantry." note="Comfort is raised by using wares. It does not stop you working, but it counts toward wellbeing." />
           </Needs>
+        </Card>
+        <Card title="How Freeport is doing" icon="people">
+          <Verdict parts={["Freeport is ", { text: "fed (98 %)", tone: "good" }, ", ", { text: "one citizen is in hardship", tone: "attn" }, ", ", { text: "prices are steady", tone: "ink" }, "."]} />
+          <Figures>
+            <Figure label="Need fulfillment" value="98" unit="%" status="Nearly every citizen-day above the line." />
+            <Figure label="In hardship" value="1" tone="attn" status="At the end of yesterday." />
+            <Figure label="Price index" value="1.00" status="Reference basket, Food = 1." />
+            <Figure label="Median wellbeing" value="81" unit="/ 100" status="The middle citizen's needs, averaged." />
+          </Figures>
         </Card>
       </Stack>
     ),

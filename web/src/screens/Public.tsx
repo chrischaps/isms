@@ -7,7 +7,8 @@ import { Link } from "@tanstack/react-router";
 import { useLexicon } from "../api/hooks";
 import { usePublicChronicle, usePublicSocieties, usePublicStats } from "../api/civic";
 import { hourOfClock } from "../lib/when";
-import { ChronicleReader, StatTiles } from "./SocietyScreen";
+import { ChronicleReader } from "../components/ChronicleReader";
+import { StatTiles } from "../components/StatTiles";
 
 export function PublicSocieties() {
   const societies = usePublicSocieties();

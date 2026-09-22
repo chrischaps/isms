@@ -54,11 +54,19 @@ export function Tile({ children, className, testId }: { children: ReactNode; cla
 }
 
 /** A vertical stack of cards with the bible's gap. */
-export function Stack({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={["grid gap-4", className ?? ""].join(" ")}>{children}</div>;
+export function Stack({ children, className, testId }: { children: ReactNode; className?: string; testId?: string }) {
+  return (
+    <div data-testid={testId} className={["grid gap-4", className ?? ""].join(" ")}>
+      {children}
+    </div>
+  );
 }
 
 /** Two cards side by side from md, stacked below. */
-export function Two({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={["grid gap-4 md:grid-cols-2", className ?? ""].join(" ")}>{children}</div>;
+export function Two({ children, className, testId }: { children: ReactNode; className?: string; testId?: string }) {
+  return (
+    <div data-testid={testId} className={["grid gap-4 md:grid-cols-2", className ?? ""].join(" ")}>
+      {children}
+    </div>
+  );
 }

@@ -1,7 +1,9 @@
-// One organization (GDD 6.1, 9.2; S1.11). Everyone sees the overview and
-// the open offers. A manager gets the workspace: production per workplace
-// with per-worker attribution and the monitoring note, job offers, asks,
-// machines, the treasury, and workplaces. The controlling owner gets
+// One organization (GDD 6.1, 9.2; S1.11; docs/style.md §10). Everyone sees
+// the Verdict — what the firm is to you and whether tonight's payroll is
+// covered — the treasury, staff and your stake at a glance, the overview
+// facts, the ownership, the production per workplace and the open offers.
+// A manager gets the workspace: payroll with a top-up, job offers, asks,
+// machines, workplaces, the treasury ledger. The controlling owner gets
 // dividends, share issues, listing for sale, and the manager appointment.
 // An employee sees their own contract with this org.
 
@@ -11,7 +13,15 @@ import { ApiError, credits, type EventRef, type OfferView } from "../api/client"
 import { useBoard, useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { useContracts, useOfferLease, useTransfer } from "../api/contracts";
 import { useBook, usePlaceOrder } from "../api/market";
-import { Ledger, type LedgerRow } from "../components/Ledger";
+import { Button, ButtonRow } from "../components/Button";
+import { Card, Stack, Tile, Two } from "../components/Card";
+import { FactList } from "../components/FactList";
+import { Field, Input, Select } from "../components/Field";
+import { Figure } from "../components/Figure";
+import { Ledger, TD, TD_NUM, TH, TH_NUM, type LedgerRow } from "../components/Ledger";
+import { FooterStrip, PageHeader } from "../components/PageHeader";
+import { Pill } from "../components/Pill";
+import { Verdict, type Tone } from "../components/Verdict";
 import {
   useAddWorkplace,
   useAppoint,
@@ -29,6 +39,7 @@ import {
 } from "../api/orgs";
 import { useNames, workplaceTitles, type Names } from "../lib/names";
 import { jobLine } from "../lib/offers";
+import { orgVerdict } from "../lib/verdict";
 import { whenOf } from "../lib/when";
 
 const WORKPLACE_KINDS = ["farm", "mine", "foundry", "mill", "workshop", "machine_shop", "builder"];
@@ -44,15 +55,6 @@ function sharesOf(o: OrgView): Shares | null {
 function holderName(key: string, names: Names): string {
   if (key === "org_self") return "the firm itself";
   return names.citizen(Number(key.replace("citizen:", "")));
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex items-center gap-2">
-      <span className="w-28">{label}</span>
-      {children}
-    </label>
-  );
 }
 
 export function Org({ id, oid }: { id: number; oid: number }) {
@@ -103,7 +105,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
     return (
       <p className="text-muted">
         Join first, from the{" "}
-        <Link to="/s/$id" params={{ id: String(id) }} className="underline">
+        <Link to="/s/$id" params={{ id: String(id) }}>
           {t("home_title")}
         </Link>{" "}
         screen.
@@ -111,7 +113,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
     );
   }
   if (org.error instanceof ApiError && org.error.status === 404) return <p className="text-muted">No such organization.</p>;
-  if (home.error || org.error || caps.error) return <p className="text-bad">Could not load: {String(home.error ?? org.error ?? caps.error)}</p>;
+  if (home.error || org.error || caps.error) return <p className="text-crit">Could not load: {String(home.error ?? org.error ?? caps.error)}</p>;
   const h = home.data!;
   const o = org.data!;
   const c = caps.data!;
@@ -150,6 +152,7 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const myContract = h.labor.employment.find(
     (k) => ((k.body as Record<string, unknown>).employment as Record<string, unknown> | undefined)?.org === oid,
   );
+  const employed = myContract !== undefined || o.workplaces.some((w) => w.workers.some((k) => k.citizen === me));
   const sigma = c.monitoring_sigma;
   const fail = (e: Error) => {
     setNote(null);
@@ -163,6 +166,35 @@ export function Org({ id, oid }: { id: number; oid: number }) {
   const jobWp = job.workplace || firstWp;
   const machWp = mach.workplace || firstWp;
   const cents = (s: string) => Math.round(Number(s) * 100) || 0;
+  const held = (g: string) => (o.inventory as Record<string, number>)[g] ?? 0;
+  const inventory = Object.entries(o.inventory as Record<string, number>)
+    .map(([g, n]) => `${n} ${g}`)
+    .join(", ");
+
+  const verdict = orgVerdict({
+    name: o.name,
+    share: myShare,
+    controlling,
+    manage,
+    employed,
+    member: o.members.includes(me),
+    employees: o.employees,
+    money: c.money,
+    payroll: manage && c.money ? { due: payrollDue, shortfall, workers: payroll.length } : undefined,
+    paymentMissed: o.payment_missed || o.last_payment_missed != null,
+    hiring: offers.reduce((n, x) => n + (jobLine(x)?.places ?? 0), 0),
+  });
+  const treasuryTone: Tone = manage && c.money ? (shortfall > 0 ? "crit" : "good") : "good";
+  const treasuryStatus =
+    manage && c.money
+      ? payroll.length === 0
+        ? "Nobody on the payroll."
+        : shortfall > 0
+          ? `Short by ${credits(shortfall)} cr for tonight's payroll.`
+          : `Covers tonight's payroll of ${credits(payrollDue)} cr.`
+      : o.escrow > 0
+        ? `${credits(o.escrow)} cr more held in open bids.`
+        : undefined;
 
   // The treasury's side of each event, in cents; goods movements as text.
   const ledgerRows: LedgerRow[] = (ledger.data?.entries ?? [])
@@ -216,247 +248,281 @@ export function Org({ id, oid }: { id: number; oid: number }) {
           return [];
       }
     });
-  const held = (g: string) => (o.inventory as Record<string, number>)[g] ?? 0;
   const bookHint = askBook.data
     ? `last ${askBook.data.last_price != null ? credits(askBook.data.last_price) : "none"} · best bid ${askBook.data.bids[0] ? credits(askBook.data.bids[0].price) : "none"} · best ask ${askBook.data.asks[0] ? credits(askBook.data.asks[0].price) : "none"}`
     : "";
 
   const production = (w: WorkplaceView) => (
-    <div key={w.id} className="mt-3" data-testid={`workplace-${w.id}`}>
-      <h4 className="text-sm">
-        {title(w.id)}
-        <span className="num text-muted">
-          {w.slot != null ? ` · slot ${w.slot}` : ""} · {w.machines} machines · {w.cycle_output.toFixed(0)} {makesDwellings(w.kind) ? "dwellings" : "units"} today
+    <Tile key={w.id} testId={`workplace-${w.id}`} className="grid gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <span className="font-bold">{title(w.id)}</span>
+        <span className="text-muted text-sm tabular-nums">
+          {w.slot != null ? `slot ${w.slot} · ` : ""}
+          {w.machines} machines · {w.cycle_output.toFixed(0)} {makesDwellings(w.kind) ? "dwellings" : "units"} today
         </span>
-      </h4>
+      </div>
       {w.workers.length === 0 ? (
-        <p className="text-muted mt-1 text-xs">Nobody works here yet.</p>
+        <p className="text-muted m-0 text-sm">Nobody works here yet.</p>
       ) : (
-        <table className="mt-1 w-full text-sm">
-          <thead className="text-muted text-left text-xs uppercase tracking-wide">
+        <table className="w-full border-collapse text-[15px]">
+          <thead>
             <tr>
-              <th className="py-1 font-normal">Worker</th>
-              <th className="py-1 text-right font-normal">Hours</th>
-              <th className="py-1 text-right font-normal">Attributed today</th>
+              <th className={TH}>Worker</th>
+              <th className={TH_NUM}>Hours</th>
+              <th className={TH_NUM}>Attributed today</th>
             </tr>
           </thead>
           <tbody>
             {w.workers.map((k) => (
-              <tr key={k.citizen} className="rule" data-testid={`worker-${k.citizen}`}>
-                <td className="py-1 pr-2">
+              <tr key={k.citizen} className="hover:bg-surface-2" data-testid={`worker-${k.citizen}`}>
+                <td className={TD}>
                   {k.handle}
-                  {k.citizen === me ? <span className="text-muted"> (you)</span> : null}
+                  {k.citizen === me ? (
+                    <Pill className="ml-2">
+                      you
+                    </Pill>
+                  ) : null}
                 </td>
-                <td className="num py-1 text-right">{k.hours}</td>
-                <td className="num py-1 text-right">{k.attributed_this_cycle == null ? "—" : k.attributed_this_cycle.toFixed(1)}</td>
+                <td className={TD_NUM}>{k.hours}</td>
+                <td className={TD_NUM}>{k.attributed_this_cycle == null ? "—" : k.attributed_this_cycle.toFixed(1)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-    </div>
+    </Tile>
   );
 
+  const stake = shares && o.my_shares > 0 ? `${(myShare * 100).toFixed(0)}` : null;
+
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h2 className="text-2xl">{o.name}</h2>
-          <p className="text-muted text-sm">
-            {o.kind.replace("_", " ")}
-            {o.manager != null ? ` · managed by ${names.citizen(o.manager)}` : " · no manager"}
-            {shares && o.my_shares > 0 ? ` · you hold ${(myShare * 100).toFixed(0)}%${controlling ? " (controlling)" : ""}` : ""}
-            {o.last_payment_missed
-              ? ` · missed ${names.citizen(o.last_payment_missed.citizen)}'s payday on day ${o.last_payment_missed.cycle}: owed ${credits(o.last_payment_missed.owed)} cr, paid ${credits(o.last_payment_missed.paid)} cr`
-              : o.payment_missed
-                ? " · missed a payday"
-                : ""}
-          </p>
-        </div>
-        <Link to="/s/$id/orgs" params={{ id: String(id) }} className="text-muted text-sm underline">
-          All organizations
-        </Link>
-      </header>
+    <div>
+      <PageHeader
+        title={o.name}
+        meta={
+          <>
+            <span>{o.kind.replace("_", " ")}</span>
+            <span>{o.manager != null ? <>managed by <b>{names.citizen(o.manager)}</b></> : "no manager"}</span>
+            {stake ? (
+              <span>
+                you hold <b>{stake}%</b>
+                {controlling ? " (controlling)" : ""}
+              </span>
+            ) : null}
+            <Link to="/s/$id/orgs" params={{ id: String(id) }}>
+              All organizations
+            </Link>
+          </>
+        }
+      />
 
       {error ? (
-        <p className="text-bad text-sm" role="alert">
+        <p className="text-crit mb-4 text-sm" role="alert">
           {error}
         </p>
       ) : null}
-      {note ? <p className="text-muted text-sm">{note}</p> : null}
+      {note ? <p className="text-muted mb-4 text-sm">{note}</p> : null}
 
-      <section className="grid gap-8 md:grid-cols-2">
-        <dl className="grid grid-cols-2 gap-y-1 text-sm" data-testid="org-overview">
-          {c.money ? (
-            <>
-              <dt className="text-muted">Treasury</dt>
-              <dd className="num">
-                {credits(o.treasury)} cr{o.escrow > 0 ? <span className="text-muted"> · {credits(o.escrow)} cr more held in open bids</span> : null}
-              </dd>
-              <dt className="text-muted">Book value</dt>
-              <dd className="num">{credits(o.book_value)} cr</dd>
-              {o.declared_dividend != null ? (
-                <>
-                  <dt className="text-muted">Dividend</dt>
-                  <dd className="num" data-testid="declared-dividend">
-                    {credits(o.declared_dividend)} cr a share, declared today, paid at the day's end
-                  </dd>
-                </>
-              ) : null}
-            </>
-          ) : null}
-          <dt className="text-muted">Inventory</dt>
-          <dd className="num">
-            {Object.entries(o.inventory as Record<string, number>)
-              .map(([g, n]) => `${n} ${g}`)
-              .join(", ") || "empty"}
-          </dd>
-          <dt className="text-muted">Staff</dt>
-          <dd className="num">{o.employees}</dd>
-          {shares ? (
-            <>
-              <dt className="text-muted">Shares</dt>
-              <dd className="num">{shares.issued} issued</dd>
-            </>
-          ) : null}
-        </dl>
-        <div>
-          <h3 className="text-lg">Ownership</h3>
-          {shares ? (
-            <ul className="mt-2 text-sm" data-testid="share-registry">
-              {Object.entries(shares.holdings)
-                .sort((a, b) => b[1] - a[1])
-                .map(([k, n]) => (
-                  <li key={k} className="rule flex justify-between pt-1">
-                    <span>{holderName(k, names)}</span>
-                    <span className="num">
-                      {n} ({((100 * n) / shares.issued).toFixed(0)}%)
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          ) : (
-            <p className="text-muted mt-2 text-sm">{o.members.length} members{o.members.includes(me) ? ", you among them" : ""}.</p>
-          )}
-        </div>
-      </section>
-
-      {myContract ? (
-        <section className="bg-paper-2 rounded-sm p-3 text-sm" data-testid="my-contract">
-          <h3 className="text-lg">Your {t("job").toLowerCase()} here</h3>
-          {(() => {
-            const e = (myContract.body as Record<string, unknown>).employment as Record<string, unknown>;
-            const pay = e.pay as Record<string, number>;
-            return (
-              <p className="mt-1">
-                {pay.hourly !== undefined ? `${credits(pay.hourly)} cr an hour` : `${credits(pay.piece_rate ?? 0)} cr a unit`}, up to{" "}
-                {String(e.max_hours)} h a day, notice {String(e.notice_cycles)} day(s)
-                {myContract.term_cycles != null ? `, term ${myContract.term_cycles} days` : ""}. Status: {myContract.status}. Hours and effort are set on{" "}
-                <Link to="/s/$id/work" params={{ id: String(id) }} className="underline">
-                  {t("work_screen")}
-                </Link>
-                ; ending it with notice comes with the Contracts screen.
-              </p>
-            );
-          })()}
-        </section>
-      ) : null}
-
-      <section>
-        <h3 className="text-lg">Production</h3>
-        {o.workplaces.length === 0 ? <p className="text-muted mt-2 text-sm">No workplace.</p> : o.workplaces.map(production)}
-        {manage && c.money ? (
-          <div className="bg-paper-2 mt-3 rounded-sm p-3 text-sm" data-testid="payroll">
-            <p>
-              Payroll due at the end of the day: <span className="num">{credits(payrollDue)} cr</span>
-              {payroll.length > 0 ? ` for ${payroll.length} worker${payroll.length === 1 ? "" : "s"}` : ""}. Treasury:{" "}
-              <span className="num">{credits(o.treasury)} cr</span>.{" "}
-              {payroll.length === 0 ? (
-                <span className="text-muted">Nobody on the payroll.</span>
-              ) : shortfall > 0 ? (
-                <span className="text-bad">
-                  Short by {credits(shortfall)} cr: workers would be paid pro rata, their contracts would end, and the firm would be flagged.
-                </span>
-              ) : (
-                <span className="text-good">Covered.</span>
-              )}
+      <Stack>
+        <Card
+          title="The firm"
+          icon="org"
+          testId="org-glance"
+          aside={
+            o.last_payment_missed || o.payment_missed ? (
+              <Pill tone="crit">missed a payday</Pill>
+            ) : null
+          }
+        >
+          <Verdict parts={verdict} />
+          {o.last_payment_missed ? (
+            <p className="text-crit mb-3 text-sm">
+              Missed {names.citizen(o.last_payment_missed.citizen)}&apos;s payday on day {o.last_payment_missed.cycle}: owed {credits(o.last_payment_missed.owed)} cr, paid{" "}
+              {credits(o.last_payment_missed.paid)} cr.
             </p>
-            {payroll.length > 0 ? (
-              <p className="text-muted mt-1 text-xs">{payroll.map((p) => `${p.worker} ${credits(p.due)} cr`).join(" · ")}</p>
-            ) : null}
-            <form
-              className="mt-2 flex flex-wrap items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                transfer.mutate(
-                  { to: { org: oid } as never, asset: { money: cents(topUp) } as never, memo: "treasury" },
-                  { onSuccess: ok(`Moved ${credits(cents(topUp))} cr into the treasury.`), onError: fail },
-                );
-                setTopUp("");
-              }}
-            >
-              <span>Top up from your balance ({credits(h.household.balance)} cr):</span>
-              <input
-                aria-label="Top up amount"
-                type="number"
-                step="0.01"
-                min={0.01}
-                placeholder={shortfall > 0 ? (shortfall / 100).toFixed(2) : ""}
-                className="border-line num w-24 rounded-sm border px-1"
-                value={topUp}
-                onChange={(e) => setTopUp(e.target.value)}
+          ) : null}
+          <div className="grid gap-3 @min-[620px]:grid-cols-3">
+            {c.money ? <Figure label="Treasury" value={credits(o.treasury)} unit="cr" status={treasuryStatus} tone={treasuryTone} testId="treasury-figure" /> : null}
+            <Figure label="Staff" value={String(o.employees)} unit={o.employees === 1 ? "person" : "people"} status={o.workplaces.length === 0 ? "No workplace." : `${o.workplaces.length} workplace${o.workplaces.length === 1 ? "" : "s"}.`} />
+            {shares ? (
+              <Figure
+                label="Your stake"
+                value={stake ?? "0"}
+                unit="%"
+                status={stake ? `${o.my_shares} of ${shares.issued} shares${controlling ? "; controlling" : ""}.` : `${shares.issued} shares issued; none yours.`}
               />
-              <span className="text-muted text-xs">cr</span>
-              <button type="submit" disabled={transfer.isPending || cents(topUp) < 1} className="border-line rounded-sm border px-2 py-0.5 disabled:opacity-50">
-                Transfer
-              </button>
-              {shortfall > 0 ? (
-                <button type="button" className="text-muted text-xs underline" onClick={() => setTopUp((shortfall / 100).toFixed(2))}>
-                  cover the shortfall
-                </button>
-              ) : null}
-            </form>
+            ) : (
+              <Figure label="Members" value={String(o.members.length)} status={o.members.includes(me) ? "You among them." : "Not you."} />
+            )}
           </div>
-        ) : null}
-        {manage ? (
-          <p className="text-muted mt-2 text-xs">
-            {sigma === 0
-              ? "Monitoring here is exact: attributed output is true output."
-              : `Monitoring here is noisy (sigma ${sigma}): attributed output is a manager's estimate; each worker sees their own true figure.`}
-          </p>
-        ) : null}
-      </section>
+          <div className="mt-4" data-testid="org-overview">
+            <FactList
+              items={[
+                ...(c.money
+                  ? [
+                      { key: "treasury", label: "Treasury", value: `${credits(o.treasury)} cr`, gloss: o.escrow > 0 ? `${credits(o.escrow)} cr more held in open bids` : undefined },
+                      { key: "book", label: "Book value", value: `${credits(o.book_value)} cr` },
+                      ...(o.declared_dividend != null
+                        ? [{ key: "dividend", label: "Dividend", value: `${credits(o.declared_dividend)} cr a share`, gloss: "declared today, paid at the day's end", testId: "declared-dividend" }]
+                        : []),
+                    ]
+                  : []),
+                { key: "inventory", label: "Inventory", value: inventory || "empty" },
+                { key: "staff", label: "Staff", value: String(o.employees) },
+                ...(shares ? [{ key: "shares", label: "Shares", value: `${shares.issued} issued` }] : []),
+              ]}
+            />
+          </div>
+        </Card>
 
-      {o.dwellings.length > 0 || o.workplaces.some((w) => makesDwellings(w.kind)) ? (
-        <section data-testid="org-dwellings">
-          <h3 className="text-lg">Dwellings</h3>
-          {o.dwellings.length === 0 ? (
-            <p className="text-muted mt-2 text-sm">None yet. A Builder turns 10 Materials into one dwelling, on the hour its output reaches a whole unit; it appears here, owned by the firm.</p>
+        <Two>
+          <Card title="Ownership" icon="coin">
+            {shares && Object.keys(shares.holdings).length === 0 ? (
+              <p className="text-muted m-0" data-testid="share-registry">
+                Nobody holds a share right now: all {shares.issued} sit in escrow, on the notice board or a book.
+              </p>
+            ) : shares ? (
+              <ul className="m-0 grid list-none gap-1.5 p-0" data-testid="share-registry">
+                {Object.entries(shares.holdings)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([k, n]) => (
+                    <li key={k} className="border-line flex justify-between gap-3 border-b pb-1.5 last:border-b-0">
+                      <span>
+                        {holderName(k, names)}
+                        {k === `citizen:${me}` ? (
+                          <Pill className="ml-2">
+                            you
+                          </Pill>
+                        ) : null}
+                      </span>
+                      <span className="tabular-nums">
+                        {n} <span className="text-muted">({((100 * n) / shares.issued).toFixed(0)} %)</span>
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p className="text-muted m-0">
+                {o.members.length} members{o.members.includes(me) ? ", you among them" : ""}.
+              </p>
+            )}
+          </Card>
+
+          {myContract ? (
+            <Card title={`Your ${t("job").toLowerCase()} here`} icon="contract" testId="my-contract">
+              {(() => {
+                const e = (myContract.body as Record<string, unknown>).employment as Record<string, unknown>;
+                const pay = e.pay as Record<string, number>;
+                return (
+                  <>
+                    <FactList
+                      items={[
+                        { key: "pay", label: "Pay", value: pay.hourly !== undefined ? `${credits(pay.hourly)} cr an hour` : `${credits(pay.piece_rate ?? 0)} cr a unit` },
+                        { key: "hours", label: "Hours", value: `up to ${String(e.max_hours)} h a day` },
+                        { key: "notice", label: "Notice", value: `${String(e.notice_cycles)} day(s)` },
+                        ...(myContract.term_cycles != null ? [{ key: "term", label: "Term", value: `${myContract.term_cycles} days` }] : []),
+                        { key: "status", label: "Status", value: <Pill tone={myContract.status === "active" ? "good" : "neutral"}>{myContract.status}</Pill> },
+                      ]}
+                    />
+                    <p className="text-muted mt-3 mb-0 text-sm">
+                      Hours and effort are set on{" "}
+                      <Link to="/s/$id/work" params={{ id: String(id) }}>
+                        {t("work_screen")}
+                      </Link>
+                      ; ending it with notice comes with the Contracts screen.
+                    </p>
+                  </>
+                );
+              })()}
+            </Card>
           ) : (
-            <table className="mt-2 w-full text-sm">
-              <thead className="text-muted text-left text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="py-1 font-normal">Dwelling</th>
-                  <th className="py-1 font-normal">Occupant</th>
-                  <th className="py-1 font-normal">Status</th>
-                  {manage ? <th className="py-1 font-normal"></th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {o.dwellings.map((d) => (
-                  <tr key={d.id} className="rule" data-testid={`dwelling-${d.id}`}>
-                    <td className="py-1 pr-2">no. {d.id}</td>
-                    <td className="py-1 pr-2">{d.occupant != null ? names.citizen(d.occupant) : "empty"}</td>
-                    <td className="py-1 pr-2">
-                      {d.lease != null ? `let at ${credits(d.rent_per_cycle ?? 0)} cr a day` : d.offer != null ? "on the notice board" : "free"}
-                    </td>
-                    {manage ? (
-                      <td className="py-1 text-right">
-                        {d.lease == null && d.offer == null ? (
-                          <>
-                            <button
-                              type="button"
-                              className="text-muted text-xs underline"
+            <Card title="Open offers" icon="contract">
+              <OpenOffers offers={offers} manage={manage} t={t} title={title} onWithdraw={(x) => cancelOffer.mutate(x, { onError: fail })} />
+            </Card>
+          )}
+        </Two>
+
+        <Card title="Production" icon="work" testId="production">
+          {o.workplaces.length === 0 ? <p className="text-muted m-0">No workplace.</p> : <div className="grid gap-3">{o.workplaces.map(production)}</div>}
+          {manage && c.money ? (
+            <Tile testId="payroll" className="mt-3 grid gap-2">
+              <p className="m-0">
+                Payroll due at the end of the day: <b className="tabular-nums">{credits(payrollDue)} cr</b>
+                {payroll.length > 0 ? ` for ${payroll.length} worker${payroll.length === 1 ? "" : "s"}` : ""}. Treasury: <b className="tabular-nums">{credits(o.treasury)} cr</b>.{" "}
+                {payroll.length === 0 ? (
+                  <span className="text-muted">Nobody on the payroll.</span>
+                ) : shortfall > 0 ? (
+                  <span className="text-crit">Short by {credits(shortfall)} cr: workers would be paid pro rata, their contracts would end, and the firm would be flagged.</span>
+                ) : (
+                  <span className="text-good">Covered.</span>
+                )}
+              </p>
+              {payroll.length > 0 ? <p className="text-muted m-0 text-sm">{payroll.map((p) => `${p.worker} ${credits(p.due)} cr`).join(" · ")}</p> : null}
+              <form
+                className="grid gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  transfer.mutate(
+                    { to: { org: oid } as never, asset: { money: cents(topUp) } as never, memo: "treasury" },
+                    { onSuccess: ok(`Moved ${credits(cents(topUp))} cr into the treasury.`), onError: fail },
+                  );
+                  setTopUp("");
+                }}
+              >
+                <Field label={`Top up from your balance (${credits(h.household.balance)} cr)`} unit="cr">
+                  <Input
+                    aria-label="Top up amount"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min={0.01}
+                    placeholder={shortfall > 0 ? (shortfall / 100).toFixed(2) : ""}
+                    value={topUp}
+                    onChange={(e) => setTopUp(e.target.value)}
+                  />
+                </Field>
+                <ButtonRow>
+                  <Button type="submit" disabled={transfer.isPending || cents(topUp) < 1}>
+                    Transfer
+                  </Button>
+                  {shortfall > 0 ? (
+                    <Button variant="quiet" onClick={() => setTopUp((shortfall / 100).toFixed(2))}>
+                      cover the shortfall
+                    </Button>
+                  ) : null}
+                </ButtonRow>
+              </form>
+            </Tile>
+          ) : null}
+          {manage ? (
+            <p className="text-muted mt-3 mb-0 text-sm">
+              {sigma === 0
+                ? "Monitoring here is exact: attributed output is true output."
+                : `Monitoring here is noisy (sigma ${sigma}): attributed output is a manager's estimate; each worker sees their own true figure.`}
+            </p>
+          ) : null}
+        </Card>
+
+        {o.dwellings.length > 0 || o.workplaces.some((w) => makesDwellings(w.kind)) ? (
+          <Card title="Dwellings" icon="home" testId="org-dwellings">
+            {o.dwellings.length === 0 ? (
+              <p className="text-muted m-0">None yet. A Builder turns 10 Materials into one dwelling, on the hour its output reaches a whole unit; it appears here, owned by the firm.</p>
+            ) : (
+              <ul className="m-0 grid list-none gap-3 p-0">
+                {o.dwellings.map((d) => {
+                  const free = d.lease == null && d.offer == null;
+                  return (
+                    <li key={d.id}>
+                      <Tile testId={`dwelling-${d.id}`} className="flex flex-wrap items-center justify-between gap-3">
+                        <span>
+                          <span className="font-bold">no. {d.id}</span>
+                          <span className="text-muted"> · {d.occupant != null ? names.citizen(d.occupant) : "empty"}</span>
+                          <span className="text-muted"> · {d.lease != null ? `let at ${credits(d.rent_per_cycle ?? 0)} cr a day` : d.offer != null ? "on the notice board" : "free"}</span>
+                        </span>
+                        {manage && free ? (
+                          <span className="flex flex-wrap gap-2">
+                            <Button
+                              inline
                               onClick={() =>
                                 lease.mutate(
                                   { asset: { dwelling: d.id } as never, rent_per_cycle: cents(dwellingTerms.rent), term_cycles: null, on_behalf_of: oid },
@@ -464,12 +530,11 @@ export function Org({ id, oid }: { id: number; oid: number }) {
                                 )
                               }
                             >
-                              let it
-                            </button>
-                            <button
-                              type="button"
+                              Let it
+                            </Button>
+                            <Button
+                              inline
                               disabled={cents(dwellingTerms.price) < 1}
-                              className="text-muted ml-2 text-xs underline disabled:opacity-50"
                               onClick={() =>
                                 sale.mutate(
                                   { asset: { dwelling: d.id }, price: { money: cents(dwellingTerms.price) }, on_behalf_of: oid },
@@ -477,307 +542,354 @@ export function Org({ id, oid }: { id: number; oid: number }) {
                                 )
                               }
                             >
-                              sell it
-                            </button>
-                          </>
+                              Sell it
+                            </Button>
+                          </span>
                         ) : null}
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {manage && o.dwellings.some((d) => d.lease == null && d.offer == null) ? (
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-              <Field label="Rent a day">
-                <input aria-label="Dwelling rent" type="number" step="0.01" min={0} className="border-line num w-24 rounded-sm border px-1" value={dwellingTerms.rent} onChange={(e) => setDwellingTerms({ ...dwellingTerms, rent: e.target.value })} />
-              </Field>
-              <Field label="Sale price">
-                <input aria-label="Dwelling price" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={dwellingTerms.price} onChange={(e) => setDwellingTerms({ ...dwellingTerms, price: e.target.value })} />
-              </Field>
-              <span className="text-muted text-xs">Rent settles to the treasury each day; a sale is for the price in one payment.</span>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+                      </Tile>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {manage && o.dwellings.some((d) => d.lease == null && d.offer == null) ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Field label="Rent a day" unit="cr">
+                  <Input aria-label="Dwelling rent" type="number" inputMode="decimal" step="0.01" min={0} value={dwellingTerms.rent} onChange={(e) => setDwellingTerms({ ...dwellingTerms, rent: e.target.value })} />
+                </Field>
+                <Field label="Sale price" unit="cr" hint="Rent settles to the treasury each day; a sale is for the price in one payment.">
+                  <Input aria-label="Dwelling price" type="number" inputMode="decimal" step="0.01" min={0.01} value={dwellingTerms.price} onChange={(e) => setDwellingTerms({ ...dwellingTerms, price: e.target.value })} />
+                </Field>
+              </div>
+            ) : null}
+          </Card>
+        ) : null}
 
-      {ledger.data ? (
-        <section>
-          <h3 className="text-lg">Treasury ledger</h3>
-          <p className="text-muted mt-1 text-xs">Every movement of the treasury and its escrow, newest first: trades and sales, transfers, wages, dividends, orders placed, dwellings built.</p>
-          <div className="mt-2" data-testid="treasury-ledger">
-            <Ledger rows={ledgerRows} empty="Nothing has moved the treasury yet." />
-          </div>
-        </section>
-      ) : null}
+        {myContract ? (
+          <Card title="Open offers" icon="contract">
+            <OpenOffers offers={offers} manage={manage} t={t} title={title} onWithdraw={(x) => cancelOffer.mutate(x, { onError: fail })} />
+          </Card>
+        ) : null}
 
-      <section>
-        <h3 className="text-lg">Open offers</h3>
-        {offers.length === 0 ? (
-          <p className="text-muted mt-2 text-sm">None on the notice board.</p>
-        ) : (
-          <ul className="mt-2 flex flex-col gap-1 text-sm" data-testid="org-offers">
-            {offers.map((x: OfferView) => {
-              const j = jobLine(x);
-              return (
-                <li key={x.id} className="rule flex flex-wrap items-baseline justify-between gap-2 pt-1">
-                  <span>
-                    {j
-                      ? `${t("job")}: ${j.pay}, up to ${j.hours} h, ${j.term}, notice ${j.notice} day(s), ${j.places} open (${title(j.workplace)})`
-                      : `${x.kind}: ${JSON.stringify(x.body)}`}
-                  </span>
-                  {manage ? (
-                    <button type="button" className="text-muted text-xs underline" onClick={() => cancelOffer.mutate(x.id, { onError: fail })}>
-                      withdraw
-                    </button>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      {manage ? (
-        <section className="grid gap-8 md:grid-cols-2" data-testid="manager-workspace">
-          <form
-            className="flex flex-col gap-2 text-sm"
-            data-testid="job-offer-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              offer.mutate(
-                {
-                  workplace: jobWp,
-                  pay: job.piece ? { piece_rate: cents(job.hourly) } : { hourly: cents(job.hourly) },
-                  max_hours: job.hours,
-                  places: job.places,
-                  term_cycles: job.term.trim() === "" ? null : Number(job.term),
-                  notice_cycles: job.notice,
-                } as never,
-                { onSuccess: ok("Job offer posted to the notice board."), onError: fail },
-              );
-            }}
-          >
-            <h3 className="text-lg">Post a job offer</h3>
-            <Field label="Workplace">
-              <select aria-label="Job workplace" className="border-line rounded-sm border px-1" value={jobWp} onChange={(e) => setJob({ ...job, workplace: Number(e.target.value) })}>
-                {o.workplaces.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {title(w.id)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Pay">
-              <input aria-label="Pay" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={job.hourly} onChange={(e) => setJob({ ...job, hourly: e.target.value })} />
-              <select aria-label="Pay basis" className="border-line rounded-sm border px-1" value={job.piece ? "piece" : "hourly"} onChange={(e) => setJob({ ...job, piece: e.target.value === "piece" })}>
-                <option value="hourly">cr an hour</option>
-                <option value="piece">cr a unit</option>
-              </select>
-            </Field>
-            <Field label="Max hours">
-              <input aria-label="Max hours" type="number" min={1} max={8} className="border-line num w-16 rounded-sm border px-1" value={job.hours} onChange={(e) => setJob({ ...job, hours: Number(e.target.value) })} />
-            </Field>
-            <Field label="Places">
-              <input aria-label="Places" type="number" min={1} className="border-line num w-16 rounded-sm border px-1" value={job.places} onChange={(e) => setJob({ ...job, places: Number(e.target.value) })} />
-            </Field>
-            <Field label="Term (days)">
-              <input aria-label="Term" type="number" min={1} placeholder="open" className="border-line num w-16 rounded-sm border px-1" value={job.term} onChange={(e) => setJob({ ...job, term: e.target.value })} />
-            </Field>
-            <Field label="Notice (days)">
-              <input aria-label="Notice" type="number" min={0} className="border-line num w-16 rounded-sm border px-1" value={job.notice} onChange={(e) => setJob({ ...job, notice: Number(e.target.value) })} />
-            </Field>
-            <button type="submit" disabled={offer.isPending || o.workplaces.length === 0} className="bg-ink text-paper self-start rounded-sm px-3 py-1 disabled:opacity-50">
-              Post job offer
-            </button>
-            <p className="text-muted text-xs">A new firm has an empty treasury: the founding fee is burned, not deposited. Check the payroll line above before hiring.</p>
-          </form>
-
-          <div className="flex flex-col gap-6">
-            {c.order_books ? (
+        {manage ? (
+          <Two className="items-start" testId="manager-workspace">
+            <Card title="Post a job offer" icon="work">
               <form
-                className="flex flex-col gap-2 text-sm"
-                data-testid="ask-form"
+                className="grid gap-3"
+                data-testid="job-offer-form"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  place.mutate(
-                    { instrument: askGood, side: "ask", qty: ask.qty, limit_price: cents(ask.limit), on_behalf_of: oid },
-                    { onSuccess: ok(`Ask placed on the ${askGood} book for the firm.`), onError: fail },
+                  offer.mutate(
+                    {
+                      workplace: jobWp,
+                      pay: job.piece ? { piece_rate: cents(job.hourly) } : { hourly: cents(job.hourly) },
+                      max_hours: job.hours,
+                      places: job.places,
+                      term_cycles: job.term.trim() === "" ? null : Number(job.term),
+                      notice_cycles: job.notice,
+                    } as never,
+                    { onSuccess: ok("Job offer posted to the notice board."), onError: fail },
                   );
                 }}
               >
-                <h3 className="text-lg">Sell from inventory</h3>
-                <Field label="Good">
-                  <select aria-label="Ask good" className="border-line rounded-sm border px-1" value={askGood} onChange={(e) => setAskGood(e.target.value)}>
-                    {GOODS.map((g) => (
-                      <option key={g} value={g}>
-                        {g} ({(o.inventory as Record<string, number>)[g] ?? 0} held)
+                <Field label="Workplace">
+                  <Select aria-label="Job workplace" value={jobWp} onChange={(e) => setJob({ ...job, workplace: Number(e.target.value) })}>
+                    {o.workplaces.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {title(w.id)}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
-                <Field label="Quantity">
-                  <input aria-label="Ask quantity" type="number" min={1} className="border-line num w-20 rounded-sm border px-1" value={ask.qty} onChange={(e) => setAsk({ ...ask, qty: Number(e.target.value) })} />
-                  <button type="button" className="border-line rounded-sm border px-2 py-0.5 text-xs" onClick={() => setAsk({ ...ask, qty: held(askGood) })}>
-                    Max
-                  </button>
-                  <span className="text-muted text-xs" data-testid="ask-held">
-                    {held(askGood)} held
-                  </span>
-                </Field>
-                <Field label="Limit">
-                  <input aria-label="Ask limit" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={ask.limit} onChange={(e) => setAsk({ ...ask, limit: e.target.value })} />
-                  <span className="text-muted text-xs" data-testid="ask-book-hint">
-                    cr a unit{bookHint ? ` · ${bookHint}` : ""}; the goods sit in escrow until filled
-                  </span>
-                </Field>
-                <button type="submit" disabled={place.isPending || cents(ask.limit) < 1} className="border-line self-start rounded-sm border px-3 py-1 text-sm">
-                  Post ask
-                </button>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Pay" unit="cr">
+                    <Input aria-label="Pay" type="number" inputMode="decimal" step="0.01" min={0.01} value={job.hourly} onChange={(e) => setJob({ ...job, hourly: e.target.value })} />
+                  </Field>
+                  <Field label="Pay basis">
+                    <Select aria-label="Pay basis" value={job.piece ? "piece" : "hourly"} onChange={(e) => setJob({ ...job, piece: e.target.value === "piece" })}>
+                      <option value="hourly">an hour</option>
+                      <option value="piece">a unit</option>
+                    </Select>
+                  </Field>
+                  <Field label="Max hours" unit="h">
+                    <Input aria-label="Max hours" type="number" inputMode="numeric" min={1} max={8} value={job.hours} onChange={(e) => setJob({ ...job, hours: Number(e.target.value) })} />
+                  </Field>
+                  <Field label="Places">
+                    <Input aria-label="Places" type="number" inputMode="numeric" min={1} value={job.places} onChange={(e) => setJob({ ...job, places: Number(e.target.value) })} />
+                  </Field>
+                  <Field label="Term" unit="days" hint="Empty for an open term.">
+                    <Input aria-label="Term" type="number" inputMode="numeric" min={1} placeholder="open" value={job.term} onChange={(e) => setJob({ ...job, term: e.target.value })} />
+                  </Field>
+                  <Field label="Notice" unit="days">
+                    <Input aria-label="Notice" type="number" inputMode="numeric" min={0} value={job.notice} onChange={(e) => setJob({ ...job, notice: Number(e.target.value) })} />
+                  </Field>
+                </div>
+                <ButtonRow>
+                  <Button type="submit" variant="primary" disabled={offer.isPending} disabledReason={o.workplaces.length === 0 ? "add a workplace first" : undefined}>
+                    Post job offer
+                  </Button>
+                </ButtonRow>
+                <p className="text-muted m-0 text-sm">A new firm has an empty treasury: the founding fee is burned, not deposited. Check the payroll line above before hiring.</p>
               </form>
-            ) : null}
+            </Card>
 
-            <div className="flex flex-col gap-2 text-sm" data-testid="machines">
-              <h3 className="text-lg">Machines</h3>
-              <p className="text-muted text-xs">
-                Installed machines raise the workplace's capital multiplier; they wear a little each day. The firm holds {(o.inventory as Record<string, number>).machines ?? 0} uninstalled.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <select aria-label="Machines workplace" className="border-line rounded-sm border px-1" value={machWp} onChange={(e) => setMach({ ...mach, workplace: Number(e.target.value) })}>
-                  {o.workplaces.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {title(w.id)} ({w.machines} installed)
-                    </option>
-                  ))}
-                </select>
-                <input aria-label="Machines quantity" type="number" min={1} className="border-line num w-16 rounded-sm border px-1" value={mach.qty} onChange={(e) => setMach({ ...mach, qty: Number(e.target.value) })} />
-                <button type="button" className="border-line rounded-sm border px-2 py-0.5" onClick={() => machines.mutate({ workplace: machWp, action: "install", qty: mach.qty }, { onSuccess: ok("Installed."), onError: fail })}>
-                  Install
-                </button>
-                <button type="button" className="border-line rounded-sm border px-2 py-0.5" onClick={() => machines.mutate({ workplace: machWp, action: "uninstall", qty: mach.qty }, { onSuccess: ok("Uninstalled."), onError: fail })}>
-                  Uninstall
-                </button>
-              </div>
+            <Stack>
               {c.order_books ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span>Bid for machines:</span>
-                  <input aria-label="Machines bid quantity" type="number" min={1} className="border-line num w-16 rounded-sm border px-1" value={buy.qty} onChange={(e) => setBuy({ ...buy, qty: Number(e.target.value) })} />
-                  <span>at</span>
-                  <input aria-label="Machines bid limit" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={buy.limit} onChange={(e) => setBuy({ ...buy, limit: e.target.value })} />
-                  <span className="text-muted text-xs">cr, from the treasury</span>
-                  <button
-                    type="button"
-                    disabled={cents(buy.limit) < 1}
-                    className="border-line rounded-sm border px-2 py-0.5 disabled:opacity-50"
-                    onClick={() =>
+                <Card title="Sell from inventory" icon="market">
+                  <form
+                    className="grid gap-3"
+                    data-testid="ask-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
                       place.mutate(
-                        { instrument: "machines", side: "bid", qty: buy.qty, limit_price: cents(buy.limit), on_behalf_of: oid },
-                        { onSuccess: ok("Bid placed on the machines book for the firm."), onError: fail },
+                        { instrument: askGood, side: "ask", qty: ask.qty, limit_price: cents(ask.limit), on_behalf_of: oid },
+                        { onSuccess: ok(`Ask placed on the ${askGood} book for the firm.`), onError: fail },
+                      );
+                    }}
+                  >
+                    <Field label="Good">
+                      <Select aria-label="Ask good" value={askGood} onChange={(e) => setAskGood(e.target.value)}>
+                        {GOODS.map((g) => (
+                          <option key={g} value={g}>
+                            {g} ({held(g)} held)
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Quantity" unit={askGood}>
+                      <Input aria-label="Ask quantity" type="number" inputMode="numeric" min={1} value={ask.qty} onChange={(e) => setAsk({ ...ask, qty: Number(e.target.value) })} />
+                    </Field>
+                    <p className="text-muted -mt-1 mb-0 text-sm">
+                      <span data-testid="ask-held">{held(askGood)} held</span> ·{" "}
+                      <button type="button" className="text-accent underline" onClick={() => setAsk({ ...ask, qty: held(askGood) })}>
+                        Max
+                      </button>
+                    </p>
+                    <Field
+                      label="Limit"
+                      unit="cr a unit"
+                      hint={<span data-testid="ask-book-hint">{bookHint ? `${bookHint}; ` : ""}the goods sit in escrow until filled</span>}
+                    >
+                      <Input aria-label="Ask limit" type="number" inputMode="decimal" step="0.01" min={0.01} value={ask.limit} onChange={(e) => setAsk({ ...ask, limit: e.target.value })} />
+                    </Field>
+                    <ButtonRow>
+                      <Button type="submit" variant="primary" disabled={place.isPending} disabledReason={cents(ask.limit) < 1 ? "set a limit" : undefined}>
+                        Post ask
+                      </Button>
+                    </ButtonRow>
+                  </form>
+                </Card>
+              ) : null}
+
+              <Card title="Machines" icon="gear" testId="machines" subtitle={`Installed machines raise the workplace's capital multiplier; they wear a little each day. The firm holds ${held("machines")} uninstalled.`}>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Workplace">
+                    <Select aria-label="Machines workplace" value={machWp} onChange={(e) => setMach({ ...mach, workplace: Number(e.target.value) })}>
+                      {o.workplaces.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {title(w.id)} ({w.machines} installed)
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Machines">
+                    <Input aria-label="Machines quantity" type="number" inputMode="numeric" min={1} value={mach.qty} onChange={(e) => setMach({ ...mach, qty: Number(e.target.value) })} />
+                  </Field>
+                </div>
+                <ButtonRow>
+                  <Button onClick={() => machines.mutate({ workplace: machWp, action: "install", qty: mach.qty }, { onSuccess: ok("Installed."), onError: fail })}>Install</Button>
+                  <Button onClick={() => machines.mutate({ workplace: machWp, action: "uninstall", qty: mach.qty }, { onSuccess: ok("Uninstalled."), onError: fail })}>Uninstall</Button>
+                </ButtonRow>
+                {c.order_books ? (
+                  <div className="border-line mt-4 border-t border-dashed pt-3">
+                    <p className="mb-2 text-sm font-bold">Bid for machines from the treasury</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Quantity" unit="machines">
+                        <Input aria-label="Machines bid quantity" type="number" inputMode="numeric" min={1} value={buy.qty} onChange={(e) => setBuy({ ...buy, qty: Number(e.target.value) })} />
+                      </Field>
+                      <Field label="Limit" unit="cr">
+                        <Input aria-label="Machines bid limit" type="number" inputMode="decimal" step="0.01" min={0.01} value={buy.limit} onChange={(e) => setBuy({ ...buy, limit: e.target.value })} />
+                      </Field>
+                    </div>
+                    <ButtonRow>
+                      <Button
+                        disabledReason={cents(buy.limit) < 1 ? "set a limit" : undefined}
+                        onClick={() =>
+                          place.mutate(
+                            { instrument: "machines", side: "bid", qty: buy.qty, limit_price: cents(buy.limit), on_behalf_of: oid },
+                            { onSuccess: ok("Bid placed on the machines book for the firm."), onError: fail },
+                          )
+                        }
+                      >
+                        Place bid
+                      </Button>
+                    </ButtonRow>
+                  </div>
+                ) : null}
+              </Card>
+
+              <Card title="Add a workplace" icon="org" testId="add-workplace">
+                <Field label="Kind" hint={founding ? `${founding.materials} Materials from the firm's inventory.` : undefined}>
+                  <Select aria-label="New workplace kind" value={newKind} onChange={(e) => setNewKind(e.target.value)}>
+                    {WORKPLACE_KINDS.map((k) => {
+                      const s = slots[k];
+                      return (
+                        <option key={k} value={k} disabled={s?.total != null && (s.free ?? 0) === 0}>
+                          {k.replace("_", " ")} {s?.total == null ? "" : `(${s.free ?? 0} of ${s.total} slots free)`}
+                        </option>
+                      );
+                    })}
+                  </Select>
+                </Field>
+                <ButtonRow>
+                  <Button onClick={() => addWorkplace.mutate({ kind: newKind }, { onSuccess: ok("Workplace added."), onError: fail })}>Add</Button>
+                </ButtonRow>
+              </Card>
+            </Stack>
+          </Two>
+        ) : null}
+
+        {shares && controlling ? (
+          <Card title="Owner's tools" icon="coin" testId="owner-tools">
+            <div className="grid gap-3 md:grid-cols-2">
+              {c.money ? (
+                <Tile className="grid content-start gap-3">
+                  <span className="font-bold">Dividend</span>
+                  {o.declared_dividend != null ? (
+                    <p className="text-muted m-0 text-sm">Declared for today: {credits(o.declared_dividend)} cr a share, paid at the day&apos;s end. One a day.</p>
+                  ) : (
+                    <>
+                      <Field
+                        label="Per share"
+                        unit="cr"
+                        hint={`${credits(cents(perShare) * (shares.issued - (shares.holdings.org_self ?? 0)))} cr from the treasury, split by share count; the firm's own shares earn nothing.`}
+                      >
+                        <Input aria-label="Dividend per share" type="number" inputMode="decimal" step="0.01" min={0.01} value={perShare} onChange={(e) => setPerShare(e.target.value)} />
+                      </Field>
+                      <ButtonRow>
+                        <Button onClick={() => dividend.mutate(cents(perShare), { onSuccess: ok("Dividend declared."), onError: fail })}>Declare</Button>
+                      </ButtonRow>
+                    </>
+                  )}
+                </Tile>
+              ) : null}
+              <Tile className="grid content-start gap-3">
+                <span className="font-bold">Issue shares</span>
+                <Field label="Quantity" unit="shares" hint="New shares land in the firm's own holding, to be sold on its behalf.">
+                  <Input aria-label="Issue quantity" type="number" inputMode="numeric" min={1} value={issueQty} onChange={(e) => setIssueQty(Number(e.target.value))} />
+                </Field>
+                <ButtonRow>
+                  <Button onClick={() => issue.mutate(issueQty, { onSuccess: ok("Shares issued."), onError: fail })}>Issue</Button>
+                </ButtonRow>
+              </Tile>
+              <Tile className="grid content-start gap-3">
+                <span className="font-bold">List for sale</span>
+                <Field label="Shares" unit="shares">
+                  <Input aria-label="Listing quantity" type="number" inputMode="numeric" min={1} max={o.my_shares} value={listing.qty} onChange={(e) => setListing({ ...listing, qty: Number(e.target.value) })} />
+                </Field>
+                <Field label="Price" unit="cr for the lot" hint="A sale offer on the notice board for your own shares; the order book takes them too.">
+                  <Input aria-label="Listing price" type="number" inputMode="decimal" step="0.01" min={0.01} value={listing.price} onChange={(e) => setListing({ ...listing, price: e.target.value })} />
+                </Field>
+                <ButtonRow>
+                  <Button
+                    disabledReason={cents(listing.price) < 1 ? "set a price" : undefined}
+                    onClick={() =>
+                      sale.mutate(
+                        { asset: { shares: [oid, listing.qty] }, price: { money: cents(listing.price) } },
+                        { onSuccess: ok("Listed on the notice board."), onError: fail },
                       )
                     }
                   >
-                    Place bid
-                  </button>
-                </div>
-              ) : null}
+                    List
+                  </Button>
+                </ButtonRow>
+              </Tile>
+              <Tile className="grid content-start gap-3">
+                <span className="font-bold">Manager</span>
+                <Field label="Citizen id">
+                  <Input aria-label="Manager citizen" type="number" inputMode="numeric" min={1} placeholder={String(o.manager ?? "")} value={manager} onChange={(e) => setManager(e.target.value)} />
+                </Field>
+                <ButtonRow>
+                  <Button disabled={manager.trim() === ""} onClick={() => appoint.mutate(Number(manager), { onSuccess: ok("Manager appointed."), onError: fail })}>
+                    Appoint
+                  </Button>
+                  <Button variant="quiet" onClick={() => appoint.mutate(null, { onSuccess: ok("Manager vacated."), onError: fail })}>
+                    vacate
+                  </Button>
+                </ButtonRow>
+              </Tile>
             </div>
+          </Card>
+        ) : null}
 
-            <div className="flex flex-col gap-2 text-sm" data-testid="add-workplace">
-              <h3 className="text-lg">Add a workplace</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <select aria-label="New workplace kind" className="border-line rounded-sm border px-1" value={newKind} onChange={(e) => setNewKind(e.target.value)}>
-                  {WORKPLACE_KINDS.map((k) => {
-                    const s = slots[k];
-                    return (
-                      <option key={k} value={k} disabled={s?.total != null && (s.free ?? 0) === 0}>
-                        {k.replace("_", " ")} {s?.total == null ? "" : `(${s.free ?? 0} of ${s.total} slots free)`}
-                      </option>
-                    );
-                  })}
-                </select>
-                <button type="button" className="border-line rounded-sm border px-2 py-0.5" onClick={() => addWorkplace.mutate({ kind: newKind }, { onSuccess: ok("Workplace added."), onError: fail })}>
-                  Add
-                </button>
-                <span className="text-muted text-xs">{founding ? `${founding.materials} Materials from the firm's inventory` : ""}</span>
-              </div>
+        {ledger.data ? (
+          <Card title="Treasury ledger" icon="ledger" subtitle="Every movement of the treasury and its escrow, newest first: trades and sales, transfers, wages, dividends, orders placed, dwellings built.">
+            <div data-testid="treasury-ledger">
+              <Ledger rows={ledgerRows} empty="Nothing has moved the treasury yet." />
             </div>
-          </div>
-        </section>
-      ) : null}
+          </Card>
+        ) : null}
 
-      {shares && controlling ? (
-        <section className="grid gap-8 md:grid-cols-3 text-sm" data-testid="owner-tools">
-          {c.money ? (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-lg">Dividend</h3>
-              {o.declared_dividend != null ? (
-                <p className="text-muted text-xs">Declared for today: {credits(o.declared_dividend)} cr a share, paid at the day's end. One a day.</p>
-              ) : (
-                <>
-                  <Field label="Per share">
-                    <input aria-label="Dividend per share" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={perShare} onChange={(e) => setPerShare(e.target.value)} />
-                  </Field>
-                  <p className="text-muted text-xs">
-                    {credits(cents(perShare) * (shares.issued - (shares.holdings.org_self ?? 0)))} cr from the treasury, split by share count; the firm's own shares earn nothing.
-                  </p>
-                  <button type="button" className="border-line self-start rounded-sm border px-2 py-0.5" onClick={() => dividend.mutate(cents(perShare), { onSuccess: ok("Dividend declared."), onError: fail })}>
-                    Declare
-                  </button>
-                </>
-              )}
-            </div>
+        <FooterStrip>
+          <span>{h.society.population} citizens</span>
+          <span>{h.society.active_humans} people</span>
+          <span>{h.society.unemployed} without work</span>
+          {h.society.price_index != null ? (
+            <span>
+              {t("society_stat").toLowerCase()} {h.society.price_index.toFixed(2)}
+            </span>
           ) : null}
-          <div className="flex flex-col gap-2">
-            <h3 className="text-lg">Issue shares</h3>
-            <Field label="Quantity">
-              <input aria-label="Issue quantity" type="number" min={1} className="border-line num w-20 rounded-sm border px-1" value={issueQty} onChange={(e) => setIssueQty(Number(e.target.value))} />
-            </Field>
-            <p className="text-muted text-xs">New shares land in the firm's own holding, to be sold on its behalf.</p>
-            <button type="button" className="border-line self-start rounded-sm border px-2 py-0.5" onClick={() => issue.mutate(issueQty, { onSuccess: ok("Shares issued."), onError: fail })}>
-              Issue
-            </button>
-          </div>
-          <div className="flex flex-col gap-2">
-            <h3 className="text-lg">List for sale</h3>
-            <Field label="Shares">
-              <input aria-label="Listing quantity" type="number" min={1} max={o.my_shares} className="border-line num w-20 rounded-sm border px-1" value={listing.qty} onChange={(e) => setListing({ ...listing, qty: Number(e.target.value) })} />
-            </Field>
-            <Field label="Price">
-              <input aria-label="Listing price" type="number" step="0.01" min={0.01} className="border-line num w-24 rounded-sm border px-1" value={listing.price} onChange={(e) => setListing({ ...listing, price: e.target.value })} />
-              <span className="text-muted text-xs">cr for the lot</span>
-            </Field>
-            <p className="text-muted text-xs">A sale offer on the notice board for your own shares; the order book takes them too.</p>
-            <button
-              type="button"
-              disabled={cents(listing.price) < 1}
-              className="border-line self-start rounded-sm border px-2 py-0.5 disabled:opacity-50"
-              onClick={() =>
-                sale.mutate(
-                  { asset: { shares: [oid, listing.qty] }, price: { money: cents(listing.price) } },
-                  { onSuccess: ok("Listed on the notice board."), onError: fail },
-                )
-              }
-            >
-              List
-            </button>
-          </div>
-          <div className="flex flex-col gap-2">
-            <h3 className="text-lg">Manager</h3>
-            <Field label="Citizen id">
-              <input aria-label="Manager citizen" type="number" min={1} placeholder={String(o.manager ?? "")} className="border-line num w-20 rounded-sm border px-1" value={manager} onChange={(e) => setManager(e.target.value)} />
-            </Field>
-            <div className="flex gap-2">
-              <button type="button" disabled={manager.trim() === ""} className="border-line rounded-sm border px-2 py-0.5 disabled:opacity-50" onClick={() => appoint.mutate(Number(manager), { onSuccess: ok("Manager appointed."), onError: fail })}>
-                Appoint
-              </button>
-              <button type="button" className="text-muted text-xs underline" onClick={() => appoint.mutate(null, { onSuccess: ok("Manager vacated."), onError: fail })}>
-                vacate
-              </button>
-            </div>
-          </div>
-        </section>
-      ) : null}
+        </FooterStrip>
+      </Stack>
     </div>
+  );
+}
+
+/** A non-job offer of the firm's in a sentence: what is offered and for what. */
+function offerLine(x: OfferView): string {
+  const b = x.body as Record<string, Record<string, unknown>>;
+  const asset = (a: unknown): string => {
+    const o = (a ?? {}) as Record<string, unknown>;
+    if (Array.isArray(o.shares)) return `${String(o.shares[1])} shares of the firm`;
+    if (Array.isArray(o.good)) return `${String(o.good[1])} ${String(o.good[0])}`;
+    if (o.dwelling !== undefined) return `dwelling no. ${String(o.dwelling)}`;
+    if (typeof o.money === "number") return `${credits(o.money)} cr`;
+    return JSON.stringify(a);
+  };
+  if (b.sale) return `For sale: ${asset(b.sale.asset)} for ${asset(b.sale.price)}`;
+  if (b.lease) return `To let: ${asset(b.lease.asset)} at ${credits(Number(b.lease.rent_per_cycle))} cr a day`;
+  return `${x.kind}: ${JSON.stringify(x.body)}`;
+}
+
+function OpenOffers({
+  offers,
+  manage,
+  t,
+  title,
+  onWithdraw,
+}: {
+  offers: OfferView[];
+  manage: boolean;
+  t: (k: string) => string;
+  title: (wid: number) => string;
+  onWithdraw: (id: number) => void;
+}) {
+  if (offers.length === 0) return <p className="text-muted m-0">None on the notice board.</p>;
+  return (
+    <ul className="m-0 grid list-none gap-1.5 p-0" data-testid="org-offers">
+      {offers.map((x) => {
+        const j = jobLine(x);
+        return (
+          <li key={x.id} className="border-line flex flex-wrap items-center justify-between gap-2 border-b pb-1.5 last:border-b-0">
+            <span>{j ? `${t("job")}: ${j.pay}, up to ${j.hours} h, ${j.term}, notice ${j.notice} day(s), ${j.places} open (${title(j.workplace)})` : offerLine(x)}</span>
+            {manage ? (
+              <Button variant="quiet" inline onClick={() => onWithdraw(x.id)}>
+                withdraw
+              </Button>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

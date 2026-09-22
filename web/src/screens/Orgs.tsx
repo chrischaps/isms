@@ -1,7 +1,9 @@
-// Organizations (GDD 6.1 firms, 9.2 office archetype; S1.11): the list of
-// every org with what you hold in it, the public job board, and the
-// found-a-firm flow with the slot picker showing scarcity and the cost
-// preview against your balance and pantry. Kinds come from capabilities.
+// Organizations (GDD 6.1 firms, 9.2 office archetype; S1.11; docs/style.md
+// §10 Organizations): the Verdict — who is hiring and where you work — the
+// firms you have a part in, the public job board with "Take it", the
+// found-a-firm card with the slot picker showing scarcity and the cost
+// against your balance and pantry, and every organization as a table.
+// Kinds come from capabilities.
 
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -9,8 +11,16 @@ import { ApiError, credits } from "../api/client";
 import { useBoard, useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { useAcceptOffer } from "../api/society";
 import { useFoundOrg, useOrgsView, type OrgView } from "../api/orgs";
+import { Button, ButtonRow } from "../components/Button";
+import { Card, Stack, Tile, Two } from "../components/Card";
+import { Field, Input, Select } from "../components/Field";
+import { TD, TD_NUM, TH, TH_NUM } from "../components/Ledger";
+import { FooterStrip, PageHeader } from "../components/PageHeader";
+import { Pill } from "../components/Pill";
+import { Verdict } from "../components/Verdict";
 import { useNames } from "../lib/names";
 import { jobLine } from "../lib/offers";
+import { orgsVerdict } from "../lib/verdict";
 
 const WORKPLACE_KINDS = ["farm", "mine", "foundry", "mill", "workshop", "machine_shop", "builder"];
 
@@ -18,7 +28,7 @@ function holding(o: OrgView, me: number): string | null {
   const own = o.ownership as Record<string, unknown>;
   const shares = own.shares as { issued: number; holdings: Record<string, number> } | undefined;
   if (shares && o.my_shares > 0) {
-    return `${o.my_shares} of ${shares.issued} shares (${((100 * o.my_shares) / shares.issued).toFixed(0)}%)`;
+    return `${o.my_shares} of ${shares.issued} shares (${((100 * o.my_shares) / shares.issued).toFixed(0)} %)`;
   }
   if (o.members.includes(me)) return "member";
   return null;
@@ -46,7 +56,7 @@ export function Orgs({ id }: { id: number }) {
     return (
       <p className="text-muted">
         Join first, from the{" "}
-        <Link to="/s/$id" params={{ id: String(id) }} className="underline">
+        <Link to="/s/$id" params={{ id: String(id) }}>
           {t("home_title")}
         </Link>{" "}
         screen.
@@ -54,17 +64,19 @@ export function Orgs({ id }: { id: number }) {
     );
   }
   if (home.error || orgs.error || caps.error) {
-    return <p className="text-bad">Could not load: {String(home.error ?? orgs.error ?? caps.error)}</p>;
+    return <p className="text-crit">Could not load: {String(home.error ?? orgs.error ?? caps.error)}</p>;
   }
   const h = home.data!;
   const v = orgs.data!;
   const c = caps.data!;
   const me = h.citizen.id;
+  const byNorm = c.labor === "norm";
   // A posting with places left stays on the board after you take one of them.
   const myWorkplaces = new Set(
     h.labor.employment.map((k) => Number(((k.body as Record<string, unknown>).employment as Record<string, unknown> | undefined)?.workplace)),
   );
   const names = new Map(v.orgs.map((o) => [o.id, o.name]));
+  const orgName = (oid: number) => names.get(oid) ?? who.org(oid);
   const kinds = c.org_kinds;
   const chosenKind = kind ?? kinds[0] ?? "firm";
   const slots = v.slots as Record<string, { total?: number | null; free?: number | null }>;
@@ -74,6 +86,25 @@ export function Orgs({ id }: { id: number }) {
   const slotFree = wpKind === null || slots[wpKind]?.total == null || (slots[wpKind]?.free ?? 0) > 0;
   const jobs = (board.data?.offers ?? []).map((o) => ({ o, line: jobLine(o) })).filter((j) => j.line !== null);
   const mine = v.orgs.filter((o) => o.i_manage || o.my_shares > 0 || o.members.includes(me));
+  // Where you work: by contract, or under the norm by position.
+  const workAt = [...new Set((h.labor.positions ?? []).map((p) => p.org))].map(orgName);
+  const verdict = orgsVerdict({
+    hiring: new Set(jobs.map((j) => j.line!.org)).size,
+    places: jobs.reduce((n, j) => n + j.line!.places, 0),
+    workAt,
+    manage: mine.filter((o) => o.i_manage).map((o) => o.name),
+    byNorm,
+  });
+  const cannotFound =
+    name.trim().length === 0
+      ? "name it first"
+      : !canPayMoney
+        ? `costs ${credits(v.founding.money)} cr — you have ${credits(h.household.balance)}`
+        : !canPayMaterials
+          ? `needs ${v.founding.materials} Materials — you hold ${materialsHeld}`
+          : !slotFree
+            ? "no slot free for that workplace"
+            : undefined;
 
   const submit = () => {
     setError(null);
@@ -93,71 +124,103 @@ export function Orgs({ id }: { id: number }) {
   };
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl">Organizations</h2>
-        <p className="text-muted text-sm">
-          {v.orgs.length} in all{mine.length > 0 ? `, ${mine.length} yours` : ""}
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        title="Organizations"
+        meta={
+          <>
+            <span>
+              <b>{v.orgs.length}</b> in all
+            </span>
+            {mine.length > 0 ? (
+              <span>
+                <b>{mine.length}</b> yours
+              </span>
+            ) : null}
+          </>
+        }
+      />
 
-      {mine.length > 0 ? (
-        <section>
-          <h3 className="text-lg">Yours</h3>
-          <ul className="mt-2 flex flex-col gap-1 text-sm" data-testid="my-orgs">
-            {mine.map((o) => (
-              <li key={o.id} className="rule flex flex-wrap items-baseline justify-between gap-2 pt-1">
-                <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(o.id) }} className="underline">
-                  {o.name}
-                </Link>
-                <span className="text-muted">
-                  {o.kind}
-                  {o.i_manage ? " · you manage it" : ""}
-                  {holding(o, me) ? ` · ${holding(o, me)}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className="grid gap-8 md:grid-cols-2">
-        <div>
-          <h3 className="text-lg">Job board</h3>
-          <p className="text-muted mt-1 text-xs">Open {t("job").toLowerCase()}s from the notice board. Taking one sets nothing else; hours live on {t("work_screen")}.</p>
-          {jobs.length === 0 ? (
-            <p className="text-muted mt-2 text-sm">Nobody is hiring this hour.</p>
-          ) : (
-            <table className="mt-2 w-full text-sm" data-testid="job-board">
-              <thead className="text-muted text-left text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="py-1 font-normal">Firm</th>
-                  <th className="py-1 font-normal">Pay</th>
-                  <th className="py-1 font-normal">Terms</th>
-                  <th className="py-1 font-normal" />
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map(({ o, line }) => (
-                  <tr key={o.id} className="rule align-top">
-                    <td className="py-1 pr-2">
-                      <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(line!.org) }} className="underline">
-                        {names.get(line!.org) ?? who.org(line!.org)}
+      <Stack>
+        <Card title="Where you stand" icon="org" testId="orgs-standing">
+          <Verdict parts={verdict} />
+          <div className="grid gap-3 @min-[620px]:grid-cols-2">
+            <Tile testId="my-positions" className="grid content-start gap-1">
+              <span className="font-bold">Your {byNorm ? "positions" : `${t("job").toLowerCase()}s`}</span>
+              {(h.labor.positions ?? []).length === 0 ? (
+                <p className="text-muted m-0 text-sm">{byNorm ? "None yet; take one on the Work screen." : "None yet; the board is beside this."}</p>
+              ) : (
+                <ul className="m-0 grid list-none gap-1 p-0 text-sm">
+                  {(h.labor.positions ?? []).map((p) => (
+                    <li key={p.workplace}>
+                      <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(p.org) }}>
+                        {orgName(p.org)}
                       </Link>
-                      <span className="text-muted block text-xs">{who.workplaceTitle(line!.workplace)}</span>
-                    </td>
-                    <td className="num py-1 pr-2 whitespace-nowrap">{line!.pay}</td>
-                    <td className="py-1 pr-2 text-xs">
-                      up to {line!.hours} h a day · {line!.term} · notice {line!.notice} day(s) · {line!.places} open
-                    </td>
-                    <td className="py-1 text-right">
+                      <span className="text-muted"> · {who.workplaceTitle(p.workplace)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link to="/s/$id/work" params={{ id: String(id) }} className="text-sm">
+                Hours are set on {t("work_screen")}
+              </Link>
+            </Tile>
+            <Tile testId="my-orgs-tile" className="grid content-start gap-1">
+              <span className="font-bold">Firms you have a part in</span>
+              {mine.length === 0 ? (
+                <p className="text-muted m-0 text-sm">None yet. Found one below, or buy shares on the Market.</p>
+              ) : (
+                <ul className="m-0 grid list-none gap-1 p-0 text-sm" data-testid="my-orgs">
+                  {mine.map((o) => (
+                    <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(o.id) }}>
+                        {o.name}
+                      </Link>
+                      <span className="text-muted">
+                        {o.kind.replace("_", " ")}
+                        {o.i_manage ? " · you manage it" : ""}
+                        {holding(o, me) ? ` · ${holding(o, me)}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Tile>
+          </div>
+        </Card>
+
+        <Two>
+          <Card
+            title="Job board"
+            icon="work"
+            testId="job-board-card"
+            subtitle={`Open ${t("job").toLowerCase()}s from the notice board. Taking one sets nothing else; hours live on ${t("work_screen")}.`}
+          >
+            {jobs.length === 0 ? (
+              <p className="text-muted m-0">Nobody is hiring this hour.</p>
+            ) : (
+              <ul className="m-0 grid list-none gap-3 p-0" data-testid="job-board">
+                {jobs.map(({ o, line }) => (
+                  <li key={o.id}>
+                    <Tile className="grid gap-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                        <span>
+                          <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(line!.org) }} className="font-bold">
+                            {orgName(line!.org)}
+                          </Link>
+                          <span className="text-muted block text-sm">{who.workplaceTitle(line!.workplace)}</span>
+                        </span>
+                        <span className="font-display font-bold tabular-nums">{line!.pay}</span>
+                      </div>
+                      <p className="text-muted m-0 text-sm">
+                        up to {line!.hours} h a day · {line!.term} · notice {line!.notice} day(s) · {line!.places} open
+                      </p>
                       {myWorkplaces.has(line!.workplace) ? (
-                        <span className="text-muted text-xs">you work here</span>
+                        <Pill className="justify-self-start">you work here</Pill>
                       ) : (
-                        <button
-                          type="button"
+                        <Button
                           disabled={accept.isPending}
-                          className="border-line rounded-sm border px-2 py-0.5 text-xs"
+                          className="justify-self-start"
                           onClick={() => {
                             setJobError(null);
                             setTaken(null);
@@ -168,132 +231,147 @@ export function Orgs({ id }: { id: number }) {
                           }}
                         >
                           Take it
-                        </button>
+                        </Button>
                       )}
-                    </td>
-                  </tr>
+                    </Tile>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          )}
-          {taken ? (
-            <p className="mt-2 text-sm" role="status" data-testid="job-taken">
-              Taken: {taken}. Your hours there are 0 until you set them on{" "}
-              <Link to="/s/$id/work" params={{ id: String(id) }} className="underline">
-                {t("work_screen")}
-              </Link>
-              .
-            </p>
-          ) : null}
-          {jobError ? (
-            <p className="text-bad mt-2 text-sm" role="alert">
-              {jobError}
-            </p>
-          ) : null}
-        </div>
+              </ul>
+            )}
+            {taken ? (
+              <p className="mt-3 text-sm" role="status" data-testid="job-taken">
+                Taken: {taken}. Your hours there are 0 until you set them on{" "}
+                <Link to="/s/$id/work" params={{ id: String(id) }}>
+                  {t("work_screen")}
+                </Link>
+                .
+              </p>
+            ) : null}
+            {jobError ? (
+              <p className="text-crit mt-3 text-sm" role="alert">
+                {jobError}
+              </p>
+            ) : null}
+          </Card>
 
-        {kinds.length > 0 ? (
-          <form
-            className="flex flex-col gap-3 text-sm"
-            data-testid="found-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit();
-            }}
-          >
-            <h3 className="text-lg">Found one</h3>
-            <label className="flex items-center gap-2">
-              <span className="w-24">Kind</span>
-              <select aria-label="Kind" className="border-line rounded-sm border px-1" value={chosenKind} onChange={(e) => setKind(e.target.value)}>
-                {kinds.map((k) => (
-                  <option key={k} value={k}>
-                    {k.replace("_", " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              <span className="w-24">Name</span>
-              <input aria-label="Name" className="border-line w-56 rounded-sm border px-1" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
-            </label>
-            <fieldset className="flex flex-col gap-1">
-              <legend className="mb-1">First workplace</legend>
-              <label className="flex items-center gap-2">
-                <input type="radio" name="wp" checked={wpKind === null} onChange={() => setWpKind(null)} />
-                <span>none yet</span>
-              </label>
-              {WORKPLACE_KINDS.map((k) => {
-                const s = slots[k];
-                const scarcity = s?.total == null ? "unlimited" : `${s.free ?? 0} of ${s.total} slots free`;
-                const none = s?.total != null && (s.free ?? 0) === 0;
-                return (
-                  <label key={k} className={`flex items-center gap-2 ${none ? "text-muted" : ""}`}>
-                    <input type="radio" name="wp" value={k} checked={wpKind === k} disabled={none} onChange={() => setWpKind(k)} />
-                    <span>
-                      {k.replace("_", " ")} <span className="text-muted text-xs">{scarcity}</span>
-                    </span>
+          {kinds.length > 0 ? (
+            <Card title="Found one" icon="org" testId="found-card">
+              <form
+                className="grid gap-3"
+                data-testid="found-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submit();
+                }}
+              >
+                <Field label="Kind">
+                  <Select aria-label="Kind" value={chosenKind} onChange={(e) => setKind(e.target.value)}>
+                    {kinds.map((k) => (
+                      <option key={k} value={k}>
+                        {k.replace("_", " ")}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Name">
+                  <Input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+                </Field>
+                <fieldset className="m-0 grid gap-1 border-0 p-0">
+                  <legend className="mb-1 text-sm font-bold">First workplace</legend>
+                  <label className="flex min-h-touch items-center gap-2">
+                    <input type="radio" name="wp" checked={wpKind === null} onChange={() => setWpKind(null)} />
+                    <span>none yet</span>
                   </label>
+                  {WORKPLACE_KINDS.map((k) => {
+                    const s = slots[k];
+                    const scarcity = s?.total == null ? "unlimited" : `${s.free ?? 0} of ${s.total} slots free`;
+                    const none = s?.total != null && (s.free ?? 0) === 0;
+                    return (
+                      <label key={k} className={`flex min-h-touch items-center gap-2 ${none ? "text-muted" : ""}`}>
+                        <input type="radio" name="wp" value={k} checked={wpKind === k} disabled={none} onChange={() => setWpKind(k)} />
+                        <span>
+                          {k.replace("_", " ")} <span className="text-muted text-sm">{scarcity}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+                <Tile testId="found-cost" className="text-sm">
+                  Costs {c.money ? <b className={canPayMoney ? "" : "text-crit"}>{credits(v.founding.money)} cr</b> : "nothing in money"}
+                  {wpKind ? (
+                    <>
+                      {" "}
+                      and <b className={canPayMaterials ? "" : "text-crit"}>{v.founding.materials} Materials</b> from your {t("pantry").toLowerCase()} (you hold {materialsHeld})
+                    </>
+                  ) : null}
+                  . {c.money ? `Balance after: ${credits(h.household.balance - v.founding.money)} cr.` : ""} You become the owner of every share and the manager.
+                </Tile>
+                <ButtonRow>
+                  <Button type="submit" variant="danger" disabled={found.isPending} disabledReason={cannotFound}>
+                    Found it
+                  </Button>
+                  {error ? (
+                    <span className="text-crit text-sm" role="alert">
+                      {error}
+                    </span>
+                  ) : null}
+                </ButtonRow>
+              </form>
+            </Card>
+          ) : null}
+        </Two>
+
+        <Card title="Every organization" icon="org" aside={<span className="text-muted text-sm font-normal">{v.orgs.length}</span>}>
+          <table className="w-full border-collapse text-[15px]" data-testid="all-orgs">
+            <thead>
+              <tr>
+                <th className={TH}>Name</th>
+                <th className={`${TH} hidden md:table-cell`}>Kind</th>
+                <th className={`${TH} hidden md:table-cell`}>Workplaces</th>
+                <th className={TH_NUM}>Staff</th>
+                {c.money ? <th className={TH_NUM}>Book value</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {v.orgs.map((o) => {
+                const workplaces = o.workplaces.map((w) => w.kind.replace("_", " ")).join(", ") || "none";
+                return (
+                  <tr key={o.id} className="hover:bg-surface-2">
+                    <td className={TD}>
+                      <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(o.id) }}>
+                        {o.name}
+                      </Link>
+                      {o.payment_missed ? (
+                        <Pill tone="crit" className="ml-2">
+                          missed a payday
+                        </Pill>
+                      ) : null}
+                      <span className="text-muted block text-sm md:hidden">
+                        {o.kind.replace("_", " ")} · {workplaces}
+                      </span>
+                    </td>
+                    <td className={`${TD} hidden md:table-cell`}>{o.kind.replace("_", " ")}</td>
+                    <td className={`${TD} hidden md:table-cell`}>{workplaces}</td>
+                    <td className={TD_NUM}>{o.employees}</td>
+                    {c.money ? <td className={TD_NUM}>{credits(o.book_value)}</td> : null}
+                  </tr>
                 );
               })}
-            </fieldset>
-            <div className="bg-paper-2 rounded-sm p-2 text-xs" data-testid="found-cost">
-              Costs {c.money ? <span className={`num ${canPayMoney ? "" : "text-bad"}`}>{credits(v.founding.money)} cr</span> : "nothing in money"}
-              {wpKind ? (
-                <>
-                  {" "}
-                  and <span className={`num ${canPayMaterials ? "" : "text-bad"}`}>{v.founding.materials} Materials</span> from your {t("pantry").toLowerCase()} (you hold {materialsHeld})
-                </>
-              ) : null}
-              . {c.money ? `Balance after: ${credits(h.household.balance - v.founding.money)} cr.` : ""} You become the owner of every share and the manager.
-            </div>
-            <div className="flex items-baseline gap-3">
-              <button
-                type="submit"
-                disabled={found.isPending || name.trim().length === 0 || !canPayMoney || !canPayMaterials || !slotFree}
-                className="bg-ink text-paper rounded-sm px-3 py-1 disabled:opacity-50"
-              >
-                Found it
-              </button>
-              {error ? (
-                <span className="text-bad" role="alert">
-                  {error}
-                </span>
-              ) : null}
-            </div>
-          </form>
-        ) : null}
-      </section>
+            </tbody>
+          </table>
+        </Card>
 
-      <section>
-        <h3 className="text-lg">Every organization</h3>
-        <table className="mt-2 w-full text-sm" data-testid="all-orgs">
-          <thead className="text-muted text-left text-xs uppercase tracking-wide">
-            <tr>
-              <th className="py-1 font-normal">Name</th>
-              <th className="py-1 font-normal">Kind</th>
-              <th className="py-1 font-normal">Workplaces</th>
-              <th className="py-1 text-right font-normal">Staff</th>
-              {c.money ? <th className="py-1 text-right font-normal">Book value</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {v.orgs.map((o) => (
-              <tr key={o.id} className="rule">
-                <td className="py-1 pr-2">
-                  <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(o.id) }} className="underline">
-                    {o.name}
-                  </Link>
-                  {o.payment_missed ? <span className="text-bad ml-2 text-xs">missed a payday</span> : null}
-                </td>
-                <td className="py-1 pr-2">{o.kind.replace("_", " ")}</td>
-                <td className="py-1 pr-2">{o.workplaces.map((w) => w.kind.replace("_", " ")).join(", ") || "none"}</td>
-                <td className="num py-1 text-right">{o.employees}</td>
-                {c.money ? <td className="num py-1 text-right">{credits(o.book_value)}</td> : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+        <FooterStrip>
+          <span>{h.society.population} citizens</span>
+          <span>{h.society.active_humans} people</span>
+          <span>{h.society.unemployed} without work</span>
+          {h.society.price_index != null ? (
+            <span>
+              {t("society_stat").toLowerCase()} {h.society.price_index.toFixed(2)}
+            </span>
+          ) : null}
+        </FooterStrip>
+      </Stack>
     </div>
   );
 }

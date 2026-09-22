@@ -34,7 +34,7 @@ test("society, talk, profile and the public view", async ({ page, context, brows
   await expect(headline).toBeVisible({ timeout: 60_000 });
   await headline.click();
   await expect(page.getByTestId("event-payload")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2 })).toContainText(/#\d+/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/#\d+/);
 
   // Talk: a word on the Square.
   await page.goto(`/s/${society}/talk`);

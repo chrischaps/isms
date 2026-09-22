@@ -72,7 +72,7 @@ test("a loan repays at cycle end and a lease houses you", async ({ page, context
 
   // The contract appears, then an installment comes back at cycle end.
   const contracts = page.getByTestId("contracts");
-  const loan = contracts.locator("tr", { hasText: "Loan out" });
+  const loan = contracts.locator('[data-testid^="contract-"]', { hasText: "Loan out" });
   await expect(loan).toContainText("2 installment(s) left", { timeout: 30_000 });
   await expect(loan).toContainText("1 installment(s) left", { timeout: 90_000 });
 });

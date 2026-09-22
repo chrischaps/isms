@@ -1,116 +1,42 @@
-// Society (GDD 10, 14.1; TDD 13; S1.13): the stats this society keeps
-// (the subset its capabilities select), the Chronicle read by cycle, the
-// scoreboard its constitution names, the citizens with their flags, and
-// the published householder script. Every headline links to its event.
+// Society (GDD 10, 14.1; TDD 13; S1.13; docs/style.md §10 Society): the
+// Verdict — fed, in hardship, prices — the four figures that justify it, the
+// rest of the stats this society keeps (the subset its capabilities select),
+// the offices, the Chronicle read by day, the scoreboard its constitution
+// names with your row pinned first, the citizens with their flags, and the
+// published householder script as detail. Every headline links to its event.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useOffices } from "../api/assembly";
 import { credits } from "../api/client";
-import { useCapabilities, useLexicon, useSociety } from "../api/hooks";
-import { useChronicle, useCitizens, useHouseholders, useScoreboard, useStats, type HeadlineView } from "../api/civic";
+import { useCapabilities, useHome, useLexicon, useSociety } from "../api/hooks";
+import { useChronicle, useCitizens, useHouseholders, useScoreboard, useStats } from "../api/civic";
+import { ButtonLink } from "../components/Button";
+import { Card, Stack, Tile, Two } from "../components/Card";
+import { ChronicleReader } from "../components/ChronicleReader";
+import { TD, TD_NUM, TH, TH_NUM } from "../components/Ledger";
+import { More } from "../components/More";
+import { FooterStrip, PageHeader } from "../components/PageHeader";
+import { Pill } from "../components/Pill";
+import { Verdict } from "../components/Verdict";
 import { Markdown } from "../lib/markdown";
 import { fieldName } from "../lib/policy";
-import { dayOf, hourName, whenOfTick } from "../lib/when";
+import { StatTiles } from "../components/StatTiles";
+import { societyVerdict } from "../lib/verdict";
+import { dayOf, whenOfTick } from "../lib/when";
 
 type Aggregates = Record<string, unknown>;
 
-function num(v: unknown, digits = 0): string {
-  return typeof v === "number" ? v.toFixed(digits) : "—";
-}
-
-export function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+function Handle({ children, me }: { children: ReactNode; me: boolean }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-muted text-xs uppercase tracking-wide">{label}</span>
-      <span className="num text-lg">{value}</span>
-      {note ? <span className="text-muted text-xs">{note}</span> : null}
-    </div>
-  );
-}
-
-/** The dashboard's tiles, chosen by capability: money systems get prices and
- *  wages, credit systems the credit outstanding, everyone the needs figures. */
-export function StatTiles({
-  stats,
-  money,
-  credit,
-  orgs,
-  t,
-}: {
-  stats: { live: { population: number; active_humans: number; unemployed: number; price_index?: number | null }; firm_count: number; credit_outstanding: number; last_cycle?: Aggregates | null };
-  money: boolean;
-  credit: boolean;
-  orgs: boolean;
-  t: (k: string) => string;
-}) {
-  const a = stats.last_cycle ?? {};
-  const live = stats.live;
-  return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4" data-testid="stat-tiles">
-      <Stat label="Citizens" value={`${live.population}`} note={`${live.active_humans} people here`} />
-      <Stat label="Without work" value={`${live.unemployed}`} />
-      {money ? <Stat label={t("society_stat")} value={num(live.price_index ?? a.price_index, 2)} note="reference basket, Food = 1" /> : null}
-      {money ? <Stat label="Mean daily wage" value={typeof a.mean_cycle_wage === "number" ? `${a.mean_cycle_wage.toFixed(2)} cr` : "—"} note="yesterday, those paid anything" /> : null}
-      {orgs ? <Stat label="Firms" value={`${stats.firm_count}`} /> : null}
-      {credit ? <Stat label="Credit outstanding" value={`${credits(stats.credit_outstanding)} cr`} /> : null}
-      <Stat label="Need fulfillment" value={typeof a.need_fulfillment_rate === "number" ? `${(a.need_fulfillment_rate * 100).toFixed(0)}%` : "—"} note="share of citizen-days never under the line" />
-      <Stat label="In hardship" value={num(a.hardship_count)} note="at the end of yesterday" />
-      <Stat label="Median wellbeing" value={num(a.median_wellbeing)} note="of 100" />
-      <Stat label="Consumption Gini" value={num(a.consumption_gini, 2)} note="of what is eaten, worn and housed; never of wealth" />
-    </div>
-  );
-}
-
-export function ChronicleReader({
-  id,
-  cycle,
-  setCycle,
-  current,
-  headlines,
-  pending,
-  link,
-}: {
-  id: number;
-  cycle: number;
-  setCycle: (c: number) => void;
-  current: number;
-  headlines: HeadlineView[];
-  pending: boolean;
-  link: boolean;
-}) {
-  return (
-    <div data-testid="chronicle">
-      <div className="flex items-baseline gap-3 text-sm">
-        <button type="button" disabled={cycle <= 1} className="text-muted underline disabled:opacity-40" onClick={() => setCycle(cycle - 1)}>
-          earlier
-        </button>
-        <span className="num">Day {cycle}</span>
-        <button type="button" disabled={cycle >= current} className="text-muted underline disabled:opacity-40" onClick={() => setCycle(cycle + 1)}>
-          later
-        </button>
-      </div>
-      {pending ? (
-        <p className="text-muted mt-2 text-sm">Loading.</p>
-      ) : headlines.length === 0 ? (
-        <p className="text-muted mt-2 text-sm">Nothing to report that day.</p>
-      ) : (
-        <ol className="mt-2 flex flex-col gap-1 text-sm">
-          {headlines.map((h) => (
-            <li key={h.seq} className="flex gap-3">
-              <span className="num text-muted w-14 shrink-0">{hourName(h.tick % 24)}</span>
-              {link ? (
-                <Link to="/s/$id/events/$seq" params={{ id: String(id), seq: String(h.seq) }} className="underline decoration-dotted">
-                  {h.text}
-                </Link>
-              ) : (
-                <span>{h.text}</span>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
+    <>
+      {children}
+      {me ? (
+        <Pill className="ml-2">
+          you
+        </Pill>
+      ) : null}
+    </>
   );
 }
 
@@ -119,187 +45,221 @@ export function SocietyScreen({ id }: { id: number }) {
   const caps = useCapabilities(id);
   const society = useSociety(id);
   const stats = useStats(id);
+  const home = useHome(id);
   const [cycle, setCycle] = useState<number | null>(null);
   const chronicle = useChronicle(id, cycle);
   const scoreboard = useScoreboard(id);
   const citizens = useCitizens(id);
   const script = useHouseholders(id);
-  const [showScript, setShowScript] = useState(false);
   // Who holds office (S2.8): read where there is governance; a non-citizen's 403 simply hides the tile.
   const offices = useOffices(id, caps.data !== undefined && caps.data.governance !== "none");
 
   if (caps.isPending || stats.isPending || society.isPending) return <p className="text-muted">Loading.</p>;
-  if (caps.error || stats.error || society.error) return <p className="text-bad">Could not load: {String(caps.error ?? stats.error ?? society.error)}</p>;
+  if (caps.error || stats.error || society.error) return <p className="text-crit">Could not load: {String(caps.error ?? stats.error ?? society.error)}</p>;
   const c = caps.data!;
   const s = stats.data!;
   const byNorm = c.labor === "norm";
   const honors = c.governance !== "none";
   const current = society.data!.clock.cycle;
   const shown = chronicle.data?.cycle ?? cycle ?? current;
+  const me = home.data?.citizen.id ?? -1;
+  const a = (s.last_cycle ?? {}) as Aggregates;
+  const display = society.data!.display;
+  const verdict = societyVerdict({
+    name: display,
+    fed: typeof a.need_fulfillment_rate === "number" ? a.need_fulfillment_rate : null,
+    hardship: typeof a.hardship_count === "number" ? a.hardship_count : null,
+    population: s.live.population,
+    price: c.money && s.live.price_index != null ? { now: s.live.price_index, yesterday: typeof a.price_index === "number" ? a.price_index : null } : null,
+  });
+  // Your row first (§10 Society, phone), then the top of the board as ranked.
+  const rows = scoreboard.data?.rows ?? [];
+  const pinned = [...rows.filter((r) => r.citizen === me), ...rows.filter((r) => r.citizen !== me).slice(0, 20)];
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl">{society.data!.display}</h2>
-        <Link to="/public/s/$id" params={{ id: String(id) }} className="text-muted text-sm underline">
-          the public view
-        </Link>
-      </header>
+    <div>
+      <PageHeader
+        title={display}
+        meta={
+          <Link to="/public/s/$id" params={{ id: String(id) }}>
+            the public view
+          </Link>
+        }
+      />
 
-      <section>
-        <h3 className="text-lg">The numbers this society keeps</h3>
-        <div className="mt-3">
+      <Stack>
+        <Card title={`How ${display} is doing`} icon="people">
+          <Verdict parts={verdict} />
           <StatTiles stats={s} money={c.money} credit={c.contracts.includes("credit")} orgs={c.org_kinds.length > 0} t={t} />
-        </div>
-      </section>
+        </Card>
 
-      {honors && offices.data && offices.data.offices.length > 0 ? (
-        <section data-testid="offices-tile">
-          <h3 className="text-lg">{t("office")}</h3>
-          <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {offices.data.offices.map((o) => (
-              <div key={o.kind} className="flex flex-col" data-testid={`office-tile-${o.kind}`}>
-                <span className="text-muted text-xs uppercase tracking-wide">
-                  {fieldName(o.kind)} · {o.holders.length} of {o.seats}
-                </span>
-                {o.holders.length === 0 ? <span className="text-muted text-sm">Nobody sits.</span> : null}
-                {o.holders.map((h) => (
-                  <span key={h.citizen} className="text-sm">
-                    {h.handle}
-                    <span className="text-muted text-xs"> through {dayOf(h.term_ends_cycle)}</span>
+        {honors && offices.data && offices.data.offices.length > 0 ? (
+          <Card title={t("office")} icon="office" testId="offices-tile">
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+              {offices.data.offices.map((o) => (
+                <Tile key={o.kind} testId={`office-tile-${o.kind}`} className="grid content-start gap-1">
+                  <span className="text-muted text-xs font-bold tracking-caps uppercase">
+                    {fieldName(o.kind)} · {o.holders.length} of {o.seats}
                   </span>
-                ))}
-                {o.election ? (
-                  <Link to="/s/$id/assembly" params={{ id: String(id) }} className="text-accent text-xs underline">
-                    election open, {o.election.candidates.length} {o.election.candidates.length === 1 ? "candidate" : "candidates"}
-                  </Link>
-                ) : null}
-                {o.i_hold ? (
-                  <Link to="/s/$id/coordinator" params={{ id: String(id) }} className="text-xs underline">
-                    your workspace
-                  </Link>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="grid gap-8 md:grid-cols-2">
-        <div>
-          <h3 className="text-lg">{t("chronicle")}</h3>
-          <div className="mt-2">
-            <ChronicleReader id={id} cycle={shown} setCycle={setCycle} current={current} headlines={chronicle.data?.headlines ?? []} pending={chronicle.isPending} link />
-          </div>
-        </div>
-        <div>
-          <h3 className="text-lg">{t("scoreboard")}</h3>
-          {scoreboard.data && scoreboard.data.rows.length > 0 ? (
-            byNorm ? (
-              // The Commune's claim (GDD 6.2): the contribution record and the assembly's
-              // honors; the society-level need fulfillment is among the numbers above.
-              <table className="mt-2 w-full text-sm" data-testid="scoreboard">
-                <thead className="text-muted text-left text-xs uppercase tracking-wide">
-                  <tr>
-                    <th className="py-1 font-normal">Citizen</th>
-                    <th className="py-1 text-right font-normal">Hours given</th>
-                    <th className="py-1 text-right font-normal">Norm met</th>
-                    <th className="py-1 text-right font-normal">{t("honor")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scoreboard.data.rows.slice(0, 20).map((r) => (
-                    <tr key={r.citizen} className="rule">
-                      <td className="py-1 pr-2">{r.handle}</td>
-                      <td className="num py-1 pr-2 text-right">{(r.contribution?.hours_total ?? 0).toFixed(0)}</td>
-                      <td className="num py-1 pr-2 text-right">
-                        {r.contribution && r.contribution.days > 0 ? `${r.contribution.norm_met_days} of ${r.contribution.days} days` : "—"}
-                      </td>
-                      <td className="num py-1 text-right">{(r.honors ?? 0) > 0 ? r.honors : <span className="text-muted">—</span>}</td>
-                    </tr>
+                  {o.holders.length === 0 ? <span className="text-muted text-sm">Nobody sits.</span> : null}
+                  {o.holders.map((h) => (
+                    <span key={h.citizen}>
+                      {h.handle}
+                      <span className="text-muted text-sm"> through {dayOf(h.term_ends_cycle)}</span>
+                    </span>
                   ))}
-                </tbody>
-              </table>
+                  {o.election ? (
+                    <Link to="/s/$id/assembly" params={{ id: String(id) }} className="text-sm">
+                      election open, {o.election.candidates.length} {o.election.candidates.length === 1 ? "candidate" : "candidates"}
+                    </Link>
+                  ) : null}
+                  {o.i_hold ? (
+                    <ButtonLink to="/s/$id/coordinator" params={{ id: String(id) }} className="mt-1 justify-self-start">
+                      Your workspace
+                    </ButtonLink>
+                  ) : null}
+                </Tile>
+              ))}
+            </div>
+          </Card>
+        ) : null}
+
+        <Two className="items-start">
+          <Card title={t("chronicle")} icon="page">
+            <ChronicleReader id={id} cycle={shown} setCycle={setCycle} current={current} headlines={chronicle.data?.headlines ?? []} pending={chronicle.isPending} link />
+          </Card>
+          <Card title={t("scoreboard")} icon="assembly" subtitle={`What "doing well" means is the constitution's claim, not ours; other societies keep other scores.`}>
+            {scoreboard.data && rows.length > 0 ? (
+              byNorm ? (
+                // The Commune's claim (GDD 6.2): the contribution record and the assembly's
+                // honors; the society-level need fulfillment is among the numbers above.
+                <table className="w-full border-collapse text-[15px]" data-testid="scoreboard">
+                  <thead>
+                    <tr>
+                      <th className={TH}>Citizen</th>
+                      <th className={TH_NUM}>Hours given</th>
+                      <th className={TH_NUM}>Norm met</th>
+                      <th className={TH_NUM}>{t("honor")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pinned.map((r) => (
+                      <tr key={r.citizen} className="hover:bg-surface-2">
+                        <td className={TD}>
+                          <Handle me={r.citizen === me}>{r.handle}</Handle>
+                        </td>
+                        <td className={TD_NUM}>{(r.contribution?.hours_total ?? 0).toFixed(0)}</td>
+                        <td className={TD_NUM}>{r.contribution && r.contribution.days > 0 ? `${r.contribution.norm_met_days} of ${r.contribution.days} days` : "—"}</td>
+                        <td className={TD_NUM}>{(r.honors ?? 0) > 0 ? r.honors : <span className="text-muted">—</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full border-collapse text-[15px]" data-testid="scoreboard">
+                  <thead>
+                    <tr>
+                      <th className={TH}>Citizen</th>
+                      <th className={TH_NUM}>Net worth</th>
+                      <th className={TH_NUM}>Self-made</th>
+                      <th className={`${TH} hidden md:table-cell`}>Firms</th>
+                      {honors ? <th className={TH_NUM}>{t("honor")}</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pinned.map((r) => {
+                      const firms = r.firms.map((f) => `${f.name} (${credits(f.book_value)})`).join(", ");
+                      return (
+                        <tr key={r.citizen} className="hover:bg-surface-2">
+                          <td className={TD}>
+                            <Handle me={r.citizen === me}>{r.handle}</Handle>
+                            {firms ? <span className="text-muted block text-sm md:hidden">{firms}</span> : null}
+                          </td>
+                          <td className={TD_NUM}>{credits(r.net_worth)}</td>
+                          <td className={`${TD_NUM} ${r.self_made < 0 ? "text-crit" : ""}`}>{credits(r.self_made)}</td>
+                          <td className={`${TD} hidden text-sm md:table-cell`}>{firms}</td>
+                          {honors ? <td className={TD_NUM}>{(r.honors ?? 0) > 0 ? r.honors : <span className="text-muted">—</span>}</td> : null}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )
             ) : (
-            <table className="mt-2 w-full text-sm" data-testid="scoreboard">
-              <thead className="text-muted text-left text-xs uppercase tracking-wide">
+              <p className="text-muted m-0">{scoreboard.isPending ? "Loading." : "No scoreboard here: this society does not keep one."}</p>
+            )}
+          </Card>
+        </Two>
+
+        <Card title="Citizens" icon="people" aside={citizens.data ? <span className="text-muted text-sm font-normal">{citizens.data.citizens.length}</span> : null}>
+          {citizens.data ? (
+            <table className="w-full border-collapse text-[15px]" data-testid="citizens">
+              <thead>
                 <tr>
-                  <th className="py-1 font-normal">Citizen</th>
-                  <th className="py-1 text-right font-normal">Net worth</th>
-                  <th className="py-1 text-right font-normal">Self-made</th>
-                  <th className="py-1 font-normal">Firms</th>
-                  {honors ? <th className="py-1 text-right font-normal">{t("honor")}</th> : null}
+                  <th className={TH}>Handle</th>
+                  <th className={`${TH} hidden md:table-cell`}>Kind</th>
+                  <th className={`${TH} hidden md:table-cell`}>Since</th>
+                  {honors ? <th className={TH_NUM}>{t("honor")}</th> : null}
+                  <th className={TH}>Flags</th>
                 </tr>
               </thead>
               <tbody>
-                {scoreboard.data.rows.slice(0, 20).map((r) => (
-                  <tr key={r.citizen} className="rule">
-                    <td className="py-1 pr-2">{r.handle}</td>
-                    <td className="num py-1 pr-2 text-right">{credits(r.net_worth)}</td>
-                    <td className={`num py-1 pr-2 text-right ${r.self_made < 0 ? "text-bad" : ""}`}>{credits(r.self_made)}</td>
-                    <td className="py-1 text-xs">{r.firms.map((f) => `${f.name} (${credits(f.book_value)})`).join(", ")}</td>
-                    {honors ? <td className="num py-1 text-right">{(r.honors ?? 0) > 0 ? r.honors : <span className="text-muted">—</span>}</td> : null}
-                  </tr>
-                ))}
+                {citizens.data.citizens.map((z) => {
+                  const flags = Object.entries(z.flags as Record<string, boolean>)
+                    .filter(([, v]) => v)
+                    .map(([k]) => k.replace(/_/g, " "));
+                  const kind = `${z.kind}${z.dormant ? ", dormant" : ""}`;
+                  return (
+                    <tr key={z.id} className={`hover:bg-surface-2 ${z.dormant ? "text-muted" : ""}`}>
+                      <td className={TD}>
+                        <Link to="/s/$id/talk/$channel" params={{ id: String(id), channel: `dm:${z.id}` }}>
+                          {z.handle}
+                        </Link>
+                        {z.id === me ? (
+                          <Pill className="ml-2">
+                            you
+                          </Pill>
+                        ) : null}
+                        <span className="text-muted block text-sm md:hidden">
+                          {kind} · since {whenOfTick(z.joined_tick)}
+                        </span>
+                      </td>
+                      <td className={`${TD} hidden md:table-cell`}>{kind}</td>
+                      <td className={`${TD} hidden tabular-nums md:table-cell`}>{whenOfTick(z.joined_tick)}</td>
+                      {honors ? <td className={TD_NUM}>{(z.honors ?? 0) > 0 ? z.honors : <span className="text-muted">—</span>}</td> : null}
+                      <td className={TD}>
+                        {flags.map((f) => (
+                          <Pill key={f} tone={/hardship|destitut|default|flag/.test(f) ? "crit" : "neutral"} className="mr-1">
+                            {f}
+                          </Pill>
+                        ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            )
           ) : (
-            <p className="text-muted mt-2 text-sm">{scoreboard.isPending ? "Loading." : "No scoreboard here: this society does not keep one."}</p>
+            <p className="text-muted m-0">Loading.</p>
           )}
-          <p className="text-muted mt-2 text-xs">What "doing well" means is the constitution's claim, not ours; other societies keep other scores.</p>
-        </div>
-      </section>
+          <More summary="The script householders follow" testId="householder-more">
+            <div className="max-w-prose" data-testid="householder-script">
+              {script.data ? <Markdown text={script.data.markdown} /> : <p className="text-muted">Loading.</p>}
+            </div>
+          </More>
+        </Card>
 
-      <section>
-        <h3 className="text-lg">Citizens</h3>
-        {citizens.data ? (
-          <table className="mt-2 w-full text-sm" data-testid="citizens">
-            <thead className="text-muted text-left text-xs uppercase tracking-wide">
-              <tr>
-                <th className="py-1 font-normal">Handle</th>
-                <th className="py-1 font-normal">Kind</th>
-                <th className="py-1 font-normal">Since</th>
-                {honors ? <th className="py-1 text-right font-normal">{t("honor")}</th> : null}
-                <th className="py-1 font-normal">Flags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {citizens.data.citizens.map((z) => {
-                const flags = Object.entries(z.flags as Record<string, boolean>)
-                  .filter(([, v]) => v)
-                  .map(([k]) => k.replace(/_/g, " "));
-                return (
-                  <tr key={z.id} className={`rule ${z.dormant ? "text-muted" : ""}`}>
-                    <td className="py-1 pr-2">
-                      <Link to="/s/$id/talk/$channel" params={{ id: String(id), channel: `dm:${z.id}` }} className="underline decoration-dotted">
-                        {z.handle}
-                      </Link>
-                    </td>
-                    <td className="py-1 pr-2">{z.kind}{z.dormant ? ", dormant" : ""}</td>
-                    <td className="num py-1 pr-2">{whenOfTick(z.joined_tick)}</td>
-                    {honors ? <td className="num py-1 pr-2 text-right">{(z.honors ?? 0) > 0 ? z.honors : <span className="text-muted">—</span>}</td> : null}
-                    <td className="py-1 text-xs">{flags.join(", ")}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : (
-          <p className="text-muted mt-2 text-sm">Loading.</p>
-        )}
-        <p className="text-muted mt-2 text-xs">
-          Householders follow a published script.{" "}
-          <button type="button" className="underline" onClick={() => setShowScript((v) => !v)}>
-            {showScript ? "Hide it" : "Read it"}
-          </button>
-        </p>
-        {showScript ? (
-          <div className="bg-paper-2 mt-2 max-w-2xl rounded-sm p-3 text-sm" data-testid="householder-script">
-            {script.data ? <Markdown text={script.data.markdown} /> : <p className="text-muted">Loading.</p>}
-          </div>
-        ) : null}
-      </section>
+        <FooterStrip>
+          <span>{s.live.population} citizens</span>
+          <span>{s.live.active_humans} people</span>
+          <span>{s.live.unemployed} without work</span>
+          {c.money && s.live.price_index != null ? (
+            <span>
+              {t("society_stat").toLowerCase()} {s.live.price_index.toFixed(2)}
+            </span>
+          ) : null}
+        </FooterStrip>
+      </Stack>
     </div>
   );
 }

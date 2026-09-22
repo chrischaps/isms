@@ -193,6 +193,159 @@ export function marketVerdict(i: MarketVerdictInput): VerdictPart[] {
   return parts;
 }
 
+export type OrgsVerdictInput = {
+  /** Firms with an open job offer on the board, and the places among them. */
+  hiring: number;
+  places: number;
+  /** The firms you work at, by name. */
+  workAt: string[];
+  /** The firms you manage, by name. */
+  manage: string[];
+  /** Positions come by the norm, not the board. */
+  byNorm: boolean;
+};
+
+/** Organizations (§10): "18 firms are hiring; you work at Legacy Farm No. 1." */
+export function orgsVerdict(i: OrgsVerdictInput): VerdictPart[] {
+  const parts: VerdictPart[] = [];
+  if (i.byNorm) parts.push("Positions here come by the norm, not by hire");
+  else if (i.hiring > 0) parts.push({ text: `${plural(i.hiring, "firm")} ${i.hiring === 1 ? "is" : "are"} hiring`, tone: "ink" }, i.places > i.hiring ? ` (${i.places} places)` : "");
+  else parts.push({ text: "Nobody is hiring this hour", tone: "ink" });
+  const roles: VerdictPart[][] = [];
+  if (i.workAt.length > 0) roles.push([{ text: "work at ", tone: "good" }, ...join(i.workAt.map((n) => [{ text: n, tone: "good" as const }]))]);
+  if (i.manage.length > 0) roles.push([{ text: "manage ", tone: "good" }, ...join(i.manage.map((n) => [{ text: n, tone: "good" as const }]))]);
+  if (roles.length > 0) {
+    parts.push("; you ", ...join(roles), ".");
+    return parts;
+  }
+  if (i.byNorm) parts.push("; you hold ", { text: "no position", tone: "attn" }, " yet — take one on the Work screen.");
+  else if (i.hiring > 0) parts.push(", but you ", { text: "don't have work", tone: "attn" }, " yet — take a job below.");
+  else parts.push(" and you ", { text: "don't have work", tone: "attn" }, " yet — found a firm, or look again next hour.");
+  return parts;
+}
+
+export type OrgVerdictInput = {
+  name: string;
+  /** Your holding as a share of the issue, 0–1. */
+  share: number;
+  controlling: boolean;
+  manage: boolean;
+  employed: boolean;
+  member: boolean;
+  employees: number;
+  money: boolean;
+  /** The manager's view of tonight's payroll, in cents; absent for everyone else. */
+  payroll?: { due: number; shortfall: number; workers: number };
+  paymentMissed: boolean;
+  /** Open places on the board. */
+  hiring: number;
+};
+
+/** One organization (§10): "Iron & Sons is yours: you hold 100 % and manage it, but the treasury is short by 68.00 cr for tonight's payroll." */
+export function orgVerdict(i: OrgVerdictInput): VerdictPart[] {
+  const pct = `${Math.round(i.share * 100)} %`;
+  const parts: VerdictPart[] = [];
+  if (i.controlling && i.manage) parts.push(`${i.name} is `, { text: "yours", tone: "good" }, `: you hold ${pct} and `, { text: "manage it", tone: "good" });
+  else if (i.controlling) parts.push(`${i.name} is `, { text: "yours", tone: "good" }, `: you hold ${pct}`);
+  else if (i.manage && i.share > 0) parts.push("You ", { text: "manage", tone: "good" }, ` ${i.name} and hold ${pct} of it`);
+  else if (i.manage) parts.push("You ", { text: "manage", tone: "good" }, ` ${i.name}`);
+  else if (i.share > 0) parts.push("You ", { text: `hold ${pct}`, tone: "good" }, ` of ${i.name}`);
+  else if (i.employed) parts.push("You ", { text: "work at", tone: "good" }, ` ${i.name}`);
+  else if (i.member) parts.push("You're a ", { text: "member", tone: "good" }, ` of ${i.name}`);
+  else parts.push(`${i.name} employs ${i.employees}; you have no part in it`);
+  if (i.employed && (i.controlling || i.manage || i.share > 0)) parts.push(", and you ", { text: "work here", tone: "good" });
+  if (i.payroll && i.payroll.shortfall > 0) {
+    parts.push(", but the treasury is ", { text: `short by ${(i.payroll.shortfall / 100).toFixed(2)} cr`, tone: "crit" }, " for tonight's payroll.");
+  } else if (i.paymentMissed) {
+    parts.push(", but it ", { text: "missed a payday", tone: "crit" }, ".");
+  } else if (i.payroll && i.money && i.payroll.workers > 0) {
+    parts.push(`. Tonight's payroll of ${(i.payroll.due / 100).toFixed(2)} cr is `, { text: "covered", tone: "good" }, ".");
+  } else if (i.payroll && i.money) {
+    parts.push(". Nobody is on the payroll", i.hiring > 0 ? `; ${plural(i.hiring, "place")} on the board.` : ".");
+  } else {
+    parts.push(".");
+  }
+  return parts;
+}
+
+export type ContractsVerdictInput = {
+  housed: boolean;
+  /** Rent in cents; null when you own the dwelling. */
+  rent: number | null;
+  shelter: number;
+  threshold?: number;
+  /** Dwellings to let on the board. */
+  toLet: number;
+  active: number;
+  /** A loan installment or rent of yours is overdue. */
+  overdue: boolean;
+};
+
+/** Contracts (§10): "You have no dwelling and nothing to let is on the board." */
+export function contractsVerdict(i: ContractsVerdictInput): VerdictPart[] {
+  const parts: VerdictPart[] = [];
+  const running = i.active === 0 ? "no contract is running" : `${plural(i.active, "contract")} ${i.active === 1 ? "is" : "are"} running`;
+  if (i.housed) {
+    parts.push("You're ", { text: i.rent === null ? "housed in a dwelling of your own" : `housed at ${(i.rent / 100).toFixed(2)} cr a day`, tone: "good" }, ` and ${running}`);
+    if (i.overdue) parts.push(", but a ", { text: "payment is overdue", tone: "crit" }, ".");
+    else parts.push(". Nothing needs you right now.");
+    return parts;
+  }
+  const tone: Tone = i.shelter < (i.threshold ?? 20) ? "crit" : "attn";
+  parts.push("You ", { text: "have no dwelling", tone }, i.toLet > 0 ? ` — ${plural(i.toLet, "dwelling")} to let ${i.toLet === 1 ? "is" : "are"} on the board, rent one below.` : " and nothing to let is on the board.");
+  if (i.overdue) parts.push(" A ", { text: "payment is overdue", tone: "attn" }, ".");
+  return parts;
+}
+
+export type SocietyVerdictInput = {
+  name: string;
+  /** Share of citizen-days never under the line, 0–1; null before the first day closes. */
+  fed: number | null;
+  hardship: number | null;
+  population: number;
+  /** Price index now and at yesterday's close; null where there is no money. */
+  price: { now: number; yesterday: number | null } | null;
+};
+
+/** A society's fed share — citizen-days never under the line — by the provisional thresholds of Q153. */
+export function fedTone(rate: number | null): Tone {
+  if (rate === null) return "good";
+  return rate >= 0.9 ? "good" : rate >= 0.5 ? "attn" : "crit";
+}
+
+/** Society (§10): "Freeport is fed (98 %), one citizen is in hardship, prices are steady." Thresholds are provisional (Q153). */
+export function societyVerdict(i: SocietyVerdictInput): VerdictPart[] {
+  if (i.fed === null || i.hardship === null) return [`${i.name} is on its first day; the numbers come when it ends.`];
+  const pct = Math.round(i.fed * 100);
+  const tone = fedTone(i.fed);
+  const parts: VerdictPart[] = [`${i.name} is `, { text: `${tone === "good" ? "fed" : tone === "attn" ? "partly fed" : "going hungry"} (${pct} %)`, tone }, ", "];
+  if (i.hardship === 0) parts.push({ text: "nobody is in hardship", tone: "good" });
+  else parts.push({ text: `${i.hardship === 1 ? "one citizen is" : `${i.hardship} citizens are`} in hardship`, tone: i.hardship * 10 >= i.population ? "crit" : "attn" });
+  if (i.price) {
+    const change = i.price.yesterday && i.price.yesterday > 0 ? ((i.price.now - i.price.yesterday) / i.price.yesterday) * 100 : 0;
+    parts.push(", ", { text: Math.abs(change) < 1 ? "prices are steady" : `prices are ${change > 0 ? "up" : "down"} ${Math.abs(change).toFixed(0)} %`, tone: "ink" });
+  }
+  parts.push(".");
+  return parts;
+}
+
+export type ArchiveVerdictInput = {
+  latest: { epoch: number; reason: string; final_cycle: number; open: boolean } | null;
+  clock: { epoch: number; cycle: number };
+};
+
+/** Archive (§10): "Epoch 1 closed after 41 cycles." */
+export function archiveVerdict(i: ArchiveVerdictInput): VerdictPart[] {
+  if (!i.latest) return ["No epoch has closed here yet; this is epoch ", { text: `${i.clock.epoch}, Day ${i.clock.cycle}`, tone: "ink" }, "."];
+  const a = i.latest;
+  const parts: VerdictPart[] = [`Epoch ${a.epoch} `];
+  if (a.reason === "scheduled") parts.push({ text: "ran its course", tone: "good" }, ` after ${plural(a.final_cycle, "day")}`);
+  else if (a.reason === "collapse") parts.push({ text: "collapsed", tone: "crit" }, ` on Day ${a.final_cycle}`);
+  else parts.push({ text: "was ended by the operator", tone: "ink" }, ` on Day ${a.final_cycle}`);
+  parts.push(a.open ? ", and " : "; ", a.open ? { text: "closing statements are still open", tone: "good" } : `epoch ${i.clock.epoch} is on Day ${i.clock.cycle}`, ".");
+  return parts;
+}
+
 /**
  * Home's greeting (§5): the h1 is a greeting because the screen's real title
  * is the Verdict. The hour is the society's, not the wall clock's — it is

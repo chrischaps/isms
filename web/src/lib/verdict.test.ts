@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { verdictText } from "../components/Verdict";
 import { needStatus } from "./needs";
-import { greeting, homeVerdict, marketVerdict, needTone, planVerdict, workVerdict } from "./verdict";
+import { archiveVerdict, contractsVerdict, greeting, homeVerdict, marketVerdict, needTone, orgVerdict, orgsVerdict, planVerdict, societyVerdict, workVerdict } from "./verdict";
 
 const fine = { food: 100, shelter: 100, comfort: 94, hardship: false, housed: true, hours: 8, hired: true };
 const t = (k: string) => k;
@@ -159,5 +159,93 @@ describe("needStatus", () => {
   it("says hardship on the Food line", () => {
     expect(needStatus(t, { ...base, food: 10, hardship: true }).food).toMatch(/^In hardship/);
     expect(needStatus(t, { ...base, food: 10, pantryFood: 0 }).food).toBe("Under the hardship line and your pantry is empty.");
+  });
+});
+
+// SB.4: the five verdicts of Organizations, Org, Contracts, Society and Archive.
+describe("orgsVerdict", () => {
+  it("reads as the bible's example", () => {
+    const parts = orgsVerdict({ hiring: 18, places: 18, workAt: ["Legacy Farm No. 1"], manage: [], byNorm: false });
+    expect(verdictText(parts)).toBe("18 firms are hiring; you work at Legacy Farm No. 1.");
+    expect(parts).toContainEqual({ text: "Legacy Farm No. 1", tone: "good" });
+  });
+  it("names the firms you manage beside the ones you work at", () => {
+    expect(verdictText(orgsVerdict({ hiring: 1, places: 3, workAt: ["Legacy Farm No. 1"], manage: ["Iron & Sons"], byNorm: false }))).toBe(
+      "1 firm is hiring (3 places); you work at Legacy Farm No. 1 and manage Iron & Sons.",
+    );
+  });
+  it("makes no work the one but, and points at the board or the founding form", () => {
+    const some = orgsVerdict({ hiring: 2, places: 2, workAt: [], manage: [], byNorm: false });
+    expect(verdictText(some)).toBe("2 firms are hiring, but you don't have work yet — take a job below.");
+    expect(some).toContainEqual({ text: "don't have work", tone: "attn" });
+    expect(verdictText(orgsVerdict({ hiring: 0, places: 0, workAt: [], manage: [], byNorm: false }))).toBe("Nobody is hiring this hour and you don't have work yet — found a firm, or look again next hour.");
+  });
+  it("sends a norm citizen to the Work screen", () => {
+    expect(verdictText(orgsVerdict({ hiring: 0, places: 0, workAt: [], manage: [], byNorm: true }))).toBe("Positions here come by the norm, not by hire; you hold no position yet — take one on the Work screen.");
+  });
+});
+
+describe("orgVerdict", () => {
+  const mine = { name: "Iron & Sons", share: 1, controlling: true, manage: true, employed: false, member: true, employees: 1, money: true, paymentMissed: false, hiring: 0 };
+  it("names a shortfall in crit as the one but", () => {
+    const parts = orgVerdict({ ...mine, payroll: { due: 6800, shortfall: 6800, workers: 1 } });
+    expect(verdictText(parts)).toBe("Iron & Sons is yours: you hold 100 % and manage it, but the treasury is short by 68.00 cr for tonight's payroll.");
+    expect(parts).toContainEqual({ text: "short by 68.00 cr", tone: "crit" });
+  });
+  it("says a covered payroll is covered, and an empty one empty", () => {
+    expect(verdictText(orgVerdict({ ...mine, payroll: { due: 6800, shortfall: 0, workers: 1 } }))).toBe("Iron & Sons is yours: you hold 100 % and manage it. Tonight's payroll of 68.00 cr is covered.");
+    expect(verdictText(orgVerdict({ ...mine, payroll: { due: 0, shortfall: 0, workers: 0 }, hiring: 2 }))).toBe("Iron & Sons is yours: you hold 100 % and manage it. Nobody is on the payroll; 2 places on the board.");
+  });
+  it("reads from an employee's and a stranger's side", () => {
+    expect(verdictText(orgVerdict({ ...mine, share: 0, controlling: false, manage: false, employed: true, member: false }))).toBe("You work at Iron & Sons.");
+    expect(verdictText(orgVerdict({ ...mine, share: 0, controlling: false, manage: false, member: false, employees: 4, paymentMissed: true }))).toBe("Iron & Sons employs 4; you have no part in it, but it missed a payday.");
+    expect(verdictText(orgVerdict({ ...mine, share: 0.2, controlling: false, manage: false, employed: true, member: false }))).toBe("You hold 20 % of Iron & Sons, and you work here.");
+  });
+});
+
+describe("contractsVerdict", () => {
+  it("reads as the bible's example", () => {
+    const parts = contractsVerdict({ housed: false, rent: null, shelter: 94, toLet: 0, active: 0, overdue: false });
+    expect(verdictText(parts)).toBe("You have no dwelling and nothing to let is on the board.");
+    expect(parts).toContainEqual({ text: "have no dwelling", tone: "attn" });
+  });
+  it("turns crit under the line and points at the board when something is to let", () => {
+    const parts = contractsVerdict({ housed: false, rent: null, shelter: 12, toLet: 3, active: 1, overdue: false });
+    expect(verdictText(parts)).toBe("You have no dwelling — 3 dwellings to let are on the board, rent one below.");
+    expect(parts).toContainEqual({ text: "have no dwelling", tone: "crit" });
+  });
+  it("counts the running contracts when housed, with an overdue payment as the one but", () => {
+    expect(verdictText(contractsVerdict({ housed: true, rent: 800, shelter: 90, toLet: 2, active: 2, overdue: false }))).toBe("You're housed at 8.00 cr a day and 2 contracts are running. Nothing needs you right now.");
+    expect(verdictText(contractsVerdict({ housed: true, rent: null, shelter: 90, toLet: 0, active: 1, overdue: true }))).toBe("You're housed in a dwelling of your own and 1 contract is running, but a payment is overdue.");
+  });
+});
+
+describe("societyVerdict", () => {
+  it("reads as the bible's example", () => {
+    const parts = societyVerdict({ name: "Freeport", fed: 0.98, hardship: 1, population: 41, price: { now: 1.0, yesterday: 1.0 } });
+    expect(verdictText(parts)).toBe("Freeport is fed (98 %), one citizen is in hardship, prices are steady.");
+    expect(parts).toContainEqual({ text: "fed (98 %)", tone: "good" });
+    expect(parts).toContainEqual({ text: "one citizen is in hardship", tone: "attn" });
+  });
+  it("moves prices, drops them without money, and goes crit when a tenth are in hardship", () => {
+    expect(verdictText(societyVerdict({ name: "Freeport", fed: 0.6, hardship: 5, population: 40, price: { now: 1.1, yesterday: 1.0 } }))).toBe("Freeport is partly fed (60 %), 5 citizens are in hardship, prices are up 10 %.");
+    const commune = societyVerdict({ name: "The Commune", fed: 1, hardship: 0, population: 30, price: null });
+    expect(verdictText(commune)).toBe("The Commune is fed (100 %), nobody is in hardship.");
+    expect(societyVerdict({ name: "F", fed: 0.4, hardship: 4, population: 40, price: null })).toContainEqual({ text: "4 citizens are in hardship", tone: "crit" });
+  });
+  it("waits for the first day to close", () => {
+    expect(verdictText(societyVerdict({ name: "Freeport", fed: null, hardship: null, population: 41, price: null }))).toBe("Freeport is on its first day; the numbers come when it ends.");
+  });
+});
+
+describe("archiveVerdict", () => {
+  it("says how the last epoch ended and where this one is", () => {
+    expect(verdictText(archiveVerdict({ latest: { epoch: 1, reason: "scheduled", final_cycle: 41, open: false }, clock: { epoch: 2, cycle: 3 } }))).toBe("Epoch 1 ran its course after 41 days; epoch 2 is on Day 3.");
+    const fell = archiveVerdict({ latest: { epoch: 1, reason: "collapse", final_cycle: 12, open: true }, clock: { epoch: 2, cycle: 1 } });
+    expect(verdictText(fell)).toBe("Epoch 1 collapsed on Day 12, and closing statements are still open.");
+    expect(fell).toContainEqual({ text: "collapsed", tone: "crit" });
+  });
+  it("says so when nothing has closed", () => {
+    expect(verdictText(archiveVerdict({ latest: null, clock: { epoch: 1, cycle: 5 } }))).toBe("No epoch has closed here yet; this is epoch 1, Day 5.");
   });
 });
