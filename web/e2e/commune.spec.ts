@@ -42,6 +42,11 @@ test("a Commune citizen works under the norm, draws from the Store and reads the
   await expect(page.getByTestId("store-tile")).toContainText("on the shelf");
   await expect(page.getByTestId("header-balance")).toHaveCount(0);
   await expect(page.getByTestId("draws")).toBeVisible();
+  // S2.11 (GDD 15): the Ledger line and tonight's ballots are Home facts here; neither exists in Freeport.
+  await expect(page.getByTestId("ledger-tile")).toContainText(/hours today/);
+  await expect(page.getByTestId("ballots-tile")).toContainText(/before the assembly|open/);
+  await expect(page.getByText("share-out")).toBeVisible();
+  await expect(page.getByText("payday")).toHaveCount(0);
 
   // Work: take a position from the picker; the editor lists it with no contract cap but the budget.
   const nav = page.getByRole("navigation", { name: "Sections" });
@@ -70,6 +75,8 @@ test("a Commune citizen works under the norm, draws from the Store and reads the
   const food = storeView.stock.find((s: { good: string }) => s.good === "food");
   await expect(shelves.getByTestId("shelf-food").getByTestId("stock")).toHaveText(String(food.stock));
   await expect(shelves.getByTestId("shelf-food").getByTestId("entitlement")).toContainText(String(food.my_entitlement));
+  // S2.11: each shelf a household draws from is a Figure with a bar of stock against what is asked.
+  await expect(page.getByTestId("shelf-figure-food").getByRole("meter")).toBeVisible();
 
   // A draw lands: the plan asks for Food once the meter has room for a unit (a few one-second hours).
   await expect
@@ -114,6 +121,10 @@ test("a Commune citizen works under the norm, draws from the Store and reads the
     .toBeGreaterThan(0);
   await expect(me.getByTestId("hours-today")).not.toHaveText(/^0\b/, { timeout: 20_000 });
   await expect(page.getByTestId("my-line")).toContainText("You have given");
+  // S2.11: the record as a Ledger of hours, under the disclosure.
+  await page.getByTestId("my-record-more").locator("summary").click();
+  await expect(page.getByTestId("my-record")).toContainText("so far");
+  await expect(page.getByTestId("my-record").getByRole("columnheader", { name: "Hours" })).toBeVisible();
   const clock = await clockOf(page, society);
   expect(clock.ticks_per_cycle).toBe(24);
 

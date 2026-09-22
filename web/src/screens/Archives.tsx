@@ -10,8 +10,8 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { credits } from "../api/client";
-import { useArchives, useClosingStatement, usePublicArchives, type ArchiveView } from "../api/civic";
-import { useHome, useLexicon } from "../api/hooks";
+import { useArchives, useClosingStatement, usePublicArchives, usePublicStats, type ArchiveView } from "../api/civic";
+import { useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { Button, ButtonRow } from "../components/Button";
 import { Card, Stack } from "../components/Card";
 import { Countdown } from "../components/Countdown";
@@ -20,12 +20,13 @@ import { Figure, Figures } from "../components/Figure";
 import { TD, TD_NUM, TH, TH_NUM } from "../components/Ledger";
 import { PageHeader } from "../components/PageHeader";
 import { Pill } from "../components/Pill";
+import { storeStockFigure } from "../components/StatTiles";
 import { Verdict } from "../components/Verdict";
 import { archiveVerdict, fedTone, needTone } from "../lib/verdict";
 import { epochEndingText } from "../lib/when";
 
 type Aggregates = Record<string, unknown>;
-type Standing = { citizen: number; handle: string; kind: string; dormant: boolean; net_worth: number; self_made: number };
+type Standing = { citizen: number; handle: string; kind: string; dormant: boolean; net_worth: number; self_made: number; honors?: number };
 type Clock = { cycle: number; epoch: number; epoch_ending?: number | null; epoch_ended: boolean };
 
 /** How the epoch ended, as a clause after "Epoch N". */
@@ -50,8 +51,9 @@ function when(iso: string): string {
 }
 
 /** The closing statement: four figures at a glance, the rest as facts. */
-function Summary({ a, t }: { a: Aggregates; t: (k: string) => string }) {
+function Summary({ a, money, t }: { a: Aggregates; money: boolean; t: (k: string) => string }) {
   const fed = typeof a.need_fulfillment_rate === "number" ? a.need_fulfillment_rate : null;
+  const store = money ? null : storeStockFigure(a);
   const hardship = typeof a.hardship_count === "number" ? a.hardship_count : null;
   const wellbeing = typeof a.median_wellbeing === "number" ? a.median_wellbeing : null;
   const population = typeof a.population === "number" ? a.population : 0;
@@ -65,7 +67,11 @@ function Summary({ a, t }: { a: Aggregates; t: (k: string) => string }) {
           tone={hardship === null || hardship === 0 ? "good" : hardship * 10 >= population ? "crit" : "attn"}
           status="On the last day."
         />
-        <Figure label={t("society_stat")} value={num(a.price_index, 2)} status="Reference basket, Food = 1." />
+        {money ? (
+          <Figure label={t("society_stat")} value={num(a.price_index, 2)} status="Reference basket, Food = 1." />
+        ) : store ? (
+          <Figure label={t("society_stat")} value={store.value} unit="food" status={store.status} />
+        ) : null}
         <Figure label="Median wellbeing" value={wellbeing === null ? "—" : String(Math.round(wellbeing))} unit={wellbeing === null ? undefined : "/ 100"} tone={wellbeing === null ? "good" : needTone(wellbeing)} status="The middle citizen." />
       </Figures>
       <FactList
@@ -81,7 +87,14 @@ function Summary({ a, t }: { a: Aggregates; t: (k: string) => string }) {
   );
 }
 
-function Standings({ rows }: { rows: Standing[] }) {
+/**
+ * Where everyone stood. The engine ranks by net worth (S1.15); where no money
+ * exists that column is 0 cr for everyone and says nothing, so a money-less
+ * society's table is the honors on the record, in the engine's order, and
+ * the rank is not shown (S2.11, Q157: the archive carries no contribution
+ * record yet).
+ */
+function Standings({ rows, money }: { rows: Standing[]; money: boolean }) {
   const top = rows.slice(0, 10);
   const rest = rows.length - top.length;
   return (
@@ -90,26 +103,38 @@ function Standings({ rows }: { rows: Standing[] }) {
         <thead>
           <tr>
             <th className={TH}>Citizen</th>
-            <th className={TH_NUM}>Net worth</th>
-            <th className={TH_NUM}>Self-made</th>
+            {money ? (
+              <>
+                <th className={TH_NUM}>Net worth</th>
+                <th className={TH_NUM}>Self-made</th>
+              </>
+            ) : (
+              <th className={TH_NUM}>Honors</th>
+            )}
           </tr>
         </thead>
         <tbody>
           {top.map((s, i) => (
             <tr key={s.citizen} className="hover:bg-surface-2">
               <td className={TD}>
-                <span className="text-muted mr-2 tabular-nums">{i + 1}.</span>
+                {money ? <span className="text-muted mr-2 tabular-nums">{i + 1}.</span> : null}
                 {s.handle}
                 {s.kind === "householder" ? <span className="text-muted text-sm"> householder</span> : null}
                 {s.dormant ? <span className="text-muted text-sm"> away</span> : null}
               </td>
-              <td className={TD_NUM}>{credits(s.net_worth)} cr</td>
-              <td className={TD_NUM}>{credits(s.self_made)} cr</td>
+              {money ? (
+                <>
+                  <td className={TD_NUM}>{credits(s.net_worth)} cr</td>
+                  <td className={TD_NUM}>{credits(s.self_made)} cr</td>
+                </>
+              ) : (
+                <td className={TD_NUM}>{(s.honors ?? 0) > 0 ? s.honors : <span className="text-muted">—</span>}</td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
-      {rest > 0 ? <p className="text-muted mt-2 mb-0 text-sm">and {rest} more, ranked the same way.</p> : null}
+      {rest > 0 ? <p className="text-muted mt-2 mb-0 text-sm">and {rest} more{money ? ", ranked the same way" : ""}.</p> : null}
     </div>
   );
 }
@@ -158,7 +183,7 @@ function StatementBox({ id, archive }: { id: number; archive: ArchiveView }) {
   );
 }
 
-export function ArchiveCard({ id, archive, canWrite, t }: { id: number; archive: ArchiveView; canWrite: boolean; t: (k: string) => string }) {
+export function ArchiveCard({ id, archive, canWrite, money, t }: { id: number; archive: ArchiveView; canWrite: boolean; money: boolean; t: (k: string) => string }) {
   const summary = archive.summary as { aggregates?: Aggregates; standings?: Standing[] };
   return (
     <Card
@@ -172,11 +197,11 @@ export function ArchiveCard({ id, archive, canWrite, t }: { id: number; archive:
         </>
       }
     >
-      {summary.aggregates ? <Summary a={summary.aggregates} t={t} /> : <p className="text-muted m-0">No summary was kept.</p>}
+      {summary.aggregates ? <Summary a={summary.aggregates} money={money} t={t} /> : <p className="text-muted m-0">No summary was kept.</p>}
       <div className="mt-5 grid gap-5 md:grid-cols-2">
         <div>
           <h3 className="text-muted mb-1.5 text-xs font-bold tracking-caps uppercase">Where everyone stood</h3>
-          {summary.standings?.length ? <Standings rows={summary.standings} /> : <p className="text-muted m-0">Nobody was counted.</p>}
+          {summary.standings?.length ? <Standings rows={summary.standings} money={money} /> : <p className="text-muted m-0">Nobody was counted.</p>}
         </div>
         <div className="grid content-start gap-3">
           <h3 className="text-muted m-0 text-xs font-bold tracking-caps uppercase">Closing statements</h3>
@@ -209,7 +234,7 @@ export function ArchiveCard({ id, archive, canWrite, t }: { id: number; archive:
   );
 }
 
-function ArchiveList({ id, archives, clock, canWrite, t }: { id: number; archives: ArchiveView[]; clock: Clock; canWrite: boolean; t: (k: string) => string }) {
+function ArchiveList({ id, archives, clock, canWrite, money, t }: { id: number; archives: ArchiveView[]; clock: Clock; canWrite: boolean; money: boolean; t: (k: string) => string }) {
   const ending = epochEndingText(clock);
   const newest = archives[archives.length - 1] ?? null;
   const verdict = archiveVerdict({
@@ -227,7 +252,7 @@ function ArchiveList({ id, archives, clock, canWrite, t }: { id: number; archive
         </p>
       </Card>
       {[...archives].reverse().map((a) => (
-        <ArchiveCard key={a.epoch} id={id} archive={a} canWrite={canWrite} t={t} />
+        <ArchiveCard key={a.epoch} id={id} archive={a} canWrite={canWrite} money={money} t={t} />
       ))}
     </Stack>
   );
@@ -238,7 +263,8 @@ export function SocietyArchives({ id }: { id: number }) {
   const { t } = useLexicon(id);
   const archives = useArchives(id);
   const home = useHome(id);
-  if (archives.isPending) return <p className="text-muted">Loading.</p>;
+  const caps = useCapabilities(id);
+  if (archives.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
   if (archives.error) return <p className="text-crit">Could not load: {String(archives.error)}</p>;
   const v = archives.data!;
   return (
@@ -251,7 +277,7 @@ export function SocietyArchives({ id }: { id: number }) {
           </span>
         }
       />
-      <ArchiveList id={id} archives={v.archives} clock={v.clock} canWrite={home.data !== undefined} t={t} />
+      <ArchiveList id={id} archives={v.archives} clock={v.clock} canWrite={home.data !== undefined} money={caps.data?.money !== false} t={t} />
     </div>
   );
 }
@@ -260,7 +286,8 @@ export function SocietyArchives({ id }: { id: number }) {
 export function PublicArchives({ id }: { id: number }) {
   const { t } = useLexicon(id);
   const archives = usePublicArchives(id);
-  if (archives.isPending) return <p className="text-muted">Loading.</p>;
+  const stats = usePublicStats(id);
+  if (archives.isPending || stats.isPending) return <p className="text-muted">Loading.</p>;
   if (archives.error) return <p className="text-crit">Could not load: {String(archives.error)}</p>;
   const v = archives.data!;
   return (
@@ -278,7 +305,7 @@ export function PublicArchives({ id }: { id: number }) {
           </>
         }
       />
-      <ArchiveList id={id} archives={v.archives} clock={v.clock} canWrite={false} t={t} />
+      <ArchiveList id={id} archives={v.archives} clock={v.clock} canWrite={false} money={stats.data?.money !== false} t={t} />
     </div>
   );
 }

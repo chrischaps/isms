@@ -7,7 +7,7 @@
 
 import { useState, type ReactNode } from "react";
 import { ApiError, credits, type OfferView } from "../api/client";
-import { useBoard, useLexicon, useWelcome } from "../api/hooks";
+import { useBoard, useCapabilities, useLexicon, useWelcome } from "../api/hooks";
 import { useAcceptOffer, useJoin, usePlan, useSetLabor, useSetPlan } from "../api/society";
 import { Button, ButtonRow } from "../components/Button";
 import { Card, Tile } from "../components/Card";
@@ -55,6 +55,9 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useLexicon(id);
+  const caps = useCapabilities(id);
+  // A society with no money has no price ceiling and no balance to keep (S2.11).
+  const money = caps.data?.money !== false;
   const welcome = useWelcome(id);
   const board = useBoard(id);
   const names = useNames(id, undefined, step !== "handle");
@@ -165,9 +168,13 @@ export function Onboarding({ id, onDone }: { id: number; onDone: () => void }) {
     <StepFrame title={`Your ${t("plan").toLowerCase()}`} subtitle={`It runs every hour whether you are here or not. These are the defaults; change them on the ${t("plan")} screen.`}>
       <FactList
         items={[
-          { key: "food", label: "Keep Food at least", value: String(p.keep_food_at_least ?? "24"), gloss: "in the pantry" },
-          { key: "ceiling", label: "Food price ceiling", value: p.max_food_price == null ? "last price × 1.25" : `${credits(Number(p.max_food_price))} cr` },
-          { key: "balance", label: "Keep balance at least", value: `${credits(Number(p.keep_balance_at_least ?? 0))} cr` },
+          { key: "food", label: "Keep Food at least", value: String(p.keep_food_at_least ?? "24"), gloss: money ? "in the pantry" : "in the pantry, drawn from the Store" },
+          ...(money
+            ? [
+                { key: "ceiling", label: "Food price ceiling", value: p.max_food_price == null ? "last price × 1.25" : `${credits(Number(p.max_food_price))} cr` },
+                { key: "balance", label: "Keep balance at least", value: `${credits(Number(p.keep_balance_at_least ?? 0))} cr` },
+              ]
+            : []),
         ]}
       />
       {error ? <div className="mt-3">{alert}</div> : null}

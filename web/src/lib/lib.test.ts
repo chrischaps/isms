@@ -2,10 +2,12 @@
 
 import { describe, expect, it } from "vitest";
 import type { EventRef } from "../api/client";
-import { drawRows, goodsText, ruleText } from "./draws";
+import { contributionRows } from "./contribution";
+import { drawRows, goodsText, ruleText, stockLevel } from "./draws";
 import { buildNames, workplaceTitles } from "./names";
 import { needHints } from "./needs";
 import { payslipRows } from "./payslips";
+import { ballotsText, lineText } from "./tonight";
 import { inputsText, producerNote, supplyOf, type OrgLike as SupplyOrg, type Recipe } from "./supply";
 import { diffText, kindSummary, policyDiff, policyValue, quorumBar, wouldCarry } from "./policy";
 import { dayOf, deadlineOfTick, epochEndingText, hourName, hourOfClock, whenOf, whenOfTick } from "./when";
@@ -40,6 +42,51 @@ describe("draws", () => {
     expect(ruleText("lottery")).toMatch(/drawn order/);
     expect(goodsText({ food: 2, wares: 1 })).toBe("2 food, 1 wares");
     expect(goodsText(undefined)).toBe("");
+  });
+
+  it("reads a shelf as a bar against what is asked (S2.11)", () => {
+    expect(stockLevel(0, 0)).toEqual({ value: 0, tone: "crit" });
+    expect(stockLevel(0, 5)).toEqual({ value: 0, tone: "crit" });
+    expect(stockLevel(31, 0)).toEqual({ value: 100, tone: "good" });
+    expect(stockLevel(31, 12)).toEqual({ value: 100, tone: "good" });
+    expect(stockLevel(3, 8)).toEqual({ value: 38, tone: "attn" });
+    expect(stockLevel(1, 1000)).toEqual({ value: 1, tone: "attn" });
+  });
+});
+
+describe("contributionRows (S2.11)", () => {
+  const me = { hours_today: 4, hours_yesterday: 6, norm_met_today: false, days: 1, norm_met_days: 1 };
+
+  it("gives today and yesterday as hours rows, newest first, each against the norm", () => {
+    const rows = contributionRows(me, 6, 1, 0, "the workshop");
+    expect(rows.map((r) => [r.when, r.what, r.hours])).toEqual([
+      ["Day 2, so far", "Short of the norm of 6 at the workshop", 4],
+      ["Day 1", "Met the norm of 6 at the workshop", 6],
+    ]);
+    expect(rows.every((r) => r.epoch === 0)).toBe(true);
+  });
+
+  it("has only today on the first day, and no norm wording without a norm", () => {
+    expect(contributionRows(me, 6, 0, 0)).toHaveLength(1);
+    expect(contributionRows({ ...me, hours_today: 0 }, 6, 0, 0)[0]!.what).toBe("No hours given");
+    expect(contributionRows(me, null, 1, 0)[0]!.what).toBe("Gave hours");
+  });
+});
+
+describe("tonight (S2.11, GDD 15)", () => {
+  it("counts the open ballots and the ones owed", () => {
+    expect(ballotsText([])).toEqual({ value: "nothing before the assembly", owed: 0 });
+    expect(ballotsText([{ open: true, my_ballot: "yes" }, { open: false }])).toEqual({ value: "1 proposal open", gloss: "you have cast on every one", owed: 0 });
+    expect(ballotsText([{ open: true, my_ballot: null }, { open: true }])).toEqual({ value: "2 proposals open", gloss: "2 wait for your ballot", owed: 2 });
+    expect(ballotsText([{ open: true }, { open: true, my_ballot: "no" }]).gloss).toBe("1 waits for your ballot");
+  });
+
+  it("reads your line against the norm", () => {
+    expect(lineText(undefined, 6)).toEqual({ value: "not on the record yet" });
+    expect(lineText({ hours_today: 4, norm_met_today: false, days: 4, norm_met_days: 3 }, 6)).toEqual({ value: "4 of 6 hours today", gloss: "norm met 3 of 4 days so far" });
+    expect(lineText({ hours_today: 6, norm_met_today: true, days: 0, norm_met_days: 0 }, 6)).toEqual({ value: "6 of 6 hours today", gloss: "the norm is met" });
+    expect(lineText({ hours_today: 0, norm_met_today: false, days: 0, norm_met_days: 0 }, 6).gloss).toBe("the record opens tonight");
+    expect(lineText({ hours_today: 2.5, norm_met_today: false, days: 0, norm_met_days: 0 }, null)).toEqual({ value: "2.5 h today", gloss: undefined });
   });
 });
 

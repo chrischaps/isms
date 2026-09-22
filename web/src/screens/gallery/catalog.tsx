@@ -105,6 +105,48 @@ const SHELL_ACCOUNT: NavItem[] = [
   { key: "profile", to: "/profile", label: "Profile", icon: "person" },
   { key: "admin", to: "/admin", label: "Operator", icon: "gear" },
 ];
+// The Commune's items (S2.11): the Store where the Market was, the Ledger and
+// the Assembly present, nothing that needs money.
+const COMMUNE_NAV: NavItem[] = [
+  { key: "home", to: "/s/$id", params: shellParams, label: "Your Household & the Store", short: "Home", icon: "home", exact: true, tab: true },
+  { key: "work", to: "/s/$id/work", params: shellParams, label: "Hours", icon: "work", tab: true },
+  { key: "plan", to: "/s/$id/plan", params: shellParams, label: "Standing plan", icon: "plan" },
+  { key: "store", to: "/s/$id/store", params: shellParams, label: "Common Store", icon: "store", tab: true },
+  { key: "ledger", to: "/s/$id/ledger", params: shellParams, label: "Ledger of Contribution", icon: "ledger" },
+  { key: "orgs", to: "/s/$id/orgs", params: shellParams, label: "Organizations", icon: "org" },
+  { key: "contracts", to: "/s/$id/contracts", params: shellParams, label: "Contracts", icon: "contract" },
+  { key: "assembly", to: "/s/$id/assembly", params: shellParams, label: "Assembly", icon: "assembly" },
+  { key: "society", to: "/s/$id/society", params: shellParams, label: "Society", icon: "people", tab: true },
+  { key: "talk", to: "/s/$id/talk", params: shellParams, label: "Talk", icon: "talk" },
+  { key: "archives", to: "/s/$id/archives", params: shellParams, label: "Archive", icon: "archive" },
+];
+const drawExplain = {
+  rule: "store_draw_by_need",
+  inputs: [
+    ["food_meter", 62],
+    ["meter_per_unit", 18],
+    ["shelf", 31],
+  ] as [string, unknown][],
+  formula: "ceil((100 - food_meter) / meter_per_unit), shelf permitting",
+  result: { Int: 2 },
+};
+const normExplain = {
+  rule: "contribution_hours",
+  inputs: [
+    ["tick_hours", 4],
+    ["norm", 6],
+  ] as [string, unknown][],
+  formula: "sum of hours given today",
+  result: { Int: 4 },
+};
+const communeEvents: EventRef[] = [
+  { seq: 5102, tick: 23, cycle: 0, epoch: 0, kind: "Drew", payload: { Drew: { goods: { food: 2 }, explain: drawExplain } } },
+  { seq: 5140, tick: 23, cycle: 0, epoch: 0, kind: "Voted", payload: { Voted: { proposal: 3, citizen: 41, ballot: "abstain", by_default: true } } },
+  { seq: 5141, tick: 23, cycle: 0, epoch: 0, kind: "ProposalClosed", payload: { ProposalClosed: { proposal: 3, passed: true, tally: { yes: 5, no: 2, abstain: 1, cast: 8, quorum: 4, eligible: 20 } } } },
+  { seq: 5160, tick: 23, cycle: 0, epoch: 0, kind: "ElectionOpened", payload: { ElectionOpened: { office: "coordinator", seats: 3, closes_cycle: 5 } } },
+  { seq: 5200, tick: 30, cycle: 1, epoch: 0, kind: "OfficeTaken", payload: { OfficeTaken: { office: "coordinator", citizen: 41, term_ends_cycle: 6, approvals: 4 } } },
+  { seq: 5201, tick: 30, cycle: 1, epoch: 0, kind: "Honored", payload: { Honored: { citizen: 41, proposal: 4, cycle: 1 } } },
+];
 const shellClock = { epoch: 2, cycle: 1, tick: 5, ticks_per_cycle: 24 };
 const shellNext = new Date(Date.now() + 4_000).toISOString();
 
@@ -515,6 +557,78 @@ export const SECTIONS: Section[] = [
           </FooterStrip>
         </Card>
       </Two>
+    ),
+  },
+  {
+    id: "commune",
+    title: "The Commune: the kit without money",
+    spec: "GDD 15, S2.11 — the same components in a society with no currency: the TopBar with no balance, Num with an Explain in units and hours, the Ledger as a draw record and as the record of contribution, the Meter as a quorum bar and a shelf, the Diff narrating a ballot cast by default. Nothing here says cr.",
+    node: (
+      <Stack>
+        <div className="border-line -mx-4 overflow-hidden border-y">
+          <TopBar
+            name="The Commune"
+            preset="commune"
+            clock={<WorldClock clock={shellClock} nextTickAt={shellNext} tickSeconds={3600} />}
+            phoneClock={<WorldClock clock={shellClock} nextTickAt={shellNext} tickSeconds={3600} phone />}
+            account={SHELL_ACCOUNT}
+          />
+          <ScreenNav items={COMMUNE_NAV} />
+          <div className="bg-bg text-muted px-4 py-6 text-sm">The page, under the bars. No balance in the header: there is no money to count.</div>
+          <TabBar items={COMMUNE_NAV} account={SHELL_ACCOUNT} inline />
+        </div>
+        <Two>
+          <Card title="Your Household & the Store" aside={<Pill tone="attn">1 ballot waits</Pill>}>
+            <Verdict parts={["You're fed, housed and working", { text: ", but a ballot waits for you tonight", tone: "attn" }, "."]} />
+            <FactList
+              items={[
+                { key: "store", label: "Common Store", value: "31 food, 12 wares on the shelf", gloss: "you may draw 2 Food" },
+                { key: "line", label: "Ledger of Contribution", value: "4 of 6 hours today", gloss: "norm met 3 of 4 days so far" },
+                { key: "ballots", label: "Ballot", value: <span className="text-attn">2 proposals open</span>, gloss: "1 waits for your ballot" },
+                { key: "dwelling", label: "Dwelling", value: "No. 17" },
+              ]}
+            />
+            <p className="text-muted mt-3 mb-0 text-sm">
+              A draw with its rule: <Num value="+2 food" explain={drawExplain} />. Hours on the record: <Num value="+4" unit="h" explain={normExplain} />.
+            </p>
+          </Card>
+          <Card title="Draw record" icon="store" subtitle="Every draw, with the rule that served it. There is no wage.">
+            <Ledger
+              amountLabel="Drew"
+              rows={[
+                { key: "d2", epoch: 1, when: "Day 2, 6 AM", what: "Drew from the Store", goods: "+2 food", explain: drawExplain },
+                { key: "d1", epoch: 1, when: "Day 1, 11 PM", what: "Surplus share at the day's end", goods: "+1 wares", explain: { ...drawExplain, rule: "store_surplus_share", formula: "surplus / active_citizens", result: { Int: 1 } } },
+              ]}
+            />
+          </Card>
+        </Two>
+        <Two>
+          <Card title="Your line" icon="ledger">
+            <Verdict parts={["You have given 4 of the norm's 6 hours today at the workshop."]} />
+            <Ledger
+              amountLabel="Hours"
+              rows={[
+                { key: "t", epoch: 1, when: "Day 2, so far", what: "Short of the norm of 6 at the workshop", hours: 4 },
+                { key: "y", epoch: 1, when: "Day 1", what: "Met the norm of 6 at the workshop", hours: 6 },
+              ]}
+            />
+          </Card>
+          <Card title="The shelves" icon="store">
+            <Figures>
+              <Figure label="food on the shelf" value="31" bar={<Meter label="food against what is asked" value={100} threshold={0} tone="good" bare />} status="12 asked this hour." />
+              <Figure label="wares on the shelf" value="3" bar={<Meter label="wares against what is asked" value={38} threshold={0} tone="attn" bare />} tone="attn" status="8 asked, more than is here." />
+            </Figures>
+            <div className="mt-4 grid gap-2">
+              <span className="text-muted text-xs font-bold tracking-caps uppercase">Quorum on proposal #3</span>
+              <Meter label="Quorum" value={35} threshold={20} hint="7 of 20 eligible have cast; the quorum is 20 %." />
+              <span className="text-good text-sm">Carries as it stands: 5 yes, 2 no.</span>
+            </div>
+          </Card>
+        </Two>
+        <Card title="While you were away" icon="clock" subtitle="since Day 1, 5 AM">
+          <DiffSinceLastSeen events={communeEvents} t={(k) => ({ compensation: "Draw record", job: "Contribution", proposal: "Proposal" })[k] ?? k} me={41} />
+        </Card>
+      </Stack>
     ),
   },
 ];

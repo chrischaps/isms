@@ -14,10 +14,12 @@ import { useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { ButtonLink } from "../components/Button";
 import { Card, Stack } from "../components/Card";
 import { Figure, Figures } from "../components/Figure";
-import { TD, TD_NUM, TH, TH_NUM } from "../components/Ledger";
+import { Ledger, TD, TD_NUM, TH, TH_NUM } from "../components/Ledger";
+import { More } from "../components/More";
 import { PageHeader } from "../components/PageHeader";
 import { Pill } from "../components/Pill";
 import { Verdict } from "../components/Verdict";
+import { contributionRows } from "../lib/contribution";
 import { useNames, type Names } from "../lib/names";
 import { ledgerVerdict } from "../lib/verdict";
 
@@ -102,6 +104,7 @@ export function LedgerScreen({ id }: { id: number }) {
   if (ledger.isPending) return <p className="text-muted">Loading.</p>;
   if (ledger.error) return <p className="text-crit">Could not load: {String(ledger.error)}</p>;
   const v = ledger.data!;
+  const h = home.data!;
   const norm = v.norm_hours ?? null;
   const active = v.rows.filter((r) => !r.dormant);
   const away = v.rows.filter((r) => r.dormant);
@@ -153,6 +156,18 @@ export function LedgerScreen({ id }: { id: number }) {
           <ButtonLink to="/s/$id/work" params={{ id: String(id) }}>
             {me && me.workplaces.length === 0 ? "Take a position" : "Adjust your hours"}
           </ButtonLink>
+          {me ? (
+            // The record as a ledger (§7.14, S2.11): hours are the unit here, as
+            // credits are on a payslip. The wire carries two days of it (Q157).
+            <More summary="Your record, day by day" testId="my-record-more">
+              <div data-testid="my-record">
+                <Ledger
+                  rows={contributionRows(me, norm, h.clock.cycle - 1, h.clock.epoch - 1, me.workplaces[0] !== undefined ? names.workplaceTitle(me.workplaces[0]) : undefined)}
+                  amountLabel="Hours"
+                />
+              </div>
+            </More>
+          ) : null}
         </Card>
 
         <Card

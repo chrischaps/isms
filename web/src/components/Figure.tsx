@@ -15,6 +15,7 @@ export function Figure({
   label,
   value,
   unit,
+  bar,
   status,
   tone = "good",
   testId,
@@ -22,6 +23,8 @@ export function Figure({
   label: ReactNode;
   value: string;
   unit?: ReactNode;
+  /** A bare `Meter` under the value, where the figure is a level against a mark (a shelf against what is asked, S2.11). */
+  bar?: ReactNode;
   /** A status line or a gloss in lived terms (§8.4, §8.5). */
   status?: ReactNode;
   tone?: Tone;
@@ -34,6 +37,7 @@ export function Figure({
         {value}
         {unit ? <small className="text-muted ml-1 font-body text-xs font-normal">{unit}</small> : null}
       </span>
+      {bar ? <span className="mt-1 flex">{bar}</span> : null}
       {status ? <span className={`text-[13.5px] ${STATUS[tone]}`}>{status}</span> : null}
     </Tile>
   );

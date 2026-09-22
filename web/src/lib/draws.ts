@@ -29,6 +29,20 @@ export function ruleText(rule: string): string {
   }
 }
 
+/**
+ * A shelf as a bar (S2.11; docs/style.md §7.6 by analogy): the stock against
+ * what is asked this hour, full when it covers every request, empty when
+ * bare. With nothing asked, a stocked shelf is full and a bare one empty.
+ * The tone is the engine's own state, not taste (§4.2): bare is crit, short
+ * of what is asked is attn, covered is good.
+ */
+export function stockLevel(stock: number, requested: number): { value: number; tone: "good" | "attn" | "crit" } {
+  if (stock <= 0) return { value: 0, tone: "crit" };
+  if (requested <= 0) return { value: 100, tone: "good" };
+  if (stock < requested) return { value: Math.max(1, Math.round((stock / requested) * 100)), tone: "attn" };
+  return { value: 100, tone: "good" };
+}
+
 export function drawRows(draws: EventRef[], perDay = 24, limit?: number): LedgerRow[] {
   const recent = limit === undefined ? draws.slice() : draws.slice(-limit);
   return recent.reverse().map((d) => {

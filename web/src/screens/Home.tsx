@@ -7,8 +7,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ApiError, credits, type EventRef } from "../api/client";
+import { useProposals } from "../api/assembly";
 import { useCapabilities, useHome, useLexicon, useSociety } from "../api/hooks";
-import { useStore } from "../api/commons";
+import { useLedger, useStore } from "../api/commons";
 import { usePayslips, useSetPlan } from "../api/society";
 import { Button, ButtonLink, ButtonRow } from "../components/Button";
 import { Card, Stack, Two } from "../components/Card";
@@ -27,6 +28,7 @@ import { useNames } from "../lib/names";
 import { drawRows } from "../lib/draws";
 import { needHints, needStatus } from "../lib/needs";
 import { payslipRows } from "../lib/payslips";
+import { ballotsText, lineText } from "../lib/tonight";
 import { greeting, homeVerdict } from "../lib/verdict";
 import { epochEndingText, whenOfTick } from "../lib/when";
 import { Onboarding } from "./Onboarding";
@@ -50,6 +52,12 @@ export function Home({ id }: { id: number }) {
   const caps = useCapabilities(id);
   const hasStore = caps.data?.common_store === true;
   const store = useStore(id, hasStore && home.data !== undefined);
+  // GDD 15: a Commune's Home shows Store stock, the Ledger of Contribution and
+  // tonight's ballots — each read only where the constitution has it (S2.11).
+  const governed = caps.data !== undefined && caps.data.governance !== "none";
+  const byNorm = caps.data?.labor === "norm";
+  const proposals = useProposals(id, governed && home.data !== undefined);
+  const ledger = useLedger(id, byNorm && home.data !== undefined);
   const names = useNames(id, home.data?.citizen.id, home.data !== undefined);
   const keep = useSetPlan(id);
   const [kept, setKept] = useState<number | null>(null);
@@ -143,11 +151,45 @@ export function Home({ id }: { id: number }) {
     // One gloss per screen (§8.5): a unit of Food is about an hour of eating.
     gloss: (pantry.food ?? 0) > 0 ? `about ${pantry.food} hours` : undefined,
   });
+  if (byNorm) {
+    // Your line of the Ledger (GDD 6.2): hours given today against the norm.
+    const line = lineText(ledger.data?.rows.find((r) => r.is_me), ledger.data?.norm_hours ?? null);
+    facts.push({
+      key: "line",
+      label: t("ledger_screen"),
+      testId: "ledger-tile",
+      value: ledger.data ? line.value : <span className="text-muted">Loading.</span>,
+      gloss: ledger.data ? line.gloss : undefined,
+      action: (
+        <Link to="/s/$id/ledger" params={{ id: String(id) }}>
+          the record
+        </Link>
+      ),
+    });
+  }
+  if (governed) {
+    // Tonight's ballots (GDD 15): what closes at the day's end and whether one waits for you.
+    const ballots = ballotsText(proposals.data?.open ?? []);
+    facts.push({
+      key: "ballots",
+      label: t("ballot"),
+      testId: "ballots-tile",
+      value: proposals.data ? (ballots.owed > 0 ? <span className="text-attn">{ballots.value}</span> : ballots.value) : <span className="text-muted">Loading.</span>,
+      gloss: proposals.data ? ballots.gloss : undefined,
+      action: (
+        <Link to="/s/$id/assembly" params={{ id: String(id) }}>
+          {t("assembly").toLowerCase()}
+        </Link>
+      ),
+    });
+  }
   facts.push({
     key: "dwelling",
     label: t("dwelling"),
     value: h.household.dwelling ? `No. ${h.household.dwelling.id}` : <Pill tone="attn">none</Pill>,
-    gloss: h.household.dwelling ? (rent != null ? `${credits(rent)} cr a day` : undefined) : "Shelter falls until you rent",
+    // A collective system assigns a dwelling from the society's stock at the
+    // day's end (GDD 6.2); a market one waits for you to rent.
+    gloss: h.household.dwelling ? (rent != null ? `${credits(rent)} cr a day` : undefined) : money ? "Shelter falls until you rent" : "Shelter falls until one is assigned tonight",
   });
   facts.push({
     key: "work",
@@ -172,7 +214,7 @@ export function Home({ id }: { id: number }) {
         meta={
           <>
             <Countdown at={s?.next_tick_at} label="next hour" />
-            <Countdown at={nextCycle} label="payday" />
+            <Countdown at={nextCycle} label={hasStore ? "share-out" : "payday"} />
           </>
         }
       />
@@ -225,11 +267,12 @@ export function Home({ id }: { id: number }) {
           <Card title="While you were away" icon="clock" subtitle={`since ${whenOfTick(h.since_last_seen.since_tick + 1, h.clock.ticks_per_cycle)}`}>
             <DiffSinceLastSeen events={h.since_last_seen.events} t={t} me={h.citizen.id} />
           </Card>
-          <Card title={t("compensation")} icon="coin">
+          <Card title={t("compensation")} icon={hasStore ? "store" : "coin"}>
             {hasStore ? (
               <div data-testid="draws">
                 <Ledger
                   rows={store.data ? drawRows(store.data.my_draws as unknown as EventRef[], h.clock.ticks_per_cycle, 5) : []}
+                  amountLabel="Drew"
                   empty="No draw yet. Your plan asks the Store for Food when the meter has room for a unit."
                 />
               </div>

@@ -13,9 +13,10 @@ import { useCapabilities, useHome, useLexicon } from "../api/hooks";
 import { Card, Stack, Two } from "../components/Card";
 import { Figure, Figures } from "../components/Figure";
 import { Ledger, TD, TD_NUM, TH, TH_NUM } from "../components/Ledger";
+import { Meter } from "../components/Meter";
 import { PageHeader } from "../components/PageHeader";
 import { Verdict } from "../components/Verdict";
-import { drawRows, ruleText } from "../lib/draws";
+import { drawRows, ruleText, stockLevel } from "../lib/draws";
 import { storeVerdict } from "../lib/verdict";
 import { dayOf } from "../lib/when";
 
@@ -188,15 +189,23 @@ export function Store({ id }: { id: number }) {
             </p>
           ) : null}
           <Figures className="mb-4">
-            {byNeed.map((s) => (
-              <Figure
-                key={s.good}
-                label={`${s.good} on the shelf`}
-                value={String(s.stock)}
-                tone={s.stock === 0 ? "crit" : s.requested > s.stock ? "attn" : "good"}
-                status={s.stock === 0 ? "Bare this hour." : s.requested > s.stock ? `${s.requested} asked, more than is here.` : s.requested > 0 ? `${s.requested} asked this hour.` : "Nobody has asked this hour."}
-              />
-            ))}
+            {byNeed.map((s) => {
+              // The shelf as a bar against this hour's requests (S2.11): the same
+              // Meter a need has, its fill the engine's stock and its tone the
+              // shelf's state, so a Commune's glance reads like Freeport's.
+              const level = stockLevel(s.stock, s.requested);
+              return (
+                <Figure
+                  key={s.good}
+                  testId={`shelf-figure-${s.good}`}
+                  label={`${s.good} on the shelf`}
+                  value={String(s.stock)}
+                  bar={<Meter label={`${s.good} against what is asked`} value={level.value} threshold={0} tone={level.tone} bare />}
+                  tone={level.tone}
+                  status={s.stock === 0 ? "Bare this hour." : s.requested > s.stock ? `${s.requested} asked, more than is here.` : s.requested > 0 ? `${s.requested} asked this hour.` : "Nobody has asked this hour."}
+                />
+              );
+            })}
           </Figures>
           <table className="w-full border-collapse text-[15px]" data-testid="shelves">
             <thead>
@@ -235,7 +244,7 @@ export function Store({ id }: { id: number }) {
 
         <Card title={t("compensation")} icon="ledger" subtitle="Every draw, with the rule that served it. This is the whole of what you receive here: there is no wage.">
           <div data-testid="draw-record">
-            <Ledger rows={drawRows(v.my_draws as unknown as Parameters<typeof drawRows>[0], perDay)} empty="No draw yet. Your plan asks for Food when the meter has room for a unit." />
+            <Ledger rows={drawRows(v.my_draws as unknown as Parameters<typeof drawRows>[0], perDay)} amountLabel="Drew" empty="No draw yet. Your plan asks for Food when the meter has room for a unit." />
           </div>
         </Card>
       </Stack>

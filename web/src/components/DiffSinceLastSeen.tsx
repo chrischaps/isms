@@ -1,11 +1,34 @@
 // What the plan did while you were away (GDD 9.3): the digest's events as
-// one line each, in the society's words, newest last.
+// one line each, in the society's words, newest last. The digest carries the
+// assembly's news too (S2.5 `concerns`): a ballot the plan cast by default,
+// a proposal closed, an honor, a seat taken or lost, an election opened — each
+// its own line here rather than a bare event name (S2.11).
 
 import { credits, type EventRef } from "../api/client";
+import { fieldName } from "../lib/policy";
 import { whenOf } from "../lib/when";
 import { Ledger, type LedgerRow } from "./Ledger";
 
 type T = (key: string) => string;
+
+/** "#3" for a 0-based proposal id, as the Assembly numbers them. */
+function motion(p: unknown): string {
+  return `#${String(p)}`;
+}
+
+/** "term ended", "absence", "recalled" for a `VacancyReason`. */
+function vacancy(reason: unknown): string {
+  switch (reason) {
+    case "term_ended":
+      return "the term ended";
+    case "absence":
+      return "absence";
+    case "recalled":
+      return "recalled";
+    default:
+      return String(reason ?? "");
+  }
+}
 
 function payload(e: EventRef): Record<string, unknown> {
   const p = e.payload as Record<string, unknown>;
@@ -65,6 +88,31 @@ export function describe(e: EventRef, t: T, me?: number): LedgerRow {
       return { ...base, what: "Order expired" };
     case "OrderCancelled":
       return { ...base, what: "Order cancelled" };
+    // The assembly's news (S2.5 `concerns`, S2.11).
+    case "Voted": {
+      const how = String(p.ballot ?? "");
+      return { ...base, what: `${p.by_default ? "Your plan voted" : "You voted"} ${how} on ${t("proposal").toLowerCase()} ${motion(p.proposal)}${p.by_default ? " by default" : ""}` };
+    }
+    case "ProposalClosed": {
+      const tally = (p.tally ?? {}) as Record<string, number>;
+      const count = tally.yes !== undefined ? ` (${tally.yes} yes, ${tally.no} no, ${tally.cast} of ${tally.eligible} cast)` : "";
+      return { ...base, what: `${t("proposal")} ${motion(p.proposal)} ${p.passed ? "carried" : "failed"}${count}` };
+    }
+    case "Honored":
+      return { ...base, what: `The assembly honored you (${t("proposal").toLowerCase()} ${motion(p.proposal)})` };
+    case "OfficeTaken":
+      return { ...base, what: `You took a seat as ${fieldName(String(p.office))}, through Day ${Number(p.term_ends_cycle) + 1}` };
+    case "OfficeVacated":
+      return { ...base, what: `Your seat as ${fieldName(String(p.office))} emptied: ${vacancy(p.reason)}` };
+    case "ElectionOpened":
+      return { ...base, what: `An election opened for ${fieldName(String(p.office))}, ${String(p.seats)} ${Number(p.seats) === 1 ? "seat" : "seats"}, closing at the end of Day ${Number(p.closes_cycle) + 1}` };
+    case "Disbursed": {
+      const asset = (p.asset ?? {}) as Record<string, unknown>;
+      if (typeof asset.money === "number") return { ...base, what: "Disbursed to you by a members' vote", cents: asset.money };
+      // The engine's `Asset::Good(good, qty)` on the wire: `{"good": ["food", 3]}`.
+      const good = asset.good as [string, number] | undefined;
+      return { ...base, what: "Disbursed to you by a members' vote", goods: good ? `+${good[1]} ${good[0]}` : undefined };
+    }
     default:
       return { ...base, what: e.kind.replace(/([a-z])([A-Z])/g, "$1 $2") };
   }

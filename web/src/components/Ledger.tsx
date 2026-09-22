@@ -1,8 +1,11 @@
-// Any list of money or goods movements (TDD 11; docs/style.md §7.14), each
-// line with its Explain. Header in caps, one line between rows, figures
+// Any list of money, goods or hours movements (TDD 11; docs/style.md §7.14),
+// each line with its Explain. Header in caps, one line between rows, figures
 // right-aligned and tabular, 44px rows on touch. Days restart with every
 // epoch, so a list that reaches back past an epoch's start is cut into
-// labelled groups: "Day 42" alone would not say which.
+// labelled groups: "Day 42" alone would not say which. A row carries one of
+// `cents`, `goods` or `hours`: a payslip, a draw from the Store, a
+// contribution to the norm (S2.11) — the same table in every society, and
+// the currency appears only where a row has one.
 
 import { Fragment } from "react";
 import { credits } from "../api/client";
@@ -16,6 +19,8 @@ export type LedgerRow = {
   what: string;
   cents?: number;
   goods?: string;
+  /** Hours given (the Ledger of Contribution's unit); shown as "+4 h". */
+  hours?: number;
   explain?: Explain | null;
 };
 
@@ -38,7 +43,16 @@ export function EpochDivider({ epoch, current, span }: { epoch: number; current:
   );
 }
 
-export function Ledger({ rows, empty = "Nothing yet." }: { rows: LedgerRow[]; empty?: string }) {
+export function Ledger({
+  rows,
+  empty = "Nothing yet.",
+  amountLabel = "Amount",
+}: {
+  rows: LedgerRow[];
+  empty?: string;
+  /** The last column's header: "Amount" for money, "Drew" for a draw record, "Hours" for the norm. */
+  amountLabel?: string;
+}) {
   if (rows.length === 0) {
     return <p className="text-muted m-0">{empty}</p>;
   }
@@ -50,7 +64,7 @@ export function Ledger({ rows, empty = "Nothing yet." }: { rows: LedgerRow[]; em
         <tr>
           <th className={TH}>When</th>
           <th className={TH}>What</th>
-          <th className={TH_NUM}>Amount</th>
+          <th className={TH_NUM}>{amountLabel}</th>
         </tr>
       </thead>
       <tbody>
@@ -67,6 +81,8 @@ export function Ledger({ rows, empty = "Nothing yet." }: { rows: LedgerRow[]; em
                   <Num value={`${r.cents >= 0 ? "+" : "−"}${credits(Math.abs(r.cents))}`} unit="cr" explain={r.explain} />
                 ) : r.goods ? (
                   <Num value={r.goods} explain={r.explain} />
+                ) : r.hours !== undefined ? (
+                  <Num value={`${r.hours >= 0 ? "+" : "−"}${Number.isInteger(r.hours) ? Math.abs(r.hours) : Math.abs(r.hours).toFixed(1)}`} unit="h" explain={r.explain} />
                 ) : null}
               </td>
             </tr>

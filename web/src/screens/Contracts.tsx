@@ -135,7 +135,8 @@ export function Contracts({ id }: { id: number }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [credit, setCredit] = useState({ principal: "100.00", rate: "1.00", term: 4, to: "", collateralKind: "none", collateralId: "", collateralQty: 1 });
-  const [sale, setSale] = useState({ good: "food", qty: 1, price: "", to: "" });
+  // `price` is money; where there is none the price is goods for goods (`forGood` × `forQty`, S2.11).
+  const [sale, setSale] = useState({ good: "food", qty: 1, price: "", forGood: "wares", forQty: 1, to: "" });
   const [wanted, setWanted] = useState({ good: "food", qty: 1, max: "" });
   const [lease, setLease] = useState({ dwelling: "", rent: "8.00", term: "" });
   const [gift, setGift] = useState({ toKind: "citizen", to: "", kind: "money", amount: "", good: "food", qty: 1, memo: "" });
@@ -464,7 +465,11 @@ export function Contracts({ id }: { id: number }) {
                 onSubmit={(e) => {
                   e.preventDefault();
                   offerSale.mutate(
-                    { asset: { good: [sale.good, sale.qty] }, price: { money: toCents(sale.price) }, ...(sale.to.trim() === "" ? {} : { to: { citizen: Number(sale.to) } }) } as never,
+                    {
+                      asset: { good: [sale.good, sale.qty] },
+                      price: c.money ? { money: toCents(sale.price) } : { good: [sale.forGood, sale.forQty] },
+                      ...(sale.to.trim() === "" ? {} : { to: { citizen: Number(sale.to) } }),
+                    } as never,
                     { onSuccess: ok("Sale offered; the goods are in escrow."), onError: fail },
                   );
                 }}
@@ -482,9 +487,27 @@ export function Contracts({ id }: { id: number }) {
                   <Field label="Quantity" unit={sale.good}>
                     <Input aria-label="Sale quantity" type="number" inputMode="numeric" min={1} value={sale.qty} onChange={(e) => setSale({ ...sale, qty: Number(e.target.value) })} />
                   </Field>
-                  <Field label="Price" unit="cr the lot">
-                    <Input aria-label="Sale price" type="number" inputMode="decimal" step="0.01" min={0.01} value={sale.price} onChange={(e) => setSale({ ...sale, price: e.target.value })} />
-                  </Field>
+                  {c.money ? (
+                    <Field label="Price" unit="cr the lot">
+                      <Input aria-label="Sale price" type="number" inputMode="decimal" step="0.01" min={0.01} value={sale.price} onChange={(e) => setSale({ ...sale, price: e.target.value })} />
+                    </Field>
+                  ) : (
+                    // No money: a direct sale is goods for goods, the whole lot for the whole price.
+                    <>
+                      <Field label="For" unit={`${sale.forGood} the lot`}>
+                        <Input aria-label="Sale price" type="number" inputMode="numeric" min={1} value={sale.forQty} onChange={(e) => setSale({ ...sale, forQty: Number(e.target.value) })} />
+                      </Field>
+                      <Field label="Paid in">
+                        <Select aria-label="Sale price good" value={sale.forGood} onChange={(e) => setSale({ ...sale, forGood: e.target.value })}>
+                          {GOODS.map((g) => (
+                            <option key={g} value={g}>
+                              {g}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </>
+                  )}
                   <Field label="To">
                     <Select aria-label="Sale to" value={sale.to} onChange={(e) => setSale({ ...sale, to: e.target.value })}>
                       <option value="">anyone</option>
@@ -497,13 +520,15 @@ export function Contracts({ id }: { id: number }) {
                   </Field>
                 </div>
                 <ButtonRow>
-                  <Button type="submit" disabled={offerSale.isPending} disabledReason={toCents(sale.price) < 1 ? "set a price" : undefined}>
+                  <Button type="submit" disabled={offerSale.isPending} disabledReason={(c.money ? toCents(sale.price) < 1 : sale.forQty < 1) ? "set a price" : undefined}>
                     Offer
                   </Button>
                 </ButtonRow>
               </form>
             </More>
 
+            {/* A wanted ad names a top price in money (`max_price`), so it exists only where money does. */}
+            {c.money ? (
             <More summary="Post a wanted ad" testId="wanted-more">
               <form
                 className="grid gap-3"
@@ -537,6 +562,7 @@ export function Contracts({ id }: { id: number }) {
                 </ButtonRow>
               </form>
             </More>
+            ) : null}
 
             {enabled.has("lease") ? (
               <More summary="Let a dwelling you own" testId="lease-more">

@@ -16,6 +16,19 @@ function num(v: unknown, digits = 0): string {
   return typeof v === "number" ? v.toFixed(digits) : "—";
 }
 
+/**
+ * The society stat where there is no price index (GDD 15: the Commune's is
+ * "Store stock"): Food on the shelf at the day's end, the Wares beside it.
+ * Null before the first day closes or where the aggregates carry no store.
+ */
+export function storeStockFigure(a: Aggregates): { value: string; status: string } | null {
+  const stock = a.store_stock as Record<string, number> | undefined;
+  if (!stock || typeof stock !== "object") return null;
+  const food = stock.food ?? 0;
+  const wares = stock.wares ?? 0;
+  return { value: String(food), status: `Food on the shelf at the day's end; ${wares} Wares.` };
+}
+
 export function StatTiles({
   stats,
   money,
@@ -35,6 +48,7 @@ export function StatTiles({
   const hardship = typeof a.hardship_count === "number" ? a.hardship_count : null;
   const wellbeing = typeof a.median_wellbeing === "number" ? a.median_wellbeing : null;
   const price = live.price_index ?? (typeof a.price_index === "number" ? a.price_index : null);
+  const store = money ? null : storeStockFigure(a);
   const facts: Fact[] = [
     { key: "citizens", label: "Citizens", value: String(live.population), gloss: `${live.active_humans} people here` },
     { key: "unemployed", label: "Without work", value: String(live.unemployed) },
@@ -58,7 +72,11 @@ export function StatTiles({
           tone={hardship === null || hardship === 0 ? "good" : hardship * 10 >= live.population ? "crit" : "attn"}
           status={hardship === null ? "After the first day." : hardship === 0 ? "Nobody, at the end of yesterday." : "At the end of yesterday."}
         />
-        {money ? <Figure label={t("society_stat")} value={num(price, 2)} status="Reference basket, Food = 1." /> : null}
+        {money ? (
+          <Figure label={t("society_stat")} value={num(price, 2)} status="Reference basket, Food = 1." />
+        ) : store ? (
+          <Figure label={t("society_stat")} value={store.value} unit="food" status={store.status} testId="store-stock-figure" />
+        ) : null}
         <Figure
           label="Median wellbeing"
           value={wellbeing === null ? "—" : String(Math.round(wellbeing))}
