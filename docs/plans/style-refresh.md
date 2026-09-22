@@ -20,7 +20,7 @@ What the code is, going in:
 |---|---|---|
 | SB.1 | tokens in v4 form, fonts, theme switch, the §7 primitives, `Icon`, Gallery catalog, `style-guard`, docs moved | `ui.test.tsx` + `theme.test.ts`; guard green; all 11 e2e green (shell untouched); Gallery reviewed at 390/720/1100 in both themes |
 | SB.2 | `TopBar`/`ScreenNav`/`TabBar` + More sheet; `lib/verdict.ts` with `homeVerdict`; Home per §10 | `onboarding`, `society`, `commune`, `login` specs; `homeVerdict` tests; Home reviewed at 390 against reference.html's "Assembled" | — done 2026-09-22
-| SB.3 | Work, Standing plan, Market per §10 | `work-plan`, `market` specs; three verdicts tested |
+| SB.3 | Work, Standing plan, Market per §10 | `work-plan`, `market` specs; three verdicts tested | — done 2026-09-22
 | SB.4 | Organizations, Org, Contracts, Society, Archive, Talk, Event | `orgs`, `contracts`, `society` specs; verdicts tested |
 | SB.5 | Assembly, BallotBuilder, Coordinator, Store, Ledger; Profile, Societies, Public, Login, Admin, Onboarding; the legacy sweep | `assembly`, `commune`, `coordinator`, `admin`, `login` specs; `make check` with an empty allowlist |
 

@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { verdictText } from "../components/Verdict";
 import { needStatus } from "./needs";
-import { greeting, homeVerdict, needTone } from "./verdict";
+import { greeting, homeVerdict, marketVerdict, needTone, planVerdict, workVerdict } from "./verdict";
 
 const fine = { food: 100, shelter: 100, comfort: 94, hardship: false, housed: true, hours: 8, hired: true };
 const t = (k: string) => k;
@@ -45,6 +45,90 @@ describe("homeVerdict", () => {
     expect(needTone(20)).toBe("attn");
     expect(needTone(50)).toBe("good");
     expect(needTone(24, 25)).toBe("crit");
+  });
+});
+
+// SB.3 done gate: the three verdicts, each from the player's side of the screen.
+describe("workVerdict", () => {
+  const farm = { name: "Legacy Farm No. 1", hours: 8, effort: "normal" };
+  it("reads as the bible's example", () => {
+    const parts = workVerdict({ hours: 8, budget: 8, fatigue: 0, positions: [farm], byNorm: false });
+    expect(verdictText(parts)).toBe("You're working 8 of 8 hours at Legacy Farm No. 1 at normal effort.");
+    expect(parts).toContainEqual({ text: "working 8 of 8 hours", tone: "good" });
+  });
+  it("names every workplace with hours and calls their efforts mixed", () => {
+    const mine = { name: "Iron & Sons", hours: 2, effort: "high" };
+    expect(verdictText(workVerdict({ hours: 8, budget: 8, fatigue: 0, positions: [{ ...farm, hours: 6 }, mine], byNorm: false }))).toBe(
+      "You're working 8 of 8 hours at Legacy Farm No. 1 and Iron & Sons at mixed effort.",
+    );
+  });
+  it("makes fatigue the one but", () => {
+    const parts = workVerdict({ hours: 6, budget: 6, fatigue: 2, positions: [{ ...farm, hours: 6 }], byNorm: false });
+    expect(verdictText(parts)).toBe("You're working 6 of 6 hours at Legacy Farm No. 1 at normal effort, but fatigue has taken 2 hours off today's budget.");
+    expect(parts).toContainEqual({ text: "fatigue", tone: "attn" });
+  });
+  it("tells a hired citizen to set hours and an unhired one where the work is", () => {
+    expect(verdictText(workVerdict({ hours: 0, budget: 8, fatigue: 0, positions: [{ ...farm, hours: 0 }], byNorm: false }))).toBe(
+      "You hold a position at Legacy Farm No. 1, but you haven't set your hours yet.",
+    );
+    expect(verdictText(workVerdict({ hours: 0, budget: 8, fatigue: 0, positions: [], byNorm: false }))).toBe(
+      "You don't have work yet — the job board is on the Organizations screen.",
+    );
+    expect(verdictText(workVerdict({ hours: 0, budget: 8, fatigue: 0, positions: [], byNorm: true }))).toBe("You hold no position yet — take one below.");
+  });
+});
+
+describe("planVerdict", () => {
+  const freeport = { keepFood: 24, keepBalance: 0, wares: false, orders: 0, money: true, store: false, labor: "explicit" as const, vote: null };
+  it("reads as the bible's example", () => {
+    expect(verdictText(planVerdict(freeport))).toBe("Your plan keeps you fed and spends everything else. It runs every hour, here or not.");
+  });
+  it("lists every rule that is set", () => {
+    const parts = planVerdict({ ...freeport, keepBalance: 1250, wares: true, orders: 2, vote: "follow", followHandle: "ada" });
+    expect(verdictText(parts)).toBe(
+      "Your plan keeps you fed, keeps 12.50 cr in hand, buys Wares when Comfort dips, places 2 standing orders and votes with ada. It runs every hour, here or not.",
+    );
+    expect(parts).toContainEqual({ text: "keeps 12.50 cr in hand", tone: "good" });
+  });
+  it("warns when there is no Food floor, in the Store's words where there is one", () => {
+    const parts = planVerdict({ ...freeport, keepFood: 0, keepBalance: 500 });
+    expect(verdictText(parts)).toBe("Your plan keeps 5.00 cr in hand, but it won't buy Food for you — set a pantry floor.");
+    expect(parts).toContainEqual({ text: "won't buy Food", tone: "attn" });
+    expect(verdictText(planVerdict({ ...freeport, keepFood: 0, money: false, store: true }))).toBe("Your plan does nothing on its own and won't draw Food for you — set a pantry floor.");
+  });
+  it("speaks the Commune's rules without money", () => {
+    expect(verdictText(planVerdict({ ...freeport, money: false, store: true, wares: true, labor: "follow_norm", vote: "abstain" }))).toBe(
+      "Your plan keeps you fed, draws Wares when Comfort dips, works the norm and abstains for you. It runs every hour, here or not.",
+    );
+  });
+});
+
+describe("marketVerdict", () => {
+  const food = { name: "food", isShare: false, last: 131, change: 0.2, days: 3, soldOut: false, noAsks: false, food: { keepFood: 24, pantryFood: 22 }, openOrders: 0 };
+  it("reads as the bible's example", () => {
+    const parts = marketVerdict(food);
+    expect(verdictText(parts)).toBe("Food costs 1.31 cr and hasn't moved in 3 days. Your plan will bid for 2 food next hour.");
+    expect(parts).toContainEqual({ text: "Food costs 1.31 cr", tone: "ink" });
+  });
+  it("says which way the price went and what the plan holds", () => {
+    expect(verdictText(marketVerdict({ ...food, change: -4.25, food: { keepFood: 24, pantryFood: 30 }, openOrders: 1 }))).toBe(
+      "Food costs 1.31 cr and is down 4.3 % over 3 days. Your plan keeps Food at 24 and has no shortfall to bid for. You have 1 open order here.",
+    );
+    expect(verdictText(marketVerdict({ ...food, change: null, food: undefined }))).toBe("Food costs 1.31 cr and has too little trading yet to say where it's going.");
+  });
+  it("keeps the one but for an empty ask side", () => {
+    const parts = marketVerdict({ ...food, soldOut: true, food: undefined });
+    expect(verdictText(parts)).toBe("Food costs 1.31 cr and hasn't moved in 3 days, but nothing is on offer right now — sellers are met the moment they post.");
+    expect(parts).toContainEqual({ text: "nothing is on offer right now", tone: "attn" });
+    expect(verdictText(marketVerdict({ ...food, noAsks: true, food: undefined }))).toBe("Food costs 1.31 cr and hasn't moved in 3 days, but no one is selling right now.");
+  });
+  it("handles a book that has never traded and a share", () => {
+    expect(verdictText(marketVerdict({ ...food, last: null, change: null, noAsks: true, food: undefined, wares: null }))).toBe(
+      "No one has traded food yet — the first bid and ask to meet will set the price. Your plan has no Wares rule; Comfort holds only while you buy by hand.",
+    );
+    expect(verdictText(marketVerdict({ name: "shares of Iron & Sons", isShare: true, last: 20000, change: 12, days: 3, soldOut: false, noAsks: true, openOrders: 0 }))).toBe(
+      "Shares of Iron & Sons last went for 200.00 cr and is up 12.0 % over 3 days.",
+    );
   });
 });
 

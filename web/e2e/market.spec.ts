@@ -28,7 +28,7 @@ test("a crossing bid fills into the tape and the pantry", async ({ page, context
   await expect(page.getByTestId("instruments")).toBeVisible();
   // Food is the book the legacy firms feed every tick (cost plus a markup);
   // the ladders refresh as ticks land, so wait for an ask to be there.
-  await expect(page.getByRole("heading", { name: "food", level: 3 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "food", level: 2 })).toBeVisible();
   const form = page.getByTestId("order-form");
   await expect(form.getByRole("radio", { name: "Bid (buy)" })).toBeChecked();
   await expect(page.getByTestId("ladders")).not.toContainText("no asks", { timeout: 180_000 });

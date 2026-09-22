@@ -22,7 +22,9 @@ import { Num } from "../../components/Num";
 import { OrderBook } from "../../components/OrderBook";
 import { FooterStrip, PageHeader } from "../../components/PageHeader";
 import { Pill } from "../../components/Pill";
+import { Segmented } from "../../components/Segmented";
 import { Sheet, SheetRow } from "../../components/Sheet";
+import { Tabs } from "../../components/Tabs";
 import { TimeSeries } from "../../components/TimeSeries";
 import { toast } from "../../components/Toast";
 import { Verdict } from "../../components/Verdict";
@@ -115,6 +117,11 @@ function Swatch({ name, use }: { name: string; use: string }) {
       </span>
     </div>
   );
+}
+
+function SegmentedDemo() {
+  const [effort, setEffort] = useState("normal");
+  return <Segmented label="Effort at Legacy Farm No. 1" value={effort} options={["low", "normal", "high"].map((v) => ({ value: v, label: v }))} onChange={setEffort} />;
 }
 
 function SheetDemo() {
@@ -326,6 +333,11 @@ export const SECTIONS: Section[] = [
             </Select>
           </Field>
         </div>
+        <div className="mt-3 grid gap-1.5">
+          <span className="text-sm font-bold">Effort</span>
+          <SegmentedDemo />
+          <span className="text-muted text-sm">output ×1.0 · Food decay ×1.0</span>
+        </div>
         <ButtonRow>
           <Button variant="primary">Set my hours</Button>
           <Button>Edit plan</Button>
@@ -419,17 +431,30 @@ export const SECTIONS: Section[] = [
     spec: "§7.15–7.17 — bids in the good fill, asks in the crit fill, labelled. Your own series is ink, 2px. Countdowns never shift the layout.",
     node: (
       <Two>
-        <Card title="food" aside={<Pill>last 1.31</Pill>} subtitle="spread 1.31 / — · 30 traded last hour">
-          <OrderBook
-            bids={[
-              { price: 130, qty: 40 },
-              { price: 128, qty: 25 },
-              { price: 125, qty: 60 },
-            ]}
-            asks={[
-              { price: 133, qty: 30 },
-              { price: 136, qty: 50 },
-              { price: 140, qty: 20 },
+        <Card title="food" aside={<Pill>steady 3 days</Pill>} subtitle="Tabs below md; every panel at once from md.">
+          <Tabs
+            label="food book"
+            layout="md:grid-cols-1"
+            tabs={[
+              {
+                key: "book",
+                label: "Book",
+                node: (
+                  <OrderBook
+                    bids={[
+                      { price: 130, qty: 40 },
+                      { price: 128, qty: 25 },
+                      { price: 125, qty: 60 },
+                    ]}
+                    asks={[
+                      { price: 133, qty: 30 },
+                      { price: 136, qty: 50 },
+                      { price: 140, qty: 20 },
+                    ]}
+                  />
+                ),
+              },
+              { key: "tape", label: "Tape", node: <p className="text-muted m-0 text-sm">Day 1, 11 AM · 1.31 · 3 · you bought from Legacy Farm No. 1</p> },
             ]}
           />
           <div className="mt-4 grid gap-2">

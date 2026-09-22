@@ -36,9 +36,9 @@ test("work and standing plan", async ({ page, context }) => {
   await expect(hours).toHaveValue("8");
   await expect(editor.getByText(/up to 8 h a day/)).toBeVisible();
   // Effort costs come from the preset, not the client.
-  await expect(editor.getByText(/output x1\.0, Food decay x1\.0/)).toBeVisible();
+  await expect(editor.getByText(/output ×1\.0 · Food decay ×1\.0/)).toBeVisible();
   await hours.fill("6");
-  await editor.getByLabel(/^Effort at /).first().selectOption("high");
+  await editor.getByRole("radiogroup", { name: /^Effort at / }).first().getByRole("radio", { name: "high" }).click();
   await page.getByRole("button", { name: "Set my hours" }).click();
   await expect(page.getByText("Set. It counts from the next hour.")).toBeVisible();
 

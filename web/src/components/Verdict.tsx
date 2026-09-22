@@ -7,13 +7,14 @@ import type { ReactNode } from "react";
 
 export type Tone = "good" | "attn" | "crit";
 
-/** One piece of a verdict: plain text, or a state word with its tone. */
-export type VerdictPart = string | { text: string; tone: Tone };
+/** One piece of a verdict: plain text, or a state word with its tone; `ink` is emphasis with no state (a price, a figure). */
+export type VerdictPart = string | { text: string; tone: Tone | "ink" };
 
-const TONE: Record<Tone, string> = {
+const TONE: Record<Tone | "ink", string> = {
   good: "text-good font-bold",
   attn: "text-attn font-bold",
   crit: "text-crit font-bold",
+  ink: "font-bold",
 };
 
 export function Verdict({ parts, children, testId }: { parts?: VerdictPart[]; children?: ReactNode; testId?: string }) {

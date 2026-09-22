@@ -6,6 +6,7 @@
 import { Link } from "@tanstack/react-router";
 import { kindName } from "../lib/names";
 import { inputsText, producerNote, supplyOf, type Recipe } from "../lib/supply";
+import { TD, TD_NUM, TH, TH_NUM } from "./Ledger";
 
 type OrgLike = Parameters<typeof supplyOf>[2][number];
 
@@ -18,6 +19,7 @@ export function Provenance({
   recipes,
   orgs,
   foundingMaterials,
+  bare,
 }: {
   id: number;
   good: string;
@@ -25,17 +27,19 @@ export function Provenance({
   orgs: OrgLike[];
   /** Materials a new workplace costs, shown on the Materials page as one more use. */
   foundingMaterials?: number;
+  /** The card that holds it already carries the title. */
+  bare?: boolean;
 }) {
   const s = supplyOf(good, recipes, orgs);
   const upstream = [...new Set(s.madeBy.flatMap((r) => Object.keys(r.consumes)))];
   const goodLink = (g: string) => (
-    <Link to="/s/$id/market/$instrument" params={{ id: String(id), instrument: g }} className="underline">
+    <Link to="/s/$id/market/$instrument" params={{ id: String(id), instrument: g }}>
       {g}
     </Link>
   );
   return (
-    <section className="text-sm" data-testid="provenance">
-      <h4 className="text-muted text-xs uppercase tracking-wide">Where it comes from</h4>
+    <section className="text-[15px]" data-testid="provenance">
+      {bare ? null : <h4 className="text-muted text-xs font-bold tracking-caps uppercase">Where it comes from</h4>}
       {s.madeBy.length === 0 ? (
         <p className="mt-1">Nothing in this society makes {good}.</p>
       ) : (
@@ -47,42 +51,42 @@ export function Provenance({
       )}
 
       {s.madeBy.length > 0 && s.producers.length === 0 ? (
-        <p className="text-warn mt-2">
+        <p className="text-attn mt-2">
           No {s.madeBy.map((r) => kindName(r.workplace_kind)).join(" or ")} exists yet, so none will reach this book until someone founds one.
         </p>
       ) : null}
 
       {s.producers.length > 0 ? (
-        <table className="mt-2 w-full" data-testid="producers">
-          <thead className="text-muted text-left text-xs uppercase tracking-wide">
+        <table className="mt-2 w-full border-collapse" data-testid="producers">
+          <thead>
             <tr>
-              <th className="py-1 font-normal">Producer</th>
-              <th className="py-1 text-right font-normal">Workers</th>
-              <th className="py-1 text-right font-normal">Made today</th>
-              <th className="py-1 text-right font-normal">Holds</th>
+              <th className={TH}>Producer</th>
+              <th className={TH_NUM}>Workers</th>
+              <th className={TH_NUM}>Made today</th>
+              <th className={TH_NUM}>Holds</th>
             </tr>
           </thead>
           <tbody>
             {s.producers.map((p) => (
-              <tr key={p.org} className="rule align-top">
-                <td className="py-1 pr-2">
-                  <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(p.org) }} className="underline">
+              <tr key={p.org} className="hover:bg-surface-2">
+                <td className={TD}>
+                  <Link to="/s/$id/orgs/$oid" params={{ id: String(id), oid: String(p.org) }}>
                     {p.name}
                   </Link>
                   <span className="text-muted block text-xs">
                     {places(p.workplaces, s.madeBy[0]!.workplace_kind)} · {producerNote(p)}
                   </span>
                 </td>
-                <td className="num py-1 text-right">{p.workers}</td>
-                <td className="num py-1 text-right">{p.madeToday.toFixed(0)}</td>
-                <td className="num py-1 text-right">{p.stock}</td>
+                <td className={TD_NUM}>{p.workers}</td>
+                <td className={TD_NUM}>{p.madeToday.toFixed(0)}</td>
+                <td className={TD_NUM}>{p.stock}</td>
               </tr>
             ))}
           </tbody>
         </table>
       ) : null}
       {s.producers.length > 0 ? (
-        <p className="text-muted mt-1 text-xs">
+        <p className="text-muted mt-2 text-sm">
           What a producer holds reaches this book only when its manager posts an ask; it may also keep it, use it, or sell it directly.
         </p>
       ) : null}

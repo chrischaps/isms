@@ -18,6 +18,7 @@ export function Button({
   variant = "secondary",
   disabledReason,
   full,
+  inline,
   className,
   children,
   disabled,
@@ -28,6 +29,8 @@ export function Button({
   disabledReason?: ReactNode;
   /** Full width at every size (the default is full width below sm only). */
   full?: boolean;
+  /** Never full width: a button inside a table row. */
+  inline?: boolean;
   children: ReactNode;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const reasonId = useId();
@@ -38,7 +41,7 @@ export function Button({
       disabled={off}
       aria-describedby={disabledReason ? reasonId : rest["aria-describedby"]}
       className={[
-        buttonClass(variant, full),
+        buttonClass(variant, full, inline),
         "disabled:bg-surface-2 disabled:text-muted disabled:border-line disabled:cursor-not-allowed",
         className ?? "",
       ].join(" ")}
@@ -58,10 +61,10 @@ export function Button({
   );
 }
 
-function buttonClass(variant: ButtonVariant, full?: boolean): string {
+function buttonClass(variant: ButtonVariant, full?: boolean, inline?: boolean): string {
   return [
     "inline-flex min-h-touch items-center justify-center gap-2 rounded-md border px-4 py-2.5 font-bold transition-colors",
-    full ? "w-full" : "max-sm:w-full",
+    full ? "w-full" : inline ? "" : "max-sm:w-full",
     VARIANT[variant],
   ].join(" ");
 }

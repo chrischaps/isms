@@ -1077,7 +1077,7 @@ Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; t
 - **Build.** `TopBar`, `ScreenNav`, `TabBar` (items from `Society.tsx`, five slots + More holding the rest, account links and `ThemeControl`); `lib/verdict.ts` with `homeVerdict` and tests; Home per §10 with every datum kept and every testid kept; hardship and epoch notices as pills and status lines.
 - **Done gate.** The four specs green; `homeVerdict` tests; Home reviewed at 390 in both themes.
 
-#### SB.3 — Work, Standing plan, Market *(web)*
+#### SB.3 — Work, Standing plan, Market *(web; done 2026-09-22)*
 - **Goal.** The Freeport core loop's three screens per §10, each with a Verdict.
 - **Read.** `docs/style.md` §7.11–7.18, §10; `Work.tsx`, `Plan.tsx`, `Market.tsx`, `Provenance.tsx`; `web/e2e/{work-plan,market}.spec.ts`.
 - **Build.** Work: hours vs budget as a big figure with a bar, effort as a segmented control with its cost line, positions card-per-row below md, the engine's rejection verbatim in a `Field` error, "How output is worked out" in `More`. Plan: `RuleList`, one rule per card on phones, vote default only where governance ≠ none. Market: instrument chips on phones, book/tape/chart as tabs in one card with their own horizontal scroll, the "you" pill, `Provenance` as a card.
