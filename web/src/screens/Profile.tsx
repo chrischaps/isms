@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMe, useSocieties } from "../api/hooks";
 import { useCreateApiKey, useRevokeApiKey, useUpdateMe, type ApiKeyCreated } from "../api/civic";
+import { ThemeControl } from "../components/ThemeControl";
 
 export function Profile() {
   const me = useMe();
@@ -47,6 +48,12 @@ export function Profile() {
           {error}
         </p>
       ) : null}
+
+      <section className="max-w-lg">
+        <h3 className="text-lg">Appearance</h3>
+        <p className="text-muted mt-1 mb-2 text-xs">Light or dark, or whatever this device prefers. Remembered on this browser only.</p>
+        <ThemeControl />
+      </section>
 
       <section className="max-w-lg">
         <h3 className="text-lg">Biography</h3>

@@ -1,7 +1,9 @@
-// A number with its Explain (TDD 5.6, 11): every value a rule produced can
-// open a footnote naming the rule, its inputs, and the formula.
+// A number with its Explain (TDD 5.6, 11; docs/style.md §7.9): every value a
+// rule produced can open the rule — its inputs as a fact list and the formula
+// beneath. The `?` is the shared Why button; the note keeps role="dialog".
 
 import { useId, useState } from "react";
+import { Why } from "./Explain";
 
 export type Explain = {
   rule: string;
@@ -41,34 +43,29 @@ export function Num({
     ? explain.inputs
     : Object.entries(explain?.inputs ?? {});
   return (
-    <span className={`num inline-flex items-baseline gap-1 ${className ?? ""}`}>
+    <span className={`inline-flex items-baseline gap-1 tabular-nums ${className ?? ""}`}>
       <span>
         {value}
         {unit ? <span className="text-muted text-sm"> {unit}</span> : null}
       </span>
       {explain ? (
         <span className="relative">
-          <button
-            type="button"
-            aria-label="Explain"
-            aria-expanded={open}
-            aria-controls={id}
-            onClick={() => setOpen((o) => !o)}
-            className="text-accent border-line rounded-sm border px-1 text-xs leading-none"
-          >
-            ?
-          </button>
+          <Why open={open} controls={id} onClick={() => setOpen((o) => !o)} />
           {open ? (
             // Spans throughout: a Num often sits inside a <p>, where block elements are invalid.
-            <span id={id} role="dialog" className="explain absolute left-0 z-10 mt-1 block">
+            <span
+              id={id}
+              role="dialog"
+              className="bg-accent-soft text-ink absolute left-0 z-10 mt-1 block w-72 max-w-[calc(100vw-2rem)] rounded-sm px-3 py-2.5 text-[13.5px] leading-[1.45] shadow-2"
+            >
               <span className="mb-2 block font-mono text-xs">{explain.rule}</span>
               {inputs.map(([k, v]) => (
                 <span key={k} className="flex justify-between gap-4">
                   <span className="text-muted">{k.replaceAll("_", " ")}</span>
-                  <span className="num">{show(v)}</span>
+                  <span className="tabular-nums">{show(v)}</span>
                 </span>
               ))}
-              <span className="rule mt-2 block pt-2 font-mono text-xs">{explain.formula}</span>
+              <span className="border-line mt-2 block border-t border-dashed pt-2 font-mono text-xs">{explain.formula}</span>
               <span className="mt-1 block text-right">= {show(explain.result)}</span>
             </span>
           ) : null}

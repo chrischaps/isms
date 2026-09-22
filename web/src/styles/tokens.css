@@ -1,103 +1,328 @@
-/* Design tokens (TDD 11, GDD 15). The shell is deliberately plain and
-   print-like: paper, ink, one accent. The preset's vocabulary and the
-   presence or absence of widgets do the work, not decoration. */
+/* Design tokens: the Companion style bible (docs/style.md §4; values in
+   docs/style/tokens.css). Three blocks, because Tailwind v4 emits `@theme`
+   variables on :root and would collide with tokens that change per theme:
+
+   A. `@theme static` — what never changes with the theme, under Tailwind's own
+      names (fonts, type scale, spacing, radii, breakpoints, containers).
+   B. The bible's tokens by their own names. Light on :root; dark by OS
+      preference unless the user chose light, and by an explicit choice. The
+      selector is [data-theme] rather than :root[data-theme] so the Gallery can
+      nest a dark island inside a light page (ADR-0013).
+   C. `@theme inline` — utilities that resolve `var(--x)` at the element, so
+      `bg-surface text-muted border-line` are right in both themes and inside
+      an island. The stock palette is removed: `bg-slate-500` must not compile.
+
+   Never type a hex outside this file: `pnpm style-guard` fails on one. */
 
 @import "tailwindcss";
 
-@theme {
-  --color-paper: #f7f4ee;
-  --color-paper-2: #efeae0;
-  --color-ink: #1d1b18;
-  --color-ink-2: #4a463f;
-  --color-muted: #7a746a;
-  --color-line: #d9d3c7;
-  --color-accent: #8b3a2f;
-  --color-accent-2: #b8563f;
-  --color-good: #3b6d3a;
-  --color-warn: #a86b12;
-  --color-bad: #9b2c2c;
-
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  --font-body: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+/* ---- A. invariant ---- */
+@theme static {
+  --font-display: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
 
-  --text-xs: 0.75rem;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.4;
   --text-sm: 0.875rem;
+  --text-sm--line-height: 1.45;
+  --text-md: 1rem;
+  --text-md--line-height: 1.5;
   --text-base: 1rem;
-  --text-lg: 1.125rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.4;
   --text-xl: 1.375rem;
+  --text-xl--line-height: 1.2;
   --text-2xl: 1.75rem;
-  --text-3xl: 2.25rem;
+  --text-2xl--line-height: 1.1;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 1.1;
 
-  --spacing-0: 0;
-  --spacing-1: 0.25rem;
-  --spacing-2: 0.5rem;
-  --spacing-3: 0.75rem;
-  --spacing-4: 1rem;
-  --spacing-6: 1.5rem;
-  --spacing-8: 2rem;
-  --spacing-12: 3rem;
+  --leading-tight: 1.15;
+  --leading-body: 1.5;
+  --tracking-caps: 0.06em;
 
-  --radius-sm: 2px;
-  --radius-md: 4px;
+  /* 4px base: p-5 is 20px, gap-4 is 16px — the bible's --sp-* by number. */
+  --spacing: 0.25rem;
+  --spacing-touch: 44px;
+  --spacing-gutter: 16px;
+  --spacing-tabbar: 56px;
+
+  --radius-*: initial;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --breakpoint-*: initial;
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 720px;
+  --breakpoint-lg: 960px;
+
+  --container-page: 820px;
+  --container-page-wide: 1080px;
+
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --default-transition-duration: 180ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-:root {
+/* ---- B. the bible's tokens, light ---- */
+:root,
+[data-theme="light"] {
   color-scheme: light;
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.45;
-  font-variant-numeric: tabular-nums;
+
+  --bg: #f2f7f4;
+  --surface: #ffffff;
+  --surface-2: #eaf1ed;
+  --ink: #1b2726;
+  --muted: #5f706d;
+  --faint: #9aaba6;
+  --line: #dce6e1;
+  --line-strong: #c3d2cb;
+
+  --accent: #25705d;
+  --accent-hover: #1d5c4c;
+  --accent-soft: #ddf0e9;
+  --on-accent: #ffffff;
+
+  --good: #28714f;
+  --good-fill: #3e9a6c;
+  --good-soft: #dcf2e4;
+  --attn: #8e600e;
+  --attn-fill: #d9a23c;
+  --attn-soft: #fbefd5;
+  --crit: #ae3f2a;
+  --crit-fill: #d9634c;
+  --crit-soft: #f8dfda;
+  --info: #2c6a8f;
+  --info-soft: #dcebf5;
+
+  --chart-1: #25705d;
+  --chart-2: #c48a2a;
+  --chart-3: #2c6a8f;
+  --chart-4: #8c5ba5;
+  --chart-5: #b85c3e;
+  --chart-grid: #e6eeea;
+  --chart-you: #1b2726;
+
+  --shadow-c1: rgba(27, 39, 38, 0.06);
+  --shadow-c2: rgba(27, 39, 38, 0.12);
 }
 
-body {
-  margin: 0;
-  background: var(--color-paper);
-  color: var(--color-ink);
+/* Dark: OS preference, unless the user explicitly chose light. The block is
+   repeated for an explicit choice; keep the two identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111917;
+    --surface: #1b2422;
+    --surface-2: #22302c;
+    --ink: #e8f0ed;
+    --muted: #9dafa9;
+    --faint: #5f726c;
+    --line: #2c3a36;
+    --line-strong: #3c4f49;
+    --accent: #5fc3a8;
+    --accent-hover: #7ad3bb;
+    --accent-soft: #1e3b34;
+    --on-accent: #0f1f1b;
+    --good: #62c48f;
+    --good-fill: #4fb27c;
+    --good-soft: #1c3a2b;
+    --attn: #e8b34c;
+    --attn-fill: #d9a23c;
+    --attn-soft: #3a2e14;
+    --crit: #ef8672;
+    --crit-fill: #d9634c;
+    --crit-soft: #3f221d;
+    --info: #7fb8dc;
+    --info-soft: #1b3241;
+    --chart-1: #5fc3a8;
+    --chart-2: #e0b45a;
+    --chart-3: #7fb8dc;
+    --chart-4: #b79ad0;
+    --chart-5: #e08a6c;
+    --chart-grid: #233029;
+    --chart-you: #e8f0ed;
+    --shadow-c1: rgba(0, 0, 0, 0.4);
+    --shadow-c2: rgba(0, 0, 0, 0.5);
+  }
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111917;
+  --surface: #1b2422;
+  --surface-2: #22302c;
+  --ink: #e8f0ed;
+  --muted: #9dafa9;
+  --faint: #5f726c;
+  --line: #2c3a36;
+  --line-strong: #3c4f49;
+  --accent: #5fc3a8;
+  --accent-hover: #7ad3bb;
+  --accent-soft: #1e3b34;
+  --on-accent: #0f1f1b;
+  --good: #62c48f;
+  --good-fill: #4fb27c;
+  --good-soft: #1c3a2b;
+  --attn: #e8b34c;
+  --attn-fill: #d9a23c;
+  --attn-soft: #3a2e14;
+  --crit: #ef8672;
+  --crit-fill: #d9634c;
+  --crit-soft: #3f221d;
+  --info: #7fb8dc;
+  --info-soft: #1b3241;
+  --chart-1: #5fc3a8;
+  --chart-2: #e0b45a;
+  --chart-3: #7fb8dc;
+  --chart-4: #b79ad0;
+  --chart-5: #e08a6c;
+  --chart-grid: #233029;
+  --chart-you: #e8f0ed;
+  --shadow-c1: rgba(0, 0, 0, 0.4);
+  --shadow-c2: rgba(0, 0, 0, 0.5);
 }
 
-h1, h2, h3 {
-  font-family: var(--font-display);
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  margin: 0;
+/* ---- C. utilities over the tokens ---- */
+@theme inline {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-on: var(--on-accent);
+
+  --color-good: var(--good);
+  --color-good-fill: var(--good-fill);
+  --color-good-soft: var(--good-soft);
+  --color-attn: var(--attn);
+  --color-attn-fill: var(--attn-fill);
+  --color-attn-soft: var(--attn-soft);
+  --color-crit: var(--crit);
+  --color-crit-fill: var(--crit-fill);
+  --color-crit-soft: var(--crit-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-you: var(--chart-you);
+
+  --shadow-*: initial;
+  --shadow-1: 0 1px 2px var(--shadow-c1);
+  --shadow-2: 0 6px 20px var(--shadow-c2);
+
+  /* LEGACY: the pre-Companion names, kept so screens not yet restyled still
+     compile. Emptied by the sweep (SB.5) together with the style-guard allowlist. */
+  --color-paper: var(--bg);
+  --color-paper-2: var(--surface-2);
+  --color-ink-2: var(--muted);
+  --color-accent-2: var(--accent-hover);
+  --color-warn: var(--attn);
+  --color-bad: var(--crit);
 }
 
-a {
-  color: var(--color-accent);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
+/* ---- Base ---- */
+@layer base {
+  html {
+    height: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-md);
+    line-height: var(--leading-body);
+    font-variant-numeric: tabular-nums; /* every figure lines up by default */
+  }
+  h1,
+  h2,
+  h3,
+  .display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: var(--leading-tight);
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 {
+    font-size: var(--text-3xl);
+  }
+  h2 {
+    font-size: var(--text-xl);
+  }
+  h3 {
+    font-size: var(--text-md);
+  }
+  a {
+    color: var(--accent);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--r-sm, 8px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
 }
 
-button, input, select {
-  font: inherit;
-}
-
+/* LEGACY helpers, removed by the sweep (SB.5). */
 .num {
   font-variant-numeric: tabular-nums;
 }
-
 .rule {
-  border-top: 1px solid var(--color-line);
+  border-top: 1px solid var(--line);
 }
-
-/* Every table column keeps a gutter to its right. A right-aligned figure
-   followed by a left-aligned word otherwise touch ("2.00manual"). Unlayered on
-   purpose: it outranks the pr-* utilities scattered over the cells, so a header
-   and the figures under it always share one right edge. The chart legend is uPlot's. */
+/* Every table column keeps a gutter to its right. Unlayered on purpose: it
+   outranks the pr-* utilities scattered over the cells. The chart legend is uPlot's. */
 table:not(.u-legend) :is(th, td):not(:last-child) {
   padding-right: 1rem;
 }
-
-/* A footnote-style popover: the Explain reads like a ledger note. */
 .explain {
-  border: 1px solid var(--color-line);
-  background: var(--color-paper-2);
-  padding: var(--spacing-3) var(--spacing-4);
+  border: 1px solid var(--line);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
   font-size: var(--text-sm);
   max-width: 28rem;
 }

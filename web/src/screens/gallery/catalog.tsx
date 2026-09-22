@@ -1,0 +1,438 @@
+// The component catalog behind the Gallery (docs/style.md §7): every entry of
+// the bible rendered with fixed data, so a visual check is one page in two
+// themes at three widths. Keep the section titles: Playwright reads them.
+
+import { useState, type ReactNode } from "react";
+import type { EventRef } from "../../api/client";
+import { Button, ButtonRow } from "../../components/Button";
+import { Card, Stack, Tile, Two } from "../../components/Card";
+import { Countdown } from "../../components/Countdown";
+import { DiffSinceLastSeen } from "../../components/DiffSinceLastSeen";
+import { Explain } from "../../components/Explain";
+import { FactList } from "../../components/FactList";
+import { Feed, RuleList } from "../../components/Feed";
+import { Field, Input, Select } from "../../components/Field";
+import { ICON_NAMES, Icon } from "../../components/Icon";
+import { Ledger, TD, TD_NUM, TH, TH_NUM } from "../../components/Ledger";
+import { Meter } from "../../components/Meter";
+import { More } from "../../components/More";
+import { NeedCard, Needs } from "../../components/NeedCard";
+import { Num } from "../../components/Num";
+import { OrderBook } from "../../components/OrderBook";
+import { FooterStrip, PageHeader } from "../../components/PageHeader";
+import { Pill } from "../../components/Pill";
+import { Sheet, SheetRow } from "../../components/Sheet";
+import { TimeSeries } from "../../components/TimeSeries";
+import { toast } from "../../components/Toast";
+import { Verdict } from "../../components/Verdict";
+import { WorldClock } from "../../components/WorldClock";
+
+const explain = {
+  rule: "payroll_hourly",
+  inputs: [
+    ["tick_hours", 192],
+    ["wage", 7.8],
+  ] as [string, unknown][],
+  formula: "wage x tick_hours / 24",
+  result: 62.4,
+};
+
+const ticks = Array.from({ length: 72 }, (_, i) => i);
+const series = [
+  { label: "Food", values: ticks.map((i) => 1.3 + 0.05 * Math.sin(i / 4)) },
+  { label: "Wares", values: ticks.map((i) => 3.6 + 0.2 * Math.cos(i / 7)) },
+  { label: "you", values: ticks.map((i) => 2.2 + 0.1 * Math.sin(i / 9)), you: true },
+];
+
+const events: EventRef[] = [
+  { seq: 3448, tick: 23, cycle: 0, epoch: 0, kind: "Paid", payload: { Paid: { amount: 6240, explain } } },
+  { seq: 3449, tick: 23, cycle: 0, epoch: 0, kind: "RentPaid", payload: { RentPaid: { amount: 800 } } },
+  {
+    seq: 3540,
+    tick: 25,
+    cycle: 1,
+    epoch: 1,
+    kind: "Trade",
+    payload: { Trade: { instrument: { good: "food" }, buyer: { citizen: 41 }, qty: 2, price: 131 } },
+  },
+];
+
+const TOKENS: { name: string; use: string }[] = [
+  { name: "bg", use: "page ground" },
+  { name: "surface", use: "cards, bars, inputs" },
+  { name: "surface-2", use: "insets, stripes, disabled" },
+  { name: "ink", use: "primary text" },
+  { name: "muted", use: "labels, secondary text" },
+  { name: "faint", use: "placeholders (decorative)" },
+  { name: "line", use: "borders, tracks" },
+  { name: "line-strong", use: "hover, focus borders" },
+  { name: "accent", use: "interactive" },
+  { name: "accent-soft", use: "selected nav, notes" },
+  { name: "good", use: "fine" },
+  { name: "good-fill", use: "bars" },
+  { name: "good-soft", use: "pill fill" },
+  { name: "attn", use: "act soon" },
+  { name: "attn-fill", use: "bars" },
+  { name: "attn-soft", use: "pill fill" },
+  { name: "crit", use: "act now" },
+  { name: "crit-fill", use: "bars" },
+  { name: "crit-soft", use: "pill fill" },
+  { name: "info", use: "notices" },
+  { name: "info-soft", use: "notice fill" },
+];
+
+export type Section = { id: string; title: string; spec?: string; node: ReactNode };
+
+function Swatch({ name, use }: { name: string; use: string }) {
+  return (
+    <div className="border-line bg-surface overflow-hidden rounded-md border">
+      <i className="block h-12" style={{ background: `var(--${name})` }} />
+      <span className="block px-2.5 py-1.5 text-xs">
+        <b className="text-ink block font-mono font-normal">--{name}</b>
+        <span className="text-muted">{use}</span>
+      </span>
+    </div>
+  );
+}
+
+function SheetDemo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <ButtonRow className="mt-0">
+        <Button onClick={() => setOpen(true)}>Open a sheet</Button>
+        <Button variant="quiet" onClick={() => toast("Plan kept for Day 1.")}>
+          Toast
+        </Button>
+        <Button variant="quiet" onClick={() => toast("You asked for 9 hours; your budget today is 8.", "crit")}>
+          Toast, rejected
+        </Button>
+      </ButtonRow>
+      <Sheet open={open} onClose={() => setOpen(false)} title="More" testId="gallery-sheet">
+        {(["plan", "org", "contract", "talk", "archive", "person"] as const).map((n) => (
+          <SheetRow key={n}>
+            <Icon name={n} className="text-muted" />
+            <span className="capitalize">{n}</span>
+          </SheetRow>
+        ))}
+        <ButtonRow>
+          <Button variant="primary" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </ButtonRow>
+      </Sheet>
+    </>
+  );
+}
+
+export const SECTIONS: Section[] = [
+  {
+    id: "num",
+    title: "Num with Explain",
+    spec: "§7.9 — a value with the engine's rule behind a `?`. Inputs as a fact list, the formula beneath.",
+    node: (
+      <p className="m-0">
+        Last payslip: <Num value="62.40" unit="cr" explain={explain} />
+      </p>
+    ),
+  },
+  {
+    id: "tokens",
+    title: "Tokens",
+    spec: "§4.1 — every colour on this page is one of these. Text tokens for text, -fill for bars, -soft behind text of the same family.",
+    node: (
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+        {TOKENS.map((t) => (
+          <Swatch key={t.name} {...t} />
+        ))}
+      </div>
+    ),
+  },
+  {
+    id: "type",
+    title: "Type",
+    spec: "§4.3 — Outfit for display, Atkinson Hyperlegible for body. Body is 16px and never smaller on phones.",
+    node: (
+      <div className="grid gap-3">
+        {(
+          [
+            ["3xl · page title", "font-display text-3xl font-bold"],
+            ["2xl · big figure", "font-display text-2xl font-bold"],
+            ["xl · card title", "font-display text-xl font-bold"],
+            ["lg · verdict", "text-lg"],
+            ["md · body", "text-md"],
+            ["sm · labels", "text-sm"],
+            ["xs · caps", "text-xs font-bold tracking-caps uppercase text-muted"],
+          ] as const
+        ).map(([k, cls]) => (
+          <div key={k} className="border-line grid grid-cols-[130px_1fr] items-baseline gap-4 border-b pb-2 max-sm:grid-cols-1">
+            <small className="text-muted font-mono text-xs">{k}</small>
+            <span className={cls}>You're well fed and working today.</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    id: "icons",
+    title: "Icons",
+    spec: "§6 — line icons, 20px, 2px stroke, currentColor. One per concept; always beside a label.",
+    node: (
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-3">
+        {ICON_NAMES.map((n) => (
+          <div key={n} className="border-line bg-surface text-muted grid justify-items-center gap-1.5 rounded-md border px-2 py-3 text-xs">
+            <Icon name={n} size={24} className="text-ink" />
+            {n}
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    id: "card",
+    title: "Card, Verdict, NeedCard",
+    spec: "§7.4–7.6 — the first card on Home: the Verdict, then three need tiles. Bars and status lines follow the engine's thresholds.",
+    node: (
+      <Stack>
+        <PageHeader
+          title="Good morning, chaps."
+          meta={
+            <>
+              <Countdown at={new Date(Date.now() + 7_000).toISOString()} label="next hour" />
+              <Countdown at={new Date(Date.now() + 180_000).toISOString()} label="payday" />
+            </>
+          }
+        />
+        <Card title="Right now">
+          <Verdict
+            parts={[
+              "You're ",
+              { text: "well fed", tone: "good" },
+              " and ",
+              { text: "working today", tone: "good" },
+              ", but you ",
+              { text: "don't have a place to live", tone: "attn" },
+              " yet.",
+            ]}
+          />
+          <Needs>
+            <NeedCard label="Food" icon="food" value={100} status="Full. You eat 1 food every hour from your pantry." note="Food is your survival meter. It drops about 4 an hour and refills from your pantry; under 20 for a day is hardship." />
+            <NeedCard label="Shelter" icon="home" value={94} tone="attn" status="Falling 2 an hour — you have no dwelling." note="Shelter only drops while you're unhoused. Rent or buy a dwelling on the Contracts screen and it climbs back." />
+            <NeedCard label="Comfort" icon="spark" value={14} status="Low. Wares raise it; you have none in the pantry." note="Comfort is raised by using wares. It does not stop you working, but it counts toward wellbeing." />
+          </Needs>
+        </Card>
+      </Stack>
+    ),
+  },
+  {
+    id: "facts",
+    title: "FactList, Pill, Explain, More",
+    spec: "§7.7–7.10 — the layer-3 workhorse, status chips, the `?` on a term, and a labelled disclosure for layer 4.",
+    node: (
+      <Two>
+        <Card title="Facts">
+          <FactList
+            items={[
+              { label: "Balance", value: "967.25 cr" },
+              { label: "Pantry", value: "22 food", gloss: "about 22 hours" },
+              { label: "Dwelling", value: <Pill tone="attn">none</Pill> },
+              { label: "Work", value: "Legacy Farm No. 1 · 8 h", action: <a href="#facts">adjust</a> },
+            ]}
+          />
+          <More summary="More about today's work">
+            <FactList items={[{ label: "Hour budget", value: "8 h" }, { label: "Effort", value: "×1.0" }, { label: "Output", value: "×0.70", gloss: "unhoused" }]} />
+          </More>
+        </Card>
+        <Card title="Pills and Explain">
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone="good">fed</Pill>
+            <Pill tone="attn">no dwelling</Pill>
+            <Pill tone="crit">in hardship</Pill>
+            <Pill tone="info">open</Pill>
+            <Pill>you</Pill>
+          </div>
+          <p className="mt-4 mb-0">
+            <Explain note="Shelter only drops while you're unhoused. Rent or buy a dwelling on the Contracts screen and it climbs back. Being unhoused also cuts your work output by 30 %.">
+              Shelter
+            </Explain>{" "}
+            is one of your three needs.
+          </p>
+        </Card>
+      </Two>
+    ),
+  },
+  {
+    id: "actions",
+    title: "Buttons and inputs",
+    spec: "§7.11, §7.18 — verb first, one primary per card, full width below sm. A disabled button says why.",
+    node: (
+      <Card title="Set my hours">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Hours today" unit="h" hint="Your budget today is 8.">
+            <Input type="number" defaultValue={8} min={0} max={8} />
+          </Field>
+          <Field label="Effort" error="You asked for 9 hours; your budget today is 8. — Set 8 or fewer.">
+            <Select defaultValue="normal">
+              <option value="light">light</option>
+              <option value="normal">normal</option>
+              <option value="hard">hard</option>
+            </Select>
+          </Field>
+        </div>
+        <ButtonRow>
+          <Button variant="primary">Set my hours</Button>
+          <Button>Edit plan</Button>
+          <Button variant="danger">Terminate contract</Button>
+          <Button variant="quiet">Cancel</Button>
+        </ButtonRow>
+        <ButtonRow>
+          <Button variant="primary" disabledReason="Costs 200.00 cr — you have 162.01.">
+            Found Iron &amp; Sons
+          </Button>
+        </ButtonRow>
+      </Card>
+    ),
+  },
+  {
+    id: "lists",
+    title: "RuleList, Feed, Ledger",
+    spec: "§7.12–7.14 — the plan as a checklist, the Chronicle with hot items, and a table with caps headers and 44px rows.",
+    node: (
+      <Stack>
+        <Two>
+          <Card title="Your plan" icon="plan" subtitle="This runs every hour, even while you're gone.">
+            <RuleList
+              rules={[
+                { key: "food", node: <>Keep <b>Food</b> at least <b>24</b> in the pantry</> },
+                { key: "cash", node: <>Keep <b>0.00 cr</b> in hand; spend the rest</> },
+                { key: "rent", node: <>Pay rent on <b>Dwelling No. 17</b> every day</>, blocked: "no dwelling to pay for" },
+              ]}
+            />
+            <ButtonRow>
+              <Button variant="primary">Keep my plan</Button>
+              <Button>Edit plan</Button>
+            </ButtonRow>
+          </Card>
+          <Card title="The Chronicle" icon="page" subtitle="What's happening in Freeport">
+            <Feed
+              items={[
+                { key: 1, hot: true, node: "1 went hungry this cycle." },
+                { key: 2, node: "Epoch 1 opens. Everything is for sale again." },
+                { key: 3, node: "chaps arrives with 1000.00 credits and nothing else." },
+              ]}
+            />
+          </Card>
+        </Two>
+        <Card title="Ledger">
+          <Ledger
+            rows={[
+              { key: "1", epoch: 1, when: "Day 1, 11 PM", what: "Payslip, Iron & Sons", cents: 6240, explain },
+              { key: "2", epoch: 1, when: "Day 1, 11 PM", what: "Rent, Dwelling #17", cents: -800 },
+              { key: "3", epoch: 0, when: "Day 42, 3 AM", what: "Bought 2 food", goods: "2 food" },
+            ]}
+          />
+          <More summary="Card-per-row on phones">
+            <Tile>
+              <div className="flex justify-between gap-2 font-bold">
+                Legacy Farm No. 1 <Pill>you</Pill>
+              </div>
+              <dl className="mt-1.5 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
+                <dt className="text-muted">pay</dt>
+                <dd className="m-0 text-right">8.00 cr/h</dd>
+                <dt className="text-muted">hours</dt>
+                <dd className="m-0 text-right">8 h</dd>
+              </dl>
+            </Tile>
+          </More>
+          <table className="mt-4 w-full border-collapse text-[15px]">
+            <thead>
+              <tr>
+                <th className={TH}>Position</th>
+                <th className={TH_NUM}>Pay</th>
+                <th className={TH_NUM}>Hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="hover:bg-surface-2">
+                <td className={TD}>
+                  Legacy Farm No. 1 <Pill>you</Pill>
+                </td>
+                <td className={TD_NUM}>8.00 cr/h</td>
+                <td className={TD_NUM}>8 h</td>
+              </tr>
+            </tbody>
+          </table>
+        </Card>
+      </Stack>
+    ),
+  },
+  {
+    id: "market",
+    title: "Order book, TimeSeries, Countdown, Meter",
+    spec: "§7.15–7.17 — bids in the good fill, asks in the crit fill, labelled. Your own series is ink, 2px. Countdowns never shift the layout.",
+    node: (
+      <Two>
+        <Card title="food" aside={<Pill>last 1.31</Pill>} subtitle="spread 1.31 / — · 30 traded last hour">
+          <OrderBook
+            bids={[
+              { price: 130, qty: 40 },
+              { price: 128, qty: 25 },
+              { price: 125, qty: 60 },
+            ]}
+            asks={[
+              { price: 133, qty: 30 },
+              { price: 136, qty: 50 },
+              { price: 140, qty: 20 },
+            ]}
+          />
+          <div className="mt-4 grid gap-2">
+            <Meter label="Food" value={76} hint="Each hour you eat one Food from your pantry if there is any. Buy Food on the Market screen." />
+            <Meter label="Shelter" value={40} />
+            <Meter label="Comfort" value={14} />
+          </div>
+        </Card>
+        <Card title="food · last 3 days" subtitle="price, cr">
+          <TimeSeries ticks={ticks} series={series} />
+          <p className="mt-3 mb-0 flex flex-wrap gap-4">
+            <Countdown at={new Date(Date.now() + 41 * 60_000).toISOString()} label="next hour" />
+            <WorldClock clock={{ epoch: 1, cycle: 12, tick: 17, ticks_per_cycle: 24 }} nextTickAt={new Date(Date.now() + 41 * 60_000).toISOString()} tickSeconds={3600} />
+          </p>
+          <p className="mt-2 mb-0">
+            <WorldClock clock={{ epoch: 1, cycle: 12, tick: 17, ticks_per_cycle: 24 }} nextTickAt={null} tickSeconds={3600} />
+          </p>
+        </Card>
+      </Two>
+    ),
+  },
+  {
+    id: "diff",
+    title: "Diff since last seen",
+    spec: "§7.13 — the same Feed, narrated one line per event.",
+    node: (
+      <Card title="While you were away" icon="clock" subtitle="since Day 1, 5 AM">
+        <DiffSinceLastSeen events={events} t={(k) => ({ compensation: "Payslip", job: "Position" })[k] ?? k} me={41} />
+      </Card>
+    ),
+  },
+  {
+    id: "overlays",
+    title: "Sheet, Toast, Empty state",
+    spec: "§7.19–7.20 — bottom sheet on phones, centred dialog from md. One toast at a time. Never a blank card.",
+    node: (
+      <Two>
+        <Card title="Overlays">
+          <SheetDemo />
+        </Card>
+        <Card title="Payslip" icon="coin">
+          <p className="text-muted m-0">No payslip yet. The first comes at the end of the day.</p>
+          <FooterStrip>
+            <span>41 citizens</span>
+            <span>1 people</span>
+            <span>0 without work</span>
+            <span>price index 1.00</span>
+          </FooterStrip>
+        </Card>
+      </Two>
+    ),
+  },
+];

@@ -1,0 +1,91 @@
+/* Companion components (docs/style.md §7): only what a utility class cannot
+   say — pseudo-elements and the safe-area inset. Everything else is Tailwind
+   utilities over the tokens, in the component files. */
+
+@layer components {
+  /* The `?` (§7.9): an 18px glyph with a 44px hit area around it. */
+  .why {
+    position: relative;
+  }
+  .why::after {
+    content: "";
+    position: absolute;
+    inset: -13px;
+  }
+
+  /* The `More` disclosure (§7.10): a small triangle that turns when open. */
+  details.more > summary {
+    list-style: none;
+  }
+  details.more > summary::-webkit-details-marker {
+    display: none;
+  }
+  details.more > summary::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border: 5px solid transparent;
+    border-left-color: var(--accent);
+    margin-left: 3px;
+    transition: transform 120ms var(--ease-out);
+  }
+  details.more[open] > summary::before {
+    transform: rotate(90deg);
+  }
+
+  /* The Feed (§7.13): a 6px dot per item; hot items get the attention fill. */
+  .feed > li {
+    position: relative;
+    padding-left: 14px;
+  }
+  .feed > li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--line);
+  }
+  .feed > li.hot::before {
+    background: var(--attn-fill);
+  }
+
+  /* The phone TabBar (§3) and the page under it clear the home indicator. */
+  .tabbar {
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .page {
+    padding-bottom: calc(var(--spacing-tabbar) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+  @media (min-width: 720px) {
+    .page {
+      padding-bottom: 48px;
+    }
+  }
+
+  /* The bottom Sheet (§7.20) slides up on phones; a centred dialog from md. */
+  dialog.sheet {
+    margin: auto 0 0;
+    width: 100%;
+    max-width: none;
+    border: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-2);
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  dialog.sheet::backdrop {
+    background: rgba(0, 0, 0, 0.35);
+  }
+  @media (min-width: 720px) {
+    dialog.sheet {
+      margin: auto;
+      width: min(480px, calc(100% - 32px));
+      border-radius: var(--radius-lg);
+      padding: 16px 20px 20px;
+    }
+  }
+}

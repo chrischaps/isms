@@ -1,0 +1,137 @@
+/* Isms — Companion design tokens
+ * Source of truth for color, type, spacing, radius, elevation, motion.
+ * Consumed by Tailwind (tailwind.preset.js) and by any plain CSS.
+ * Light is defined on :root; dark is layered on top by OS preference
+ * or by an explicit data-theme attribute on <html>. Never use a raw hex
+ * in component code — reference a token.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Ground and ink ---- */
+  --bg:            #F2F7F4;   /* page ground, slight mint */
+  --surface:       #FFFFFF;   /* cards, bars, inputs */
+  --surface-2:     #EAF1ED;   /* insets, table stripes, disabled fills */
+  --ink:           #1B2726;   /* primary text */
+  --muted:         #5F706D;   /* secondary text, labels (≥4.5:1 on surface) */
+  --faint:         #9AABA6;   /* placeholders, tertiary marks (decorative only) */
+  --line:          #DCE6E1;   /* borders, dividers, track fills */
+  --line-strong:   #C3D2CB;   /* focused or hovered borders */
+
+  /* ---- Accent (interactive) ---- */
+  --accent:        #25705D;   /* links, primary buttons, selected nav */
+  --accent-hover:  #1D5C4C;
+  --accent-soft:   #DDF0E9;   /* selected-nav pill, explainer note fill */
+  --on-accent:     #FFFFFF;
+
+  /* ---- Semantic status (never used as accent) ---- */
+  --good:          #28714F;   /* "you're fine": full meter, positive verdict */
+  --good-fill:     #3E9A6C;   /* bar/track fill — stronger than text token */
+  --good-soft:     #DCF2E4;
+  --attn:          #8E600E;   /* "act soon": falling meter, missing dwelling */
+  --attn-fill:     #D9A23C;
+  --attn-soft:     #FBEFD5;
+  --crit:          #AE3F2A;   /* "act now": hardship, default, rejection */
+  --crit-fill:     #D9634C;
+  --crit-soft:     #F8DFDA;
+  --info:          #2C6A8F;   /* neutral notices, "learn more" */
+  --info-soft:     #DCEBF5;
+
+  /* ---- Charts (uPlot / SVG) — categorical, ordered ---- */
+  --chart-1: #25705D;  --chart-2: #C48A2A;  --chart-3: #2C6A8F;
+  --chart-4: #8C5BA5;  --chart-5: #B85C3E;  --chart-grid: #E6EEEA;
+  --chart-you: #1B2726;   /* the player's own series is always ink */
+
+  /* ---- Type ---- */
+  --font-display: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --font-body:    "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-mono:    ui-monospace, "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
+
+  --text-xs:   0.8125rem;  /* 13px  captions, footers */
+  --text-sm:   0.875rem;   /* 14px  labels, secondary rows */
+  --text-md:   1rem;       /* 16px  body — never smaller on phones */
+  --text-lg:   1.1875rem;  /* 19px  verdict sentence */
+  --text-xl:   1.375rem;   /* 22px  card titles (display) */
+  --text-2xl:  1.75rem;    /* 28px  big figures (display) */
+  --text-3xl:  2rem;       /* 32px  page title (display) */
+
+  --leading-tight: 1.15;
+  --leading-body:  1.5;
+  --tracking-caps: 0.06em;
+
+  /* ---- Space (4px base) ---- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+
+  /* ---- Shape ---- */
+  --r-sm: 8px;    /* inputs, pills' inner elements, notes */
+  --r-md: 12px;   /* need cards, buttons, list rows */
+  --r-lg: 16px;   /* cards */
+  --r-pill: 999px;
+
+  /* ---- Elevation (used sparingly: menus, sheets, toasts) ---- */
+  --shadow-1: 0 1px 2px rgba(27,39,38,.06);
+  --shadow-2: 0 6px 20px rgba(27,39,38,.12);
+
+  /* ---- Layout ---- */
+  --page-max: 820px;      /* single-column screens (Home, Work, Plan, Profile) */
+  --page-max-wide: 1080px;/* dense screens (Market, Org, Society) */
+  --gutter: 16px;         /* minimum side gutter at every width */
+  --touch: 44px;          /* minimum hit target on touch */
+  --tabbar-h: 56px;       /* phone bottom navigation */
+
+  /* ---- Motion ---- */
+  --dur-fast: 120ms; --dur-base: 180ms; --ease: cubic-bezier(.2,.7,.2,1);
+}
+
+/* Dark: OS preference, unless the user explicitly chose light */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111917; --surface: #1B2422; --surface-2: #22302C;
+    --ink: #E8F0ED; --muted: #9DAFA9; --faint: #5F726C;
+    --line: #2C3A36; --line-strong: #3C4F49;
+    --accent: #5FC3A8; --accent-hover: #7AD3BB; --accent-soft: #1E3B34; --on-accent: #0F1F1B;
+    --good: #62C48F; --good-fill: #4FB27C; --good-soft: #1C3A2B;
+    --attn: #E8B34C; --attn-fill: #D9A23C; --attn-soft: #3A2E14;
+    --crit: #EF8672; --crit-fill: #D9634C; --crit-soft: #3F221D;
+    --info: #7FB8DC; --info-soft: #1B3241;
+    --chart-1: #5FC3A8; --chart-2: #E0B45A; --chart-3: #7FB8DC;
+    --chart-4: #B79AD0; --chart-5: #E08A6C; --chart-grid: #233029; --chart-you: #E8F0ED;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 6px 20px rgba(0,0,0,.5);
+  }
+}
+/* Dark: explicit choice wins over OS */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111917; --surface: #1B2422; --surface-2: #22302C;
+  --ink: #E8F0ED; --muted: #9DAFA9; --faint: #5F726C;
+  --line: #2C3A36; --line-strong: #3C4F49;
+  --accent: #5FC3A8; --accent-hover: #7AD3BB; --accent-soft: #1E3B34; --on-accent: #0F1F1B;
+  --good: #62C48F; --good-fill: #4FB27C; --good-soft: #1C3A2B;
+  --attn: #E8B34C; --attn-fill: #D9A23C; --attn-soft: #3A2E14;
+  --crit: #EF8672; --crit-fill: #D9634C; --crit-soft: #3F221D;
+  --info: #7FB8DC; --info-soft: #1B3241;
+  --chart-1: #5FC3A8; --chart-2: #E0B45A; --chart-3: #7FB8DC;
+  --chart-4: #B79AD0; --chart-5: #E08A6C; --chart-grid: #233029; --chart-you: #E8F0ED;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 6px 20px rgba(0,0,0,.5);
+}
+
+/* ---- Base ---- */
+*, *::before, *::after { box-sizing: border-box; }
+html { height: 100%; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100%;
+  background: var(--bg); color: var(--ink);
+  font: var(--text-md)/var(--leading-body) var(--font-body);
+  font-variant-numeric: tabular-nums;   /* every figure lines up by default */
+}
+h1, h2, h3, .display { font-family: var(--font-display); font-weight: 700; line-height: var(--leading-tight); text-wrap: balance; margin: 0; }
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-md); }
+a { color: var(--accent); font-weight: 700; text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }

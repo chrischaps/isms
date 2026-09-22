@@ -601,13 +601,13 @@ Visibility rules are enforced server-side once, in a `Viewer` type: your own tru
 
 ## 11. Web client (`web/`)
 
-Vite + React 19 + TypeScript, TanStack Router and Query, a generated client from `/openapi.json` (`openapi-typescript` + `openapi-fetch`), Tailwind for layout, uPlot for time-series and a small hand-rolled SVG component for order-book depth. Fonts and tone follow the preset's copy; the default shell is deliberately plain — the vocabulary and the presence/absence of widgets do the work (GDD §15).
+Vite + React 19 + TypeScript, TanStack Router and Query, a generated client from `/openapi.json` (`openapi-typescript` + `openapi-fetch`), Tailwind for layout, uPlot for time-series and a small hand-rolled SVG component for order-book depth. Tone follows the preset's copy; the shell is neutral — the vocabulary and the presence/absence of widgets do the work (GDD §15). **How a screen looks and is arranged is `docs/style.md`, the Companion style bible (ADR-0013):** five layers (Verdict → Glance → Facts → Detail → Explain), phone-first, tokens only, the §7 component catalog, the §8 copy rules. Its §12 checklist is the done gate for any new screen.
 
 Structure the client around **capabilities and lexicon**, not around presets: `useCapabilities()` decides which nav items and widgets mount (`money ? <Balance/> : null`, `order_books ? <MarketNav/> : null`), and `useLexicon()` supplies every label (`t("compensation")` → "Payslip" / "Draw record"). A screen never checks the preset name. This is what lets Phase 2–4 add presets without new screens.
 
 Screens (Phase 1, Freeport): Onboarding (join, handle, Welcome Brief, first job, plan defaults) · Home/Situation · Work (labor allocation, effort, payslips with Explain) · Market (books, orders, prices, pantry rules) · Org (found, manage: prices, offers, machines, shares, dividends; job board) · Contracts (credit, lease, housing, transfers, notice board) · Society (stats, Chronicle, scoreboard, citizens) · Talk (Square, org channels, DMs) · Profile (biography, API keys, societies).
 
-Shared components: `Num` (renders a value with an Explain affordance when the payload has one), `Meter` (needs), `Ledger` (any list of money/goods movements), `OrderBook`, `TimeSeries`, `DiffSinceLastSeen` (what the plan did while you were away), `Countdown` (next tick / next cycle).
+Shared components: `Num` (renders a value with an Explain affordance when the payload has one), `Meter` (needs), `Ledger` (any list of money/goods movements), `OrderBook`, `TimeSeries`, `DiffSinceLastSeen` (what the plan did while you were away), `Countdown` (next tick / next cycle); and the bible's catalog (`Card`, `Verdict`, `NeedCard`, `FactList`, `Pill`, `Explain`, `More`, `Button`, `Field`, `Feed`, `RuleList`, `Sheet`, `Toast`, `TopBar`, `ScreenNav`, `TabBar`, `Icon`), each specified in `docs/style.md` §7.
 
 The WebSocket stream drives cache invalidation (TanStack Query keys keyed by tick) so screens update when a tick lands without polling; there is no client-side simulation.
 
@@ -1063,9 +1063,42 @@ Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; t
 - **Done gate.** `pnpm --dir agents test` with fixtures for the new tools; `make e2e-agents` green on both presets in CI; no accepted probe.
 - **Hand-off.** The Commune e2e transcript fixture; the governance paragraph feeds the exit run. Depends on S2.5 and S2.7. ∥ with S2.8/S2.9.
 
+#### SB.1 — The Companion foundation: tokens, fonts, theme, primitives, Gallery, guard *(web + docs; done 2026-09-22)*
+- **Goal.** The style bible's tokens and component catalog exist in `web/`, in both themes, checked by a guard, with nothing on any screen changed yet. ADR-0013; kickoff plan `docs/plans/style-refresh.md`.
+- **Read.** `docs/style.md` §1–§7, §12; `docs/style/reference.html`; `web/src/styles/tokens.css`; `web/src/components/*`; `Gallery.tsx`; `web/e2e/login.spec.ts`.
+- **Build.** `tokens.css` in Tailwind v4 form (ADR-0013 §4) with the legacy aliases; `components.css` for pseudo-elements; `@fontsource` Outfit and Atkinson Hyperlegible; the pre-paint theme script, `lib/theme.ts`, `ThemeControl` on Profile; `Card`/`Tile`/`Stack`/`Two`, `PageHeader`/`FooterStrip`, `Verdict`, `NeedCard`/`Needs`, `FactList`, `Pill`, `Explain`/`Why`/`Note`, `More`, `Button`/`ButtonRow`, `Field`/`Input`/`Select`, `Feed`/`RuleList`, `Sheet`, `Toast`, `Icon`; `Meter` gains the §4.2 tones; `Num`, `Ledger`, `Countdown`, `WorldClock`, `OrderBook`, `TimeSeries` restyled (the chart reads tokens at mount and on theme change); the Gallery becomes the catalog at three widths, both themes; `scripts/style-guard.mjs` in `pnpm check`; the bible moved to `docs/style.md` + `docs/style/`.
+- **Out of scope.** Any screen's arrangement; the shell; Verdict logic.
+- **Done gate.** `ui.test.tsx` and `theme.test.ts`; `pnpm check` green with the guard; all eleven Playwright specs green; the Gallery reviewed at 390/720/1100 in light and dark.
+- **Hand-off.** The kit SB.2–SB.5 build screens from; the guard's allowlist names the files still to restyle.
+
+#### SB.2 — Shell and Home *(web)*
+- **Goal.** The society reads as the bible's Home on a phone and a desktop: TopBar, ScreenNav / TabBar with a More sheet, the Verdict, three NeedCards, facts, the plan as a checklist, the Chronicle feed, the footer strip.
+- **Read.** `docs/style.md` §3, §5, §7.1–7.3, §8.2, §10 Home; `reference.html` "Assembled"; `Society.tsx`, `Home.tsx`, `lib/needs.ts`; `web/e2e/{onboarding,society,commune,login}.spec.ts`.
+- **Build.** `TopBar`, `ScreenNav`, `TabBar` (items from `Society.tsx`, five slots + More holding the rest, account links and `ThemeControl`); `lib/verdict.ts` with `homeVerdict` and tests; Home per §10 with every datum kept and every testid kept; hardship and epoch notices as pills and status lines.
+- **Done gate.** The four specs green; `homeVerdict` tests; Home reviewed at 390 in both themes.
+
+#### SB.3 — Work, Standing plan, Market *(web)*
+- **Goal.** The Freeport core loop's three screens per §10, each with a Verdict.
+- **Read.** `docs/style.md` §7.11–7.18, §10; `Work.tsx`, `Plan.tsx`, `Market.tsx`, `Provenance.tsx`; `web/e2e/{work-plan,market}.spec.ts`.
+- **Build.** Work: hours vs budget as a big figure with a bar, effort as a segmented control with its cost line, positions card-per-row below md, the engine's rejection verbatim in a `Field` error, "How output is worked out" in `More`. Plan: `RuleList`, one rule per card on phones, vote default only where governance ≠ none. Market: instrument chips on phones, book/tape/chart as tabs in one card with their own horizontal scroll, the "you" pill, `Provenance` as a card.
+- **Done gate.** The two specs green; three verdict functions tested.
+
+#### SB.4 — Organizations, Org, Contracts, Society, Archive, Talk, Event *(web)*
+- **Goal.** The dense screens on `--page-max-wide`, two columns from md, one below; the two big rewrites (`Org.tsx`, `Contracts.tsx`).
+- **Read.** `docs/style.md` §7.14, §10; the seven screens; `web/e2e/{orgs,contracts,society}.spec.ts`.
+- **Build.** Job board card-per-row with full-width "Take it"; found-a-firm as a primary action card with cost and balance-after; danger buttons for founding and termination; Contracts with the Shelter NeedCard as its glance and forms in `More`; `Stat`/`StatTiles` moved to `components/` as big figures with glosses; the Chronicle `Feed` with day navigation; the Standing table card-per-row with your row pinned; Talk's channel picker as a `Sheet` on phones; Event as a `FactList` of Explains.
+- **Done gate.** The three specs green; verdicts tested.
+
+#### SB.5 — The Commune and account screens; the legacy sweep *(web)*
+- **Goal.** Every remaining screen on the kit; no pre-Companion name left.
+- **Read.** `docs/style.md` §10; `Assembly.tsx`, `roles/*`, `Store.tsx`, `screens/Ledger.tsx`, `Profile.tsx`, `Societies.tsx`, `Public.tsx`, `Login.tsx`, `Admin.tsx`, `Onboarding.tsx`, `DiffSinceLastSeen.tsx`; `web/e2e/{assembly,commune,coordinator,admin,login}.spec.ts`.
+- **Build.** Quorum and stock as `Meter` bars with status lines; ballots via `Field`; `DiffSinceLastSeen` on `Feed`; Onboarding as one card per step with the Welcome Brief at `--text-lg`; API keys in `More`. Then the sweep: empty the `LEGACY` alias block and the guard's allowlist, delete `.num`/`.rule`/`.explain` and the unlayered table rule.
+- **Done gate.** The five specs green; `make check` green with an empty allowlist.
+- **Hand-off.** S2.11 does its money-less kit pass on the Companion kit.
+
 #### S2.11 — Second-preset visual pass and the Phase 2 exit run *(web)*
 - **Goal.** The shared component kit reads right in a society with no money, and the automated exit gate runs end to end on one sha.
-- **Read.** GDD §15, §17 item 4; TDD §11; `web/src/components/*`, `Gallery.tsx`, `SocietyScreen.tsx`, `Home.tsx`.
+- **Read.** GDD §15, §17 item 4; TDD §11; `docs/style.md`; `web/src/components/*`, `Gallery.tsx`, `SocietyScreen.tsx`, `Home.tsx`.
 - **Build.** Kit pass (`Num` without a currency, `Ledger` rows for draws and contributions, `Meter` as quorum and stock bars, the header without a balance where `!caps.money`, `DiffSinceLastSeen` for draws and default ballots); Gallery pages for the Commune states; every Commune-mounted screen reviewed against its Freeport sibling, with `[H]` marks in `docs/playtest/phase2-visual.md` for Phase 5. The exit run recorded in `docs/SESSIONS.md`.
 - **Out of scope.** New mechanics, engine changes, copy beyond a label.
 - **Done gate.** **Phase 2 exit** (below); web unit tests for the money-less variants; Playwright green in CI on both seeds.

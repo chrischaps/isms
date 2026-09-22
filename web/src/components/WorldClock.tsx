@@ -46,12 +46,12 @@ export function WorldClock({
   const progress = tickProgress(nextTickAt, tickSeconds, now);
   const held = progress === null;
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-testid="world-clock">
-      <span className="num">
-        {compact ? "" : `Epoch ${clock.epoch} · `}Day {clock.cycle} · <span className="text-ink">{formatWorldTime(clock, progress)}</span>
+    <span className="text-muted inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm tabular-nums" data-testid="world-clock" aria-live="off">
+      <span>
+        {compact ? "" : `Epoch ${clock.epoch} · `}Day {clock.cycle} · <b className="text-ink">{formatWorldTime(clock, progress)}</b>
       </span>
       <span
-        className="bg-paper-2 border-line relative inline-block h-1.5 w-24 overflow-hidden rounded-sm border align-middle"
+        className="bg-line relative inline-block h-1.5 w-[70px] overflow-hidden rounded-[3px] align-middle"
         role="progressbar"
         aria-label="This hour"
         aria-valuemin={0}
@@ -60,8 +60,14 @@ export function WorldClock({
       >
         <span className="bg-accent absolute inset-y-0 left-0" style={{ width: `${(progress ?? 0) * 100}%` }} />
       </span>
-      <span className="num text-muted">
-        {held ? (tickSeconds === 0 ? "as fast as it can" : "clock held") : `next hour ${formatUntil(nextTickAt, now)}`}
+      <span className="whitespace-nowrap">
+        {held ? (
+          tickSeconds === 0 ? "as fast as it can" : "clock held"
+        ) : (
+          <>
+            next hour <b className="text-ink inline-block min-w-[3ch]">{formatUntil(nextTickAt, now)}</b>
+          </>
+        )}
       </span>
     </span>
   );

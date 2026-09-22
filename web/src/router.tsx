@@ -12,6 +12,7 @@ import {
   createRouter,
   useParams,
 } from "@tanstack/react-router";
+import { Toaster } from "./components/Toast";
 import { Admin } from "./screens/Admin";
 import { PublicArchives, SocietyArchives } from "./screens/Archives";
 import { Assembly } from "./screens/Assembly";
@@ -38,10 +39,14 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5_000 } },
 });
 
+// The page wrapper (docs/style.md §5): one gutter at every width, the wide
+// page max until each screen picks its own, a container for the components'
+// stacking rules, and room at the bottom for the phone TabBar (SB.2).
 const rootRoute = createRootRoute({
   component: () => (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div className="page @container mx-auto max-w-page-wide px-gutter pt-4">
       <Outlet />
+      <Toaster />
     </div>
   ),
   notFoundComponent: () => (

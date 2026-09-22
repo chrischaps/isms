@@ -79,9 +79,11 @@ describe("Meter", () => {
     expect(screen.getByRole("meter", { name: "Food" }).getAttribute("aria-valuenow")).toBe("40");
   });
 
-  it("clamps and turns bad below the threshold", () => {
+  it("clamps and colours by the engine's thresholds", () => {
     render(<Meter label="Shelter" value={12} />);
-    expect(screen.getByTestId("meter-fill").className).toContain("bg-bad");
+    expect(screen.getByTestId("meter-fill").className).toContain("bg-crit-fill");
+    render(<Meter label="Food" value={35} />);
+    expect(screen.getAllByTestId("meter-fill")[1].className).toContain("bg-attn-fill");
     render(<Meter label="Comfort" value={140} />);
     expect(screen.getByRole("meter", { name: "Comfort" }).getAttribute("aria-valuenow")).toBe("100");
   });

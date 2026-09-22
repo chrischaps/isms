@@ -1,5 +1,7 @@
-// Order-book depth as a small hand-rolled SVG (TDD 11): bids to the left of
-// the spread, asks to the right, cumulative quantity as height.
+// Order-book depth as a small hand-rolled SVG (TDD 11; docs/style.md §7.15):
+// bids to the left of the spread, asks to the right, cumulative quantity as
+// height. Bids in the good fill, asks in the crit fill — the one place those
+// two are a convention rather than a state, so the caption names the sides.
 
 import { credits } from "../api/client";
 
@@ -32,12 +34,12 @@ export function OrderBook({ bids, asks, width = 320, height = 96 }: { bids: Leve
   const bestAsk = a[0]?.price;
   return (
     <figure className="m-0">
-      <svg width={width} height={height} role="img" aria-label="Order book depth" className="block">
-        <g className="fill-good">{bar(b, false)}</g>
-        <g className="fill-accent">{bar(a, true)}</g>
-        <line x1={half} x2={half} y1={0} y2={height} className="stroke-line" />
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Order book depth" className="block h-auto max-w-full">
+        <g className="fill-good-fill">{bar(b, false)}</g>
+        <g className="fill-crit-fill opacity-70">{bar(a, true)}</g>
+        <line x1={half} x2={half} y1={0} y2={height} className="stroke-line-strong" />
       </svg>
-      <figcaption className="num text-muted mt-1 flex justify-between text-xs">
+      <figcaption className="text-muted mt-1 flex justify-between text-xs tabular-nums">
         <span>bid {bestBid !== undefined ? credits(bestBid) : "—"}</span>
         <span>ask {bestAsk !== undefined ? credits(bestAsk) : "—"}</span>
       </figcaption>
