@@ -1071,7 +1071,7 @@ Engine cards (S2.1–S2.4) are PRs on `s2.<n>-<slug>` branches, one at a time; t
 - **Done gate.** `ui.test.tsx` and `theme.test.ts`; `pnpm check` green with the guard; all eleven Playwright specs green; the Gallery reviewed at 390/720/1100 in light and dark.
 - **Hand-off.** The kit SB.2–SB.5 build screens from; the guard's allowlist names the files still to restyle.
 
-#### SB.2 — Shell and Home *(web)*
+#### SB.2 — Shell and Home *(web; done 2026-09-22)*
 - **Goal.** The society reads as the bible's Home on a phone and a desktop: TopBar, ScreenNav / TabBar with a More sheet, the Verdict, three NeedCards, facts, the plan as a checklist, the Chronicle feed, the footer strip.
 - **Read.** `docs/style.md` §3, §5, §7.1–7.3, §8.2, §10 Home; `reference.html` "Assembled"; `Society.tsx`, `Home.tsx`, `lib/needs.ts`; `web/e2e/{onboarding,society,commune,login}.spec.ts`.
 - **Build.** `TopBar`, `ScreenNav`, `TabBar` (items from `Society.tsx`, five slots + More holding the rest, account links and `ThemeControl`); `lib/verdict.ts` with `homeVerdict` and tests; Home per §10 with every datum kept and every testid kept; hardship and epoch notices as pills and status lines.

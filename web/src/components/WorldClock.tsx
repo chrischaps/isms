@@ -2,7 +2,8 @@
 // is an hour when the cycle has 24 of them, and the minutes come from how
 // far through the current tick the wall clock is. A thin bar shows that
 // elapsed share; the countdown to the next tick sits beside it. When the
-// clock is held (no next tick due) the bar is empty and says so.
+// clock is held (no next tick due) the bar is empty and says so. `phone`
+// renders the bar and the countdown alone, for the compact top bar (§3).
 
 import { useEffect, useState } from "react";
 import { formatUntil } from "./Countdown";
@@ -32,11 +33,13 @@ export function WorldClock({
   nextTickAt,
   tickSeconds,
   compact = false,
+  phone = false,
 }: {
   clock: ClockLike;
   nextTickAt: string | null | undefined;
   tickSeconds: number;
   compact?: boolean;
+  phone?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -46,12 +49,14 @@ export function WorldClock({
   const progress = tickProgress(nextTickAt, tickSeconds, now);
   const held = progress === null;
   return (
-    <span className="text-muted inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm tabular-nums" data-testid="world-clock" aria-live="off">
-      <span>
-        {compact ? "" : `Epoch ${clock.epoch} · `}Day {clock.cycle} · <b className="text-ink">{formatWorldTime(clock, progress)}</b>
-      </span>
+    <span className="text-muted inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm tabular-nums" data-testid={phone ? "world-clock-phone" : "world-clock"} aria-live="off">
+      {phone ? null : (
+        <span>
+          {compact ? "" : `Epoch ${clock.epoch} · `}Day {clock.cycle} · <b className="text-ink">{formatWorldTime(clock, progress)}</b>
+        </span>
+      )}
       <span
-        className="bg-line relative inline-block h-1.5 w-[70px] overflow-hidden rounded-[3px] align-middle"
+        className={`bg-line relative inline-block h-1.5 ${phone ? "w-10" : "w-[70px]"} overflow-hidden rounded-[3px] align-middle`}
         role="progressbar"
         aria-label="This hour"
         aria-valuemin={0}
@@ -62,10 +67,11 @@ export function WorldClock({
       </span>
       <span className="whitespace-nowrap">
         {held ? (
-          tickSeconds === 0 ? "as fast as it can" : "clock held"
+          tickSeconds === 0 ? (phone ? "fast" : "as fast as it can") : phone ? "held" : "clock held"
         ) : (
           <>
-            next hour <b className="text-ink inline-block min-w-[3ch]">{formatUntil(nextTickAt, now)}</b>
+            {phone ? "" : "next hour "}
+            <b className="text-ink inline-block min-w-[3ch]">{formatUntil(nextTickAt, now)}</b>
           </>
         )}
       </span>

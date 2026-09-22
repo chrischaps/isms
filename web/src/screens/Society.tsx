@@ -1,48 +1,18 @@
-// The society shell (TDD 11, GDD 15): the nav is built from capabilities and
-// labelled from the lexicon, so the absence of a widget is a design
-// statement. The index route is Home (S1.8), which onboards a non-citizen.
-// Sections with a screen are links (Work and the plan since S1.9); the rest
-// are labels until their card lands.
+// The society shell (TDD 11, GDD 15; docs/style.md §3, §5): the nav is built
+// from capabilities and labelled from the lexicon, so the absence of a widget
+// is a design statement. A TopBar and a ScreenNav row from md; below md the
+// TopBar shrinks and the ScreenNav becomes the bottom TabBar with a More
+// sheet. The index route is Home (S1.8), which onboards a non-citizen.
 
 import { useEffect } from "react";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
 import { useOffices } from "../api/assembly";
 import { credits, setHumanizer } from "../api/client";
 import { useCapabilities, useHome, useLexicon, useMe, useSociety, useStream } from "../api/hooks";
+import { ScreenNav, TabBar, TopBar, type NavItem } from "../components/Nav";
 import { WorldClock } from "../components/WorldClock";
 import { useNames } from "../lib/names";
 import { Home } from "./Home";
-
-const SCREENS: Record<
-  string,
-  | "/s/$id"
-  | "/s/$id/work"
-  | "/s/$id/plan"
-  | "/s/$id/market"
-  | "/s/$id/orgs"
-  | "/s/$id/contracts"
-  | "/s/$id/store"
-  | "/s/$id/ledger"
-  | "/s/$id/assembly"
-  | "/s/$id/coordinator"
-  | "/s/$id/society"
-  | "/s/$id/talk"
-  | "/s/$id/archives"
-> = {
-  "": "/s/$id",
-  work: "/s/$id/work",
-  plan: "/s/$id/plan",
-  market: "/s/$id/market",
-  orgs: "/s/$id/orgs",
-  contracts: "/s/$id/contracts",
-  store: "/s/$id/store",
-  ledger: "/s/$id/ledger",
-  assembly: "/s/$id/assembly",
-  coordinator: "/s/$id/coordinator",
-  society: "/s/$id/society",
-  talk: "/s/$id/talk",
-  archives: "/s/$id/archives",
-};
 
 export function SocietyShell({ id }: { id: number }) {
   const society = useSociety(id);
@@ -63,82 +33,62 @@ export function SocietyShell({ id }: { id: number }) {
   const offices = useOffices(id, home.data !== undefined && caps.data !== undefined && caps.data.governance !== "none");
   const coordinates = offices.data?.offices.some((o) => o.kind === "coordinator" && o.i_hold) ?? false;
   useStream(id);
-  if (society.isPending || caps.isPending) return <p className="text-muted">Loading.</p>;
+  if (society.isPending || caps.isPending) return <p className="text-muted px-gutter pt-4">Loading.</p>;
   if (society.error || caps.error) {
-    return <p className="text-bad">Could not load: {String(society.error ?? caps.error)}</p>;
+    return <p className="text-crit px-gutter pt-4">Could not load: {String(society.error ?? caps.error)}</p>;
   }
   const s = society.data!;
   const c = caps.data!;
-  const nav: { to: string; label: string; built?: boolean }[] = [
-    { to: "", label: t("home_title"), built: true },
-    { to: "work", label: t("work_screen"), built: true },
-    { to: "plan", label: t("plan"), built: true },
-    ...(c.order_books ? [{ to: "market", label: t("store_screen"), built: true }] : []),
+  const params = { id: String(id) };
+  // The four `tab` items are this society's most-used screens (§3): Home, the
+  // hours, the place goods change hands, and the Society. The rest go to More.
+  const nav: NavItem[] = [
+    { key: "home", to: "/s/$id", params, label: t("home_title"), short: "Home", icon: "home", exact: true, tab: true },
+    { key: "work", to: "/s/$id/work", params, label: t("work_screen"), icon: "work", tab: true },
+    { key: "plan", to: "/s/$id/plan", params, label: t("plan"), icon: "plan" },
+    ...(c.order_books ? [{ key: "market", to: "/s/$id/market", params, label: t("store_screen"), icon: "market", tab: true } as NavItem] : []),
     // The Common Store and the Ledger of Contribution (S2.7): a moneyless
     // society's day is the shelves and the record, and only there do they exist.
-    ...(c.common_store ? [{ to: "store", label: t("store_screen"), built: true }] : []),
-    ...(c.labor === "norm" ? [{ to: "ledger", label: t("ledger_screen"), built: true }] : []),
-    ...(c.org_kinds.length > 0 ? [{ to: "orgs", label: "Organizations", built: true }] : []),
-    { to: "contracts", label: "Contracts", built: true },
+    ...(c.common_store ? [{ key: "store", to: "/s/$id/store", params, label: t("store_screen"), icon: "store", tab: true } as NavItem] : []),
+    ...(c.labor === "norm" ? [{ key: "ledger", to: "/s/$id/ledger", params, label: t("ledger_screen"), icon: "ledger" } as NavItem] : []),
+    ...(c.org_kinds.length > 0 ? [{ key: "orgs", to: "/s/$id/orgs", params, label: "Organizations", icon: "org" } as NavItem] : []),
+    { key: "contracts", to: "/s/$id/contracts", params, label: "Contracts", icon: "contract" },
     // The assembly exists only where the constitution has governance (S2.6): in
     // Freeport there is no nav item, which is the design statement.
-    ...(c.governance !== "none" ? [{ to: "assembly", label: t("assembly"), built: true }] : []),
+    ...(c.governance !== "none" ? [{ key: "assembly", to: "/s/$id/assembly", params, label: t("assembly"), icon: "assembly" } as NavItem] : []),
     // The office's workspace, for its holders alone (S2.8; TDD 4 roles/).
-    ...(coordinates ? [{ to: "coordinator", label: t("office"), built: true }] : []),
-    { to: "society", label: "Society", built: true },
-    { to: "talk", label: "Talk", built: true },
-    { to: "archives", label: "Archive", built: true },
+    ...(coordinates ? [{ key: "coordinator", to: "/s/$id/coordinator", params, label: t("office"), icon: "office" } as NavItem] : []),
+    { key: "society", to: "/s/$id/society", params, label: "Society", icon: "people", tab: true },
+    { key: "talk", to: "/s/$id/talk", params, label: "Talk", icon: "talk" },
+    { key: "archives", to: "/s/$id/archives", params, label: "Archive", icon: "archive" },
   ];
+  const account: NavItem[] = [
+    { key: "societies", to: "/", label: "Societies", icon: "globe" },
+    { key: "profile", to: "/profile", label: "Profile", icon: "person" },
+    ...(me.data?.account.operator ? [{ key: "admin", to: "/admin", label: "Operator", icon: "gear" } as NavItem] : []),
+  ];
+  const balance =
+    c.money && home.data ? (
+      <span className="text-ink" data-testid="header-balance">
+        <span className="text-muted hidden sm:inline">{t("balance")} </span>
+        <b>{credits(home.data.household.balance)} cr</b>
+      </span>
+    ) : null;
   return (
     <div>
-      <header className="rule flex flex-wrap items-baseline justify-between gap-2 pb-3">
-        <div className="flex items-baseline gap-3">
-          <Link to="/" className="text-muted text-sm">
-            Societies
-          </Link>
-          <Link to="/profile" className="text-muted text-sm">
-            Profile
-          </Link>
-          {me.data?.account.operator ? (
-            <Link to="/admin" className="text-warn text-sm">
-              Operator
-            </Link>
-          ) : null}
-          <h1 className="text-2xl">{s.display}</h1>
-          <span className="text-muted text-xs uppercase tracking-wide">{s.preset}</span>
-        </div>
-        <div className="num text-muted text-sm">
-          {c.money && home.data ? (
-            <span className="text-ink" data-testid="header-balance">
-              {t("balance")} {credits(home.data.household.balance)} cr ·{" "}
-            </span>
-          ) : null}
-          <WorldClock clock={s.clock} nextTickAt={s.next_tick_at} tickSeconds={s.tick_seconds} />
-        </div>
-      </header>
-      <nav className="mt-3 flex flex-wrap gap-4 text-sm" aria-label="Sections">
-        {nav.map((n) =>
-          n.built ? (
-            <Link
-              key={n.to}
-              to={SCREENS[n.to] ?? "/s/$id"}
-              params={{ id: String(id) }}
-              className="text-muted"
-              activeOptions={{ exact: n.to === "" }}
-              activeProps={{ className: "text-ink" }}
-            >
-              {n.label}
-            </Link>
-          ) : (
-            <span key={n.to} className="text-muted" title="Not built yet">
-              {n.label}
-            </span>
-          ),
-        )}
-      </nav>
-      <main className="mt-6">
+      <TopBar
+        name={s.display}
+        preset={s.preset}
+        balance={balance}
+        clock={<WorldClock clock={s.clock} nextTickAt={s.next_tick_at} tickSeconds={s.tick_seconds} />}
+        phoneClock={<WorldClock clock={s.clock} nextTickAt={s.next_tick_at} tickSeconds={s.tick_seconds} phone />}
+        account={account}
+      />
+      <ScreenNav items={nav} />
+      <main className="mx-auto max-w-page-wide px-gutter pt-4 md:pt-6">
         <Outlet />
       </main>
+      <TabBar items={nav} account={account} />
     </div>
   );
 }

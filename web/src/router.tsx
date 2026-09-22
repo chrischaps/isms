@@ -39,37 +39,48 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5_000 } },
 });
 
-// The page wrapper (docs/style.md §5): one gutter at every width, the wide
-// page max until each screen picks its own, a container for the components'
-// stacking rules, and room at the bottom for the phone TabBar (SB.2).
+// The page (docs/style.md §5): a container for the components' stacking
+// rules and room at the bottom for the phone TabBar. The society shell lays
+// out its own bars and gutter (SB.2); every other route sits in the Frame.
 const rootRoute = createRootRoute({
   component: () => (
-    <div className="page @container mx-auto max-w-page-wide px-gutter pt-4">
+    <div className="page @container">
       <Outlet />
       <Toaster />
     </div>
   ),
   notFoundComponent: () => (
-    <p>
+    <p className="px-gutter pt-4">
       Nothing here. <Link to="/">Home</Link>
     </p>
   ),
 });
 
-const indexRoute = createRoute({
+// One gutter at every width and the wide page max, until each screen picks its own.
+const frameRoute = createRoute({
   getParentRoute: () => rootRoute,
+  id: "frame",
+  component: () => (
+    <div className="mx-auto max-w-page-wide px-gutter pt-4">
+      <Outlet />
+    </div>
+  ),
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => frameRoute,
   path: "/",
   component: Societies,
 });
 
 const loginRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => frameRoute,
   path: "/login",
   component: Login,
 });
 
 const galleryRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => frameRoute,
   path: "/gallery",
   component: Gallery,
 });
@@ -160,12 +171,12 @@ function SocietyEventRoute() {
 }
 
 function PublicSocietyRoute() {
-  const { id } = useParams({ from: "/public/s/$id" });
+  const { id } = useParams({ from: "/frame/public/s/$id" });
   return <PublicSociety id={Number(id)} />;
 }
 
 function PublicArchivesRoute() {
-  const { id } = useParams({ from: "/public/s/$id/archives" });
+  const { id } = useParams({ from: "/frame/public/s/$id/archives" });
   return <PublicArchives id={Number(id)} />;
 }
 
@@ -175,31 +186,31 @@ function SocietyArchivesRoute() {
 }
 
 const adminRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => frameRoute,
   path: "/admin",
   component: Admin,
 });
 
 const profileRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => frameRoute,
   path: "/profile",
   component: Profile,
 });
 
 const publicRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => frameRoute,
   path: "/public",
   component: PublicSocieties,
 });
 
 const publicSocietyRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => frameRoute,
   path: "/public/s/$id",
   component: PublicSocietyRoute,
 });
 
 const publicArchivesRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => frameRoute,
   path: "/public/s/$id/archives",
   component: PublicArchivesRoute,
 });
@@ -313,14 +324,7 @@ const societyArchivesRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  indexRoute,
-  loginRoute,
-  galleryRoute,
-  profileRoute,
-  adminRoute,
-  publicRoute,
-  publicSocietyRoute,
-  publicArchivesRoute,
+  frameRoute.addChildren([indexRoute, loginRoute, galleryRoute, profileRoute, adminRoute, publicRoute, publicSocietyRoute, publicArchivesRoute]),
   societyRoute.addChildren([
     societyHomeRoute,
     societyWorkRoute,

@@ -16,6 +16,7 @@ import { ICON_NAMES, Icon } from "../../components/Icon";
 import { Ledger, TD, TD_NUM, TH, TH_NUM } from "../../components/Ledger";
 import { Meter } from "../../components/Meter";
 import { More } from "../../components/More";
+import { ScreenNav, TabBar, TopBar, type NavItem } from "../../components/Nav";
 import { NeedCard, Needs } from "../../components/NeedCard";
 import { Num } from "../../components/Num";
 import { OrderBook } from "../../components/OrderBook";
@@ -83,6 +84,27 @@ const TOKENS: { name: string; use: string }[] = [
 
 export type Section = { id: string; title: string; spec?: string; node: ReactNode };
 
+// The shell's items with Freeport's words, as Society.tsx would build them.
+const shellParams = { id: "1" };
+const SHELL_NAV: NavItem[] = [
+  { key: "home", to: "/s/$id", params: shellParams, label: "Your Accounts", short: "Home", icon: "home", exact: true, tab: true },
+  { key: "work", to: "/s/$id/work", params: shellParams, label: "Work", icon: "work", tab: true },
+  { key: "plan", to: "/s/$id/plan", params: shellParams, label: "Standing plan", icon: "plan" },
+  { key: "market", to: "/s/$id/market", params: shellParams, label: "Market", icon: "market", tab: true },
+  { key: "orgs", to: "/s/$id/orgs", params: shellParams, label: "Organizations", icon: "org" },
+  { key: "contracts", to: "/s/$id/contracts", params: shellParams, label: "Contracts", icon: "contract" },
+  { key: "society", to: "/s/$id/society", params: shellParams, label: "Society", icon: "people", tab: true },
+  { key: "talk", to: "/s/$id/talk", params: shellParams, label: "Talk", icon: "talk" },
+  { key: "archives", to: "/s/$id/archives", params: shellParams, label: "Archive", icon: "archive" },
+];
+const SHELL_ACCOUNT: NavItem[] = [
+  { key: "societies", to: "/", label: "Societies", icon: "globe" },
+  { key: "profile", to: "/profile", label: "Profile", icon: "person" },
+  { key: "admin", to: "/admin", label: "Operator", icon: "gear" },
+];
+const shellClock = { epoch: 2, cycle: 1, tick: 5, ticks_per_cycle: 24 };
+const shellNext = new Date(Date.now() + 4_000).toISOString();
+
 function Swatch({ name, use }: { name: string; use: string }) {
   return (
     <div className="border-line bg-surface overflow-hidden rounded-md border">
@@ -126,6 +148,31 @@ function SheetDemo() {
 }
 
 export const SECTIONS: Section[] = [
+  {
+    id: "shell",
+    title: "Shell: TopBar, ScreenNav, TabBar",
+    spec: "§7.1, §7.2 — the society and its clock above a row of screens from 720px; below it the bar shrinks and the screens become the bottom TabBar with More. Items come in from the screen that mounts them.",
+    node: (
+      <div className="border-line -mx-4 overflow-hidden border-y">
+        <TopBar
+          name="Freeport"
+          preset="freeport"
+          balance={
+            <span className="text-ink">
+              <span className="text-muted hidden sm:inline">Balance </span>
+              <b>967.25 cr</b>
+            </span>
+          }
+          clock={<WorldClock clock={shellClock} nextTickAt={shellNext} tickSeconds={3600} />}
+          phoneClock={<WorldClock clock={shellClock} nextTickAt={shellNext} tickSeconds={3600} phone />}
+          account={SHELL_ACCOUNT}
+        />
+        <ScreenNav items={SHELL_NAV} />
+        <div className="bg-bg text-muted px-4 py-6 text-sm">The page, under the bars.</div>
+        <TabBar items={SHELL_NAV} account={SHELL_ACCOUNT} inline />
+      </div>
+    ),
+  },
   {
     id: "num",
     title: "Num with Explain",

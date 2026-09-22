@@ -3,6 +3,7 @@
 // it ("Costs 200.00 cr — you have 162.01") rather than going quiet.
 
 import { useId, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { Link, type LinkProps } from "@tanstack/react-router";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "quiet";
 
@@ -37,10 +38,8 @@ export function Button({
       disabled={off}
       aria-describedby={disabledReason ? reasonId : rest["aria-describedby"]}
       className={[
-        "inline-flex min-h-touch items-center justify-center gap-2 rounded-md border px-4 py-2.5 font-bold transition-colors",
+        buttonClass(variant, full),
         "disabled:bg-surface-2 disabled:text-muted disabled:border-line disabled:cursor-not-allowed",
-        full ? "w-full" : "max-sm:w-full",
-        VARIANT[variant],
         className ?? "",
       ].join(" ")}
       {...rest}
@@ -56,6 +55,29 @@ export function Button({
         {disabledReason}
       </span>
     </span>
+  );
+}
+
+function buttonClass(variant: ButtonVariant, full?: boolean): string {
+  return [
+    "inline-flex min-h-touch items-center justify-center gap-2 rounded-md border px-4 py-2.5 font-bold transition-colors",
+    full ? "w-full" : "max-sm:w-full",
+    VARIANT[variant],
+  ].join(" ");
+}
+
+/** A route link dressed as a button, for an action that is a navigation ("Edit plan"). */
+export function ButtonLink({
+  variant = "secondary",
+  full,
+  className,
+  children,
+  ...rest
+}: { variant?: ButtonVariant; full?: boolean; className?: string; children: ReactNode } & Pick<LinkProps, "to" | "params">) {
+  return (
+    <Link {...rest} className={[buttonClass(variant, full), "hover:no-underline", className ?? ""].join(" ")}>
+      {children}
+    </Link>
   );
 }
 
