@@ -17,6 +17,8 @@ export type Persona = {
   goals: string[];
   temperament: string;
   risk: "low" | "medium" | "high";
+  /** How much the persona cares where it stands on the scoreboard, in its own words; absent when it does not (SJ.2). */
+  ambition: string | null;
   model: { turn?: string; cycle?: string };
   max_actions_per_turn: number | null;
   /** The prose the LLM brain reads; the scripted brain is keyed by slug. */

@@ -20,6 +20,10 @@ The harness's action surface already fits it: 29 of 33 act tools are ids, enums 
 6. **The journal line grows a `decisions` list** (slot, option, confidence, do-nothing, acted) and the report a "Jev decisions" table (held turns, mean confidence, choices the floors overruled, flip-flops, refusals, cost and latency a turn). The brain is judged by these against the scripted players in the same run, not by anything it says.
 7. **One live run per explicit approval, as ADR-0011 stands.** Chris approved up to $1 for SJ.1's two runs (two days, then seven if clean). The model's price is listed in `MODELS` so the `Budget` prices every call; a run stops at `--max-usd` like any other.
 
+## Amended by SJ.2 (2026-09-24)
+
+The first runs showed the lab put few real choices in front of the brain: `work` was re-asked every hour and answered "leave it", `market` appeared twice in seven days, `property` never, and every player, scripted ones too, went unhoused for a week at output ×0.7. SJ.2 keeps decisions 1–7 and adds: a slot is offered only when something gives a reason to choose (`work` asks the full menu while nothing is set and afterwards only a change with a reason); `housing` and `plan` slots for every persona, `credit` for the borrower, and an honest firm slot (`fund_firm` from the founder's own pocket, two wage tiers so firms compete for hands); a `standing` block from the scoreboard in the state, with rank, trend and gaps precomputed, and one standing sentence in the questions; an `ambition` line per persona in the frontmatter, where "be the richest" lives for the personas who would think it and is absent for those who would not, so the constitution and the persona shape motive, not a global objective; and all seven of Freeport's strategic personas on Jev, so their choices are each other's opportunities. The Commune's slots stay a follow-up.
+
 ## Consequences
 
 - A model plays Freeport again for cents an epoch and inside the tick; the CI gate (`make e2e-agents`) is unchanged and still costs nothing.

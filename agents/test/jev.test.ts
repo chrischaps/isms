@@ -9,7 +9,7 @@ import { fixtureName, fixtureTransport, type Transport } from "../src/api/transp
 import { layOut } from "../src/brain/jev/candidates.ts";
 import { JevBrain } from "../src/brain/jev/index.ts";
 import { buildQuestions } from "../src/brain/jev/questions.ts";
-import { buildState } from "../src/brain/jev/state.ts";
+import { buildState, standingOf, standingText } from "../src/brain/jev/state.ts";
 import { jobOffers, Script } from "../src/brain/scripted/script.ts";
 import { Budget } from "../src/budget/budget.ts";
 import { ConfigSchema } from "../src/config.ts";
@@ -84,11 +84,55 @@ describe("laying out the hour", () => {
     expect(job.candidates.map((x) => x.option)).toEqual(expect.arrayContaining(["take_best", "wait"]));
     expect(job.candidates.at(-1)!.act).toBeNull();
   });
-  it("offers hours, and no switch, when nothing pays more than the job held", async () => {
+  it("offers hours, and no switch, when nothing pays more than the job held; and the plan, when the balance is fat", async () => {
     const home = employedHome();
     const c = ctx(fixtureTransport(FIX));
     const slots = await layOut("wage-maximiser", new Script(c, turnInput(home), {}, "wm"));
-    expect(slots.map((s) => s.key)).toEqual(["work"]);
+    expect(slots.map((s) => s.key)).toEqual(["work", "plan"]);
+    const plan = slots.find((s) => s.key === "plan")!;
+    expect(plan.candidates.map((x) => x.option)).toEqual(["put_aside", "keep_plan"]);
+  });
+  it("asks about the hours again only for a reason, once they are set", async () => {
+    const home = employedHome();
+    const best = jobOffers(board().offers)[0]!;
+    // Hours set, a modest balance (neither under a day's wage nor over five), Food high: nothing to change.
+    const set = {
+      ...home,
+      household: { ...home.household, balance: 20000 },
+      labor: { ...home.labor, allocations: [{ workplace: best.workplace, hours: best.maxHours, effort: "normal", org_name: "x", kind: "farm" }] },
+    } as HomeView;
+    const quiet = await layOut("saver", new Script(ctx(fixtureTransport(FIX)), turnInput(set), {}, "sv"));
+    expect(quiet.map((s) => s.key)).not.toContain("work");
+    const rich = { ...set, household: { ...set.household, balance: home.household.balance } } as HomeView;
+    const easy = await layOut("saver", new Script(ctx(fixtureTransport(FIX)), turnInput(rich), {}, "sv"));
+    expect(easy.find((s) => s.key === "work")!.candidates.map((x) => x.option)).toEqual(["ease_off", "keep_hours"]);
+    const tired = { ...set, labor: { ...set.labor, fatigue_debt: 3 } } as HomeView;
+    const slots = await layOut("saver", new Script(ctx(fixtureTransport(FIX)), turnInput(tired), {}, "sv"));
+    const work = slots.find((s) => s.key === "work")!;
+    expect(work.candidates.map((x) => x.option)).toEqual(["rest_more", "keep_hours"]);
+    expect(work.ask).toContain("fatigue debt");
+  });
+  it("offers a roof to the unhoused when a dwelling is to let", async () => {
+    const home = unemployedHome();
+    const lease = { id: 77, by: { org: 1 }, created_tick: 0, kind: "lease", body: { lease: { asset: { dwelling: 12 }, rent_per_cycle: 800, term_cycles: null } } };
+    const withLease = { status: 200, body: { ...board(), offers: [...board().offers, lease] } };
+    const slots = await layOut("slacker", new Script(ctx(fixtureTransport(FIX, { "GET /s/1/notice-board": withLease })), turnInput(home), {}, "sl"));
+    const housing = slots.find((s) => s.key === "housing")!;
+    expect(housing.candidates.map((x) => x.option)).toEqual(["rent_cheapest", "stay_unhoused"]);
+    expect(housing.ask).toContain("8.00 a day");
+    expect(housing.facts).toMatchObject({ housed: false, dwellings_to_let: 1, rent_pct_of_day_wage: 13 });
+  });
+  it("offers the borrower the cheapest loan once", async () => {
+    const home = unemployedHome();
+    const credit = (id: number, bp: number) => ({ id, by: { citizen: 3 }, created_tick: 0, kind: "credit", body: { credit: { principal: 50000, rate_per_cycle_bp: bp, term_cycles: 5, collateral: null, to: null } } });
+    const withCredit = { status: 200, body: { ...board(), offers: [...board().offers, credit(90, 200), credit(91, 50)] } };
+    const script = new Script(ctx(fixtureTransport(FIX, { "GET /s/1/notice-board": withCredit })), turnInput(home), {}, "b");
+    const slots = await layOut("borrower", script);
+    const c = slots.find((s) => s.key === "credit")!;
+    expect(c.candidates[0]!).toMatchObject({ option: "take_credit", irreversible: true });
+    expect(c.ask).toContain("0.50% a day");
+    script.memory.borrowed = true;
+    expect((await layOut("borrower", script)).map((s) => s.key)).not.toContain("credit");
   });
   it("offers the switch when an open offer pays more", async () => {
     const best = jobOffers(board().offers)[0]!;
@@ -123,6 +167,35 @@ describe("the state and the questions", () => {
     expect(q.instructions).toContain("Decide only this");
     expect(Object.keys(q.criteria)).toContain("wait");
   });
+  it("places the citizen on the scoreboard, with the gaps precomputed", async () => {
+    const home = unemployedHome();
+    const me = home.citizen.id;
+    const rows = [
+      { citizen: 900, handle: "a", net_worth: 200000, self_made: 0, firms: [] },
+      { citizen: me, handle: "me", net_worth: 96856, self_made: 0, firms: [] },
+      { citizen: 901, handle: "b", net_worth: 90000, self_made: 0, firms: [] },
+    ];
+    const st = standingOf({ clock: home.clock, rows } as never, me, 90000);
+    expect(st).toMatchObject({ rank: 2, of: 3, trend_since_yesterday: "rising", gap_to_above_credits: "1031.44", gap_to_below_credits: "68.56" });
+    expect(standingText(st)).toBe("You stand 2 of 3 by net worth (968.56 credits), rising since yesterday; 1031.44 behind the one above; 68.56 ahead of the one below.");
+    expect(standingOf(null, me, null)).toBeNull();
+    const q = buildQuestions(persona("founder"), [], standingText(st));
+    expect(q).toEqual({});
+    const state = buildState(turnInput(home), [], {}, st);
+    expect(state.standing?.rank).toBe(2);
+  });
+  it("puts the ambition with the persona, not in the state", async () => {
+    const home = unemployedHome();
+    const p = persona("founder");
+    expect(p.ambition).toMatch(/scoreboard/);
+    const c = ctx(fixtureTransport(FIX));
+    const slots = await layOut("founder", new Script(c, turnInput(home), {}, "f"));
+    const q = buildQuestions(p, slots, "You stand 2 of 3.");
+    expect(q.job!.instructions).toContain("Ambition:");
+    expect(q.job!.instructions).toContain("You stand 2 of 3.");
+    expect(JSON.stringify(buildState(turnInput(home), slots, {}))).not.toContain("Ambition");
+    expect(persona("slacker").ambition).toBeNull();
+  });
   it("reads the food trend from the last turn", async () => {
     const home = unemployedHome();
     const c = ctx(fixtureTransport(FIX));
@@ -149,22 +222,30 @@ describe("a Jev turn", () => {
   it("sets the hours the scripted helper would", async () => {
     const home = employedHome();
     const best = jobOffers(board().offers)[0]!;
-    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, [JEV]: answer({ work: ["full_normal", 0.9] }) });
+    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, [JEV]: answer({ work: ["full_normal", 0.9], plan: ["put_aside", 0.8] }) });
     await b.takeTurn(c, turnInput(home));
     const labor = c.turn.calls.find((x) => x.tool === "set_labor");
     expect(labor?.input).toEqual({ allocations: [{ workplace: best.workplace, hours: Math.min(best.maxHours, home.labor.budget), effort: "normal" }] });
+    // The plan slot runs last and keeps the rest of the plan as it was.
+    const plans = c.turn.calls.filter((x) => x.tool === "set_plan");
+    expect(plans).toHaveLength(2);
+    expect(plans[1]!.input).toMatchObject({ keep_balance_at_least: Math.floor(home.household.balance * 0.6), keep_food_at_least: 24, labor: "explicit" });
+    expect(c.turn.calls.map((x) => x.tool).lastIndexOf("set_labor")).toBeLessThan(c.turn.calls.map((x) => x.tool).lastIndexOf("set_plan"));
   });
   it("holds when every slot chose to do nothing", async () => {
     const home = employedHome();
-    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, [JEV]: answer({ work: ["none", 0.7] }) });
+    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, [JEV]: answer({ work: ["none", 0.7], plan: ["keep_plan", 0.9] }) });
     const out = await b.takeTurn(c, turnInput(home));
-    expect(c.turn.calls.filter((x) => x.tool !== "set_plan" && x.tool !== "notice_board").map((x) => x.tool)).toEqual([]);
-    expect(out.decisions).toEqual([{ slot: "work", option: "none", confidence: 0.7, none: true, acted: false }]);
+    expect(c.turn.calls.filter((x) => x.tool !== "set_plan" && x.tool !== "notice_board" && x.tool !== "scoreboard").map((x) => x.tool)).toEqual([]);
+    expect(out.decisions).toEqual([
+      { slot: "work", option: "none", confidence: 0.7, none: true, acted: false },
+      { slot: "plan", option: "keep_plan", confidence: 0.9, none: true, acted: false },
+    ]);
   });
   it("drops an irreversible choice made without confidence", async () => {
     const best = jobOffers(board().offers)[0]!;
     const home = employedHome(Math.floor(best.hourly / 2));
-    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, [JEV]: answer({ work: ["none", 0.9], job: ["switch", 0.3] }) });
+    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, [JEV]: answer({ work: ["none", 0.9], job: ["switch", 0.3], plan: ["keep_plan", 0.9] }) });
     const out = await b.takeTurn(c, turnInput(home));
     expect(c.turn.calls.some((x) => x.tool === "accept_offer")).toBe(false);
     expect(out.decisions?.find((d) => d.slot === "job")).toMatchObject({ option: "switch", acted: false, none: false });
@@ -178,27 +259,29 @@ describe("a Jev turn", () => {
       "PUT /s/1/labor": ok,
       [`POST /s/1/offers/${best.id}/accept`]: ok,
       "POST /s/1/contracts/1/terminate": ok,
-      [JEV]: answer({ job: ["switch", 0.95], work: ["few_low", 0.6] }),
+      [JEV]: answer({ job: ["switch", 0.95], work: ["few_low", 0.6], plan: ["keep_plan", 0.9] }),
     });
     const out = await b.takeTurn(c, turnInput(home));
-    const acts = c.turn.calls.filter((x) => x.tool !== "set_plan" && x.tool !== "notice_board").map((x) => x.tool);
+    const acts = c.turn.calls.filter((x) => x.tool !== "set_plan" && x.tool !== "notice_board" && x.tool !== "scoreboard").map((x) => x.tool);
     expect(acts).toEqual(["set_labor", "accept_offer", "terminate_contract"]);
-    expect(out.decisions?.map((d) => d.slot)).toEqual(["work", "job"]);
+    expect(out.decisions?.map((d) => d.slot)).toEqual(["work", "job", "plan"]);
   });
   it("reports an option it never offered, and a slot it never asked", async () => {
     const home = employedHome();
-    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, [JEV]: answer({ work: ["nap", 0.9] }, { ballot_0: { type: "choice", choice: "yes", confidence: 1, probabilities: { yes: 1 } } }) });
+    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, [JEV]: answer({ work: ["nap", 0.9], plan: ["keep_plan", 0.9] }, { ballot_0: { type: "choice", choice: "yes", confidence: 1, probabilities: { yes: 1 } } }) });
     const out = await b.takeTurn(c, turnInput(home));
     expect(out.did_not_understand).toHaveLength(2);
     expect(out.did_not_understand[0]).toMatch(/"nap", which was not offered/);
     expect(out.did_not_understand[1]).toMatch(/never asked: ballot_0/);
-    expect(out.decisions).toEqual([]);
+    expect(out.decisions).toEqual([{ slot: "plan", option: "keep_plan", confidence: 0.9, none: true, acted: false }]);
   });
   it("says nothing was decided when no slot had a choice in it", async () => {
     const home = unemployedHome();
     const empty = { status: 200, body: { offers: [] } };
+    // A modest balance, so the plan has no reason to move either.
+    const poor = { ...home, household: { ...home.household, balance: 5000 } };
     const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, "GET /s/1/notice-board": empty });
-    const out = await b.takeTurn(c, turnInput(home));
+    const out = await b.takeTurn(c, turnInput(poor));
     expect(out.intent).toMatch(/nothing to decide/);
     expect(c.turn.calls.some((x) => x.tool === "accept_offer")).toBe(false);
   });

@@ -5,8 +5,47 @@
 
 import type { HomeView } from "../../api/client.ts";
 import type { TurnInput } from "../brain.ts";
-import type { Memory } from "../scripted/script.ts";
+import type { Memory, ScoreboardView } from "../scripted/script.ts";
 import type { Slot } from "./candidates.ts";
+
+/** Where the citizen stands on the society's scoreboard (SJ.2): rank by net worth, and the gaps, precomputed. */
+export type Standing = {
+  net_worth_credits: string;
+  self_made_credits: string;
+  rank: number;
+  of: number;
+  trend_since_yesterday: "rising" | "falling" | "steady" | "unknown";
+  gap_to_above_credits: string | null;
+  gap_to_below_credits: string | null;
+};
+
+/** The standing from a scoreboard read; `yesterday` is the net worth at the last day's end, when known. */
+export function standingOf(board: ScoreboardView | null, me: number, yesterday: unknown): Standing | null {
+  if (!board) return null;
+  const rows = [...board.rows].sort((a, b) => Number(b.net_worth) - Number(a.net_worth) || a.citizen - b.citizen);
+  const i = rows.findIndex((r) => r.citizen === me);
+  if (i < 0) return null;
+  const mine = Number(rows[i]!.net_worth);
+  const d = typeof yesterday === "number" ? mine - yesterday : null;
+  return {
+    net_worth_credits: credits(mine),
+    self_made_credits: credits(Number(rows[i]!.self_made)),
+    rank: i + 1,
+    of: rows.length,
+    trend_since_yesterday: d === null ? "unknown" : d > 100 ? "rising" : d < -100 ? "falling" : "steady",
+    gap_to_above_credits: i > 0 ? credits(Number(rows[i - 1]!.net_worth) - mine) : null,
+    gap_to_below_credits: i < rows.length - 1 ? credits(mine - Number(rows[i + 1]!.net_worth)) : null,
+  };
+}
+
+/** One sentence on the standing, for the questions' instructions. */
+export function standingText(st: Standing | null): string | null {
+  if (!st) return null;
+  const parts = [`You stand ${st.rank} of ${st.of} by net worth (${st.net_worth_credits} credits), ${st.trend_since_yesterday === "unknown" ? "on the first day" : st.trend_since_yesterday + " since yesterday"}`];
+  if (st.gap_to_above_credits !== null) parts.push(`${st.gap_to_above_credits} behind the one above`);
+  if (st.gap_to_below_credits !== null) parts.push(`${st.gap_to_below_credits} ahead of the one below`);
+  return parts.join("; ") + ".";
+}
 
 export type JevState = {
   clock: { day: number; hour: number; hours_left_today: number; epoch_ended: boolean };
@@ -26,6 +65,7 @@ export type JevState = {
   society: { population: number; unemployed: number; food_price_credits: string | null; price_index: string | null; headlines: string[] };
   since_last_look: Record<string, number>;
   last_turn: { chosen: Record<string, string>; refusals: string[] } | null;
+  standing: Standing | null;
   slots: Record<string, Record<string, unknown>>;
 };
 
@@ -37,7 +77,7 @@ export function foodTrend(now: number, before: unknown): JevState["me"]["food_tr
   return d < -1 ? "falling" : d > 1 ? "rising" : "steady";
 }
 
-export function buildState(input: TurnInput, slots: Slot[], memory: Memory): JevState {
+export function buildState(input: TurnInput, slots: Slot[], memory: Memory, standing: Standing | null = null): JevState {
   const home: HomeView = input.home;
   const c = home.clock;
   const h = home.household;
@@ -75,6 +115,7 @@ export function buildState(input: TurnInput, slots: Slot[], memory: Memory): Jev
           refusals: input.lastTurn.rejections.map((r) => `${r.tool}: ${r.detail}`),
         }
       : null,
+    standing,
     slots: slotFacts,
   };
 }

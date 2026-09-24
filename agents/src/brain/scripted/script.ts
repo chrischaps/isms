@@ -23,6 +23,7 @@ export type StoreView = Schemas["StoreView"];
 export type LedgerView = Schemas["ContributionView"];
 export type PublishedPlanView = Schemas["PublishedPlanView"];
 export type PositionView = Schemas["PositionView"];
+export type ScoreboardView = Schemas["ScoreboardView"];
 
 /** Per-player memory that survives between turns (a scripted brain's "notes"). */
 export type Memory = Record<string, unknown>;
@@ -115,6 +116,10 @@ export class Script {
   }
   async ledger(): Promise<LedgerView | null> {
     const v = await this.get<LedgerView>(read.ledger);
+    return isRefusal(v) ? null : v;
+  }
+  async scoreboard(): Promise<ScoreboardView | null> {
+    const v = await this.get<ScoreboardView>(read.scoreboard);
     return isRefusal(v) ? null : v;
   }
   async publishedPlan(): Promise<PublishedPlanView | null> {

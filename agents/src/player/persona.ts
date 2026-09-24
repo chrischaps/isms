@@ -15,6 +15,7 @@ const Frontmatter = z.object({
   goals: z.array(z.string()).min(1),
   temperament: z.string(),
   risk: z.enum(["low", "medium", "high"]),
+  ambition: z.string().nullable().default(null),
   model: z.object({ turn: z.string().optional(), cycle: z.string().optional() }).default({}),
   max_actions_per_turn: z.number().int().min(1).nullable().default(null),
 });
@@ -34,6 +35,7 @@ export function personaText(p: Persona): string {
   return [
     `You are ${p.name}.`,
     `Temperament: ${p.temperament}. Appetite for risk: ${p.risk}.`,
+    ...(p.ambition ? [`Ambition: ${p.ambition}`] : []),
     "Your goals, in order:",
     ...p.goals.map((g, i) => `${i + 1}. ${g}`),
     "",

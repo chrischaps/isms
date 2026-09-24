@@ -50,7 +50,9 @@ brain = "mixed"
 model = "~typesafe/jev-latest"
 base_url = "https://openrouter.ai/api/alpha/decisions"
 # With `brain = "jev"` these play on Jev; every other persona in the cast is scripted (the contrast).
-personas = ["founder", "wage-maximiser", "speculator", "landlord"]
+# SJ.2: all seven of Freeport's strategic personas, so their choices are each other's opportunities
+# (two firms hiring at different wages, a borrower, a landlord); the rule-prober stays the fuzzer.
+personas = ["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord"]
 # A choice below this confidence is read as "do nothing". Jev's calibration is loose (an ECE of ~0.1
 # in independent tests), so these floors do real work; tune them from the report's Jev section.
 min_confidence = 0.35

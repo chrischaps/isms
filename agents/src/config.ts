@@ -77,7 +77,7 @@ export const ConfigSchema = z.object({
       model: modelId.default("~typesafe/jev-latest"),
       base_url: z.string().url().default("https://openrouter.ai/api/alpha/decisions"),
       /** With `run.brain = "jev"`, these personas play on Jev; every other one is scripted. */
-      personas: z.array(z.string()).default(["founder", "wage-maximiser", "speculator", "landlord"]),
+      personas: z.array(z.string()).default(["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord"]),
       /** A choice below this confidence is treated as its slot's do-nothing option. */
       min_confidence: z.number().min(0).max(1).default(0.35),
       /** An irreversible choice (switch jobs, found, buy a dwelling) needs at least this, and 0.4 of the probability mass. */

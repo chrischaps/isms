@@ -45,11 +45,14 @@ say "build the server and the harness"
 SQLX_OFFLINE=true cargo build -q -p isms-server
 pnpm --dir agents install --frozen-lockfile --silent
 
+# The population floor's householders fill the preset's 40 dwellings before the players join (SJ.2, Q159):
+# a lab seeds one more dwelling per player, so renting a home is a choice the players actually have.
 say "a fresh database and a lab $PRESET ($EPOCH_CYCLES-day epoch, $TICK_SECONDS s an hour)"
 RUST_LOG=warn "$SERVER" migrate
 SID="$(RUST_LOG=warn "$SERVER" seed --preset "$PRESET" --class lab --name "lab-$RUN" --tick-seconds "$TICK_SECONDS" \
   --param "params.time.epoch_cycles=$EPOCH_CYCLES" \
   --param "params.time.closing_window_minutes=${CLOSING_WINDOW_MINUTES:-1}" \
+  --param "params.initial_dwellings=${INITIAL_DWELLINGS:-$((40 + PLAYERS))}" \
   --param params.population.collapse_enabled=false | tail -n 1)"
 export ISMS_SOCIETY="$SID"
 echo "society $SID in $DATABASE_URL"

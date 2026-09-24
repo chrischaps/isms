@@ -15,7 +15,7 @@ import { ensurePlan, Script, type Memory } from "../scripted/script.ts";
 import { layOut, type Candidate, type Slot } from "./candidates.ts";
 import { decide, JevError, type Answer } from "./client.ts";
 import { buildQuestions } from "./questions.ts";
-import { buildState } from "./state.ts";
+import { buildState, standingOf, standingText } from "./state.ts";
 
 export type JevOpts = {
   persona: Persona;
@@ -56,13 +56,20 @@ export class JevBrain implements Brain {
     try {
       await ensurePlan(s);
       const slots = await layOut(persona.slug, s);
-      const state = buildState(input, slots, this.memory);
+      // Where I stand (SJ.2): read once an hour; yesterday's net worth is kept from the first read of each day.
+      const standing = standingOf(await s.scoreboard(), s.me, this.memory.netWorthYesterday);
+      if (standing && this.memory.netWorthDay !== input.clock.cycle) {
+        this.memory.netWorthYesterday = this.memory.netWorthToday;
+        this.memory.netWorthToday = Number(standing.net_worth_credits) * 100;
+        this.memory.netWorthDay = input.clock.cycle;
+      }
+      const state = buildState(input, slots, this.memory, standing);
       this.memory.lastFood = input.home.needs.food;
       if (slots.length === 0) {
         this.memory.lastChosen = {};
         return { intent: "nothing to decide this hour; held", did_not_understand: [], ended_by: "script", error: null, usage, decisions: [] };
       }
-      const questions = buildQuestions(persona, slots);
+      const questions = buildQuestions(persona, slots, standingText(standing));
       const res = await decide({ model: this.model, state, questions }, { baseUrl: cfg.jev.base_url, key: this.opts.key, transport: this.opts.transport });
       if (res.usage) usage = budget.charge(this.model, player, { input_tokens: res.usage.input_tokens, output_tokens: res.usage.output_tokens });
 
