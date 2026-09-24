@@ -49,6 +49,49 @@ export function governanceParagraph(turns: TurnRecord[]): string {
   return `Governance tools: ${parts.join("; ")}.${motions}`;
 }
 
+/** The Jev players measured by their decisions (SJ.1): how often they held, how sure they were, how often the floors overruled them, how often a slot flipped. */
+export function jevSection(turns: TurnRecord[]): string[] {
+  const jev = turns.filter((t) => t.brain === "jev");
+  if (jev.length === 0) return [];
+  const out = ["## Jev decisions", "", "| player | turns | held | mean confidence | dropped by floor | flip-flops | refused | errors | ms/turn | $/turn |", "|---|---|---|---|---|---|---|---|---|---|"];
+  const byPlayer = new Map<string, TurnRecord[]>();
+  for (const t of jev) byPlayer.set(t.player, [...(byPlayer.get(t.player) ?? []), t]);
+  for (const [player, ts] of byPlayer) {
+    const decided = ts.filter((t) => t.ended_by !== "error");
+    const decisions = decided.flatMap((t) => t.decisions ?? []);
+    const held = decided.filter((t) => !(t.decisions ?? []).some((d) => d.acted)).length;
+    const dropped = decisions.filter((d) => !d.none && !d.acted).length;
+    const mean = decisions.length ? decisions.reduce((n, d) => n + d.confidence, 0) / decisions.length : 0;
+    // A slot whose option goes A, B, A over three consecutive turns.
+    const bySlot = new Map<string, string[]>();
+    for (const t of decided) for (const d of t.decisions ?? []) bySlot.set(d.slot, [...(bySlot.get(d.slot) ?? []), d.option]);
+    let flips = 0;
+    for (const seq of bySlot.values()) for (let i = 2; i < seq.length; i++) if (seq[i] === seq[i - 2] && seq[i] !== seq[i - 1]) flips += 1;
+    const refused = ts.reduce((n, t) => n + t.rejections.length, 0);
+    const errors = ts.length - decided.length;
+    const ms = ts.length ? Math.round(ts.reduce((n, t) => n + t.ms, 0) / ts.length) : 0;
+    const usd = ts.length ? ts.reduce((n, t) => n + t.usage.usd, 0) / ts.length : 0;
+    out.push(
+      `| ${player} | ${ts.length} | ${held} (${decided.length ? Math.round((held / decided.length) * 100) : 0}%) | ${mean.toFixed(2)} | ${dropped} of ${decisions.length} | ${flips} | ${refused} | ${errors} | ${ms} | ${usd.toFixed(5)} |`,
+    );
+  }
+  // What each slot chose, over the whole cohort.
+  const tally = new Map<string, Map<string, number>>();
+  for (const t of jev) for (const d of t.decisions ?? []) {
+    const m = tally.get(d.slot) ?? new Map<string, number>();
+    m.set(d.option, (m.get(d.option) ?? 0) + 1);
+    tally.set(d.slot, m);
+  }
+  if (tally.size) {
+    out.push("", "| slot | options chosen |", "|---|---|");
+    for (const [slot, m] of [...tally].sort((a, b) => a[0].localeCompare(b[0]))) {
+      out.push(`| ${slot} | ${[...m].sort((a, b) => b[1] - a[1]).map(([o, n]) => `${o} ${n}`).join(", ")} |`);
+    }
+  }
+  out.push("", "Held: a turn in which no chosen option ran. Dropped by floor: a choice to act that fell under `jev.min_confidence` or, for an irreversible one, `jev.irreversible_confidence`. Flip-flops: a slot answered A, B, A on three consecutive turns.", "");
+  return out;
+}
+
 export function endpointOf(text: string): string {
   for (const [re, name] of ENDPOINT_WORDS) if (re.test(text)) return name;
   return "general";
@@ -229,6 +272,7 @@ export function buildReport(f: Folded): string {
   }
 
   out.push("## Governance", "", governanceParagraph(f.turns), "");
+  out.push(...jevSection(f.turns));
   out.push("## Each player's arc", "");
   for (const [name, records] of f.players) out.push(arc(name, records), "");
 

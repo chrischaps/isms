@@ -7,6 +7,7 @@
 #   RUN=<name> PRESET=commune PLAYERS=8 TICK_SECONDS=10 EPOCH_CYCLES=7 BRAIN=mixed bash scripts/agents/run.sh
 #
 # BRAIN=scripted needs no ANTHROPIC_API_KEY and is what CI runs (make e2e-agents, both presets).
+# BRAIN=jev plays the [jev] personas on TypeSafe's Jev through OpenRouter (SJ.1); needs OPENROUTER_API_KEY.
 # ASSERT_CLEAN=1 fails the script when the report has a fuzzer defect or a 5xx.
 set -euo pipefail
 cd "$(dirname "$0")/../.."

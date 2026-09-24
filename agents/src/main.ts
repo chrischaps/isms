@@ -6,7 +6,7 @@
 //   pnpm report <run>
 //   pnpm rollover -- --run <name> [--wait <seconds>]   (S1.15: a closing statement, the archive, the next epoch)
 //
-// Environment: ISMS_URL, ISMS_SOCIETY, ISMS_SERVER_BIN, DATABASE_URL, ANTHROPIC_API_KEY.
+// Environment: ISMS_URL, ISMS_SOCIETY, ISMS_SERVER_BIN, DATABASE_URL, ANTHROPIC_API_KEY, OPENROUTER_API_KEY.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -16,6 +16,7 @@ import { ApiError, makeClient, unwrap, type Client } from "./api/client.ts";
 import { liveTransport, recordingTransport, type Transport } from "./api/transport.ts";
 import { ensurePlayers, type PlayerAccount } from "./bootstrap/accounts.ts";
 import type { Brain, Persona } from "./brain/brain.ts";
+import { JevBrain } from "./brain/jev/index.ts";
 import { AnthropicBrain } from "./brain/llm/anthropic.ts";
 import { ScriptedBrain } from "./brain/scripted/index.ts";
 import { Budget } from "./budget/budget.ts";
@@ -26,7 +27,7 @@ import { Notes } from "./player/notes.ts";
 import { loadPersona } from "./player/persona.ts";
 import { Player } from "./player/player.ts";
 import { buildReport, fold } from "./report/report.ts";
-import { readFacts, type SocietyFacts } from "./society.ts";
+import { hasAssembly, readFacts, type SocietyFacts } from "./society.ts";
 import { watchTicks, type TickSignal } from "./stream/ticks.ts";
 
 const HERE = import.meta.dirname;
@@ -53,9 +54,22 @@ export function personasFor(cfg: Config, preset = "freeport"): Persona[] {
   return out;
 }
 
-export function brainFor(persona: Persona, cfg: Config, mk: () => Anthropic, budget: Budget, player: string, handle: string, facts?: SocietyFacts): Brain {
-  const wants = cfg.run.brain === "mixed" ? persona.brain : cfg.run.brain;
+/** What plays the persona (SJ.1): a run's `jev` puts the `[jev]` personas on Jev and scripts the rest. */
+export function wantsBrain(persona: Persona, cfg: Config): Persona["brain"] {
+  if (cfg.run.brain === "mixed") return persona.brain;
+  if (cfg.run.brain === "jev") return cfg.jev.personas.includes(persona.slug) ? "jev" : "scripted";
+  return cfg.run.brain;
+}
+
+export type JevWiring = { key: string | undefined; transport: Transport };
+
+export function brainFor(persona: Persona, cfg: Config, mk: () => Anthropic, budget: Budget, player: string, handle: string, facts?: SocietyFacts, jev?: JevWiring): Brain {
+  const wants = wantsBrain(persona, cfg);
   if (wants === "scripted") return new ScriptedBrain(persona, handle, facts);
+  if (wants === "jev") {
+    if (!jev?.key) throw new Error("OPENROUTER_API_KEY is not set and at least one player has a Jev brain");
+    return new JevBrain({ persona, player, handle, cfg, budget, facts, key: jev.key, transport: jev.transport });
+  }
   return new AnthropicBrain({ client: mk(), persona, player, cfg, budget, facts });
 }
 
@@ -215,13 +229,16 @@ async function main(argv: string[]) {
   log(`accounts ready: ${accounts.map((a) => a.handle).join(", ")}`);
   if (cmd === "bootstrap") return;
 
-  const needsKey = personas.some((p) => (cfg.run.brain === "mixed" ? p.brain : cfg.run.brain) === "llm");
-  if (needsKey && !env.anthropicKey) throw new Error("ANTHROPIC_API_KEY is not set and at least one player has an LLM brain");
+  const wanted = personas.map((p) => wantsBrain(p, cfg));
+  if (wanted.includes("llm") && !env.anthropicKey) throw new Error("ANTHROPIC_API_KEY is not set and at least one player has an LLM brain");
+  if (wanted.includes("jev") && !env.openrouterKey) throw new Error("OPENROUTER_API_KEY is not set and at least one player has a Jev brain");
 
   const budget = new Budget(cfg.budget.max_tokens, cfg.budget.max_usd);
   // What kind of society this is, read once through an unrecorded client so a recording holds only the player's own exchanges.
   const facts = await readFacts(makeClient({ baseUrl: env.ismsUrl, auth: { key: accounts[0]!.key } }), env.society);
   if (facts.preset !== values.preset) log(`note: the society was seeded from ${facts.preset}, not ${values.preset}; the persona list is ${values.preset}'s`);
+  // SJ.1 lays out Freeport's choices only; the Commune's slots (ballots, offices, the Plan) are a follow-up.
+  if (wanted.includes("jev") && hasAssembly(facts)) throw new Error(`the Jev brain plays Freeport only for now; ${facts.display} has an assembly`);
   log(`society: ${facts.display} (${facts.preset}); money ${facts.money}, labor ${facts.labor}, governance ${facts.governance}, store ${facts.common_store}, offices ${facts.offices.join(", ") || "none"}`);
   const players = accounts.map((a, i) => {
     const persona = personas[i]!;
@@ -239,7 +256,7 @@ async function main(argv: string[]) {
       run,
       name,
       persona,
-      brain: brainFor(persona, cfg, mk, budget, name, a.handle, facts),
+      brain: brainFor(persona, cfg, mk, budget, name, a.handle, facts, { key: env.openrouterKey, transport }),
       client,
       sid: env.society,
       maxActions: cfg.turn.max_actions_per_turn,

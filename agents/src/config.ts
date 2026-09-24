@@ -14,25 +14,29 @@ export type ModelInfo = {
   output: number;
   cacheRead: number;
   cacheWrite: number;
-  /** `adaptive` models take `thinking: {type: "adaptive"}` and `output_config.effort`; Haiku 4.5 takes a budget. */
-  thinking: "adaptive" | "budget";
+  /** `adaptive` models take `thinking: {type: "adaptive"}` and `output_config.effort`; Haiku 4.5 takes a budget. A decision model thinks in neither way. */
+  thinking?: "adaptive" | "budget";
 };
 
 export const MODELS: Record<string, ModelInfo> = {
   "claude-haiku-4-5": { id: "claude-haiku-4-5", input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, thinking: "budget" },
   "claude-sonnet-5": { id: "claude-sonnet-5", input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, thinking: "adaptive" },
   "claude-opus-5": { id: "claude-opus-5", input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25, thinking: "adaptive" },
+  /** TypeSafe's Jev on OpenRouter (openrouter.ai/typesafe/jev-1.13, 2026-09): input only, output free (SJ.1). */
+  "~typesafe/jev-latest": { id: "~typesafe/jev-latest", input: 0.042, output: 0, cacheRead: 0, cacheWrite: 0 },
 };
 
 const modelId = z.string().refine((id) => id in MODELS, {
   message: `unknown model; one of ${Object.keys(MODELS).join(", ")}`,
 });
+/** A turn or cycle model must be one that thinks; the decision model has its own field. */
+const llmModelId = modelId.refine((id) => MODELS[id]?.thinking !== undefined, { message: "not a language model" });
 
 export const ConfigSchema = z.object({
   models: z
     .object({
-      turn: modelId.default("claude-sonnet-5"),
-      cycle: modelId.default("claude-opus-5"),
+      turn: llmModelId.default("claude-sonnet-5"),
+      cycle: llmModelId.default("claude-opus-5"),
       /** `api`: the SDK on API credit. `claude_code`: `claude -p` on the account's subscription. */
       cycle_provider: z.enum(["api", "claude_code"]).default("api"),
       /** CLI reflections at once; each is a whole Claude Code runtime. */
@@ -64,7 +68,20 @@ export const ConfigSchema = z.object({
         .default(["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord", "rule-prober"]),
       /** A preset's own persona list (S2.10); `personas` is Freeport's and the fallback. */
       personas_for: z.record(z.string(), z.array(z.string())).default({}),
-      brain: z.enum(["scripted", "llm", "mixed"]).default("mixed"),
+      brain: z.enum(["scripted", "llm", "mixed", "jev"]).default("mixed"),
+    })
+    .prefault({}),
+  /** The typed-decision brain (SJ.1): code lays out the choices, Jev picks. */
+  jev: z
+    .object({
+      model: modelId.default("~typesafe/jev-latest"),
+      base_url: z.string().url().default("https://openrouter.ai/api/alpha/decisions"),
+      /** With `run.brain = "jev"`, these personas play on Jev; every other one is scripted. */
+      personas: z.array(z.string()).default(["founder", "wage-maximiser", "speculator", "landlord"]),
+      /** A choice below this confidence is treated as its slot's do-nothing option. */
+      min_confidence: z.number().min(0).max(1).default(0.35),
+      /** An irreversible choice (switch jobs, found, buy a dwelling) needs at least this, and 0.4 of the probability mass. */
+      irreversible_confidence: z.number().min(0).max(1).default(0.5),
     })
     .prefault({}),
 });
@@ -88,8 +105,8 @@ export function loadConfig(path: string, overrides: Overrides = {}): Config {
 export function applyOverrides(cfg: Config, overrides: Overrides): Config {
   if (overrides.players !== undefined) cfg.run.players = overrides.players;
   if (overrides.brain !== undefined) cfg.run.brain = overrides.brain;
-  if (overrides.turnModel !== undefined) cfg.models.turn = modelId.parse(overrides.turnModel);
-  if (overrides.cycleModel !== undefined) cfg.models.cycle = modelId.parse(overrides.cycleModel);
+  if (overrides.turnModel !== undefined) cfg.models.turn = llmModelId.parse(overrides.turnModel);
+  if (overrides.cycleModel !== undefined) cfg.models.cycle = llmModelId.parse(overrides.cycleModel);
   if (overrides.cycleProvider !== undefined) cfg.models.cycle_provider = overrides.cycleProvider;
   if (overrides.maxUsd !== undefined) cfg.budget.max_usd = overrides.maxUsd;
   return cfg;
@@ -102,6 +119,7 @@ export type Env = {
   serverBin: string;
   databaseUrl: string | undefined;
   anthropicKey: string | undefined;
+  openrouterKey: string | undefined;
 };
 
 export function readEnv(env: NodeJS.ProcessEnv = process.env): Env {
@@ -113,5 +131,6 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): Env {
     serverBin: env.ISMS_SERVER_BIN ?? "../target/debug/isms-server",
     databaseUrl: env.DATABASE_URL,
     anthropicKey: env.ANTHROPIC_API_KEY,
+    openrouterKey: env.OPENROUTER_API_KEY,
   };
 }

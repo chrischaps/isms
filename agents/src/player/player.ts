@@ -100,6 +100,7 @@ export class Player {
         ended_by: outcome.ended_by,
         error: outcome.error,
         usage: outcome.usage,
+        ...(outcome.decisions ? { decisions: outcome.decisions } : {}),
       };
       this.o.journal.append(record);
       this.lastTurn = record;

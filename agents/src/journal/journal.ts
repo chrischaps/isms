@@ -39,12 +39,20 @@ export const SituationSchema = z.object({
 });
 export type Situation = z.infer<typeof SituationSchema>;
 
+export const DecisionSchema = z.object({
+  slot: z.string(),
+  option: z.string(),
+  confidence: z.number(),
+  none: z.boolean(),
+  acted: z.boolean(),
+});
+
 export const TurnRecordSchema = z.object({
   kind: z.literal("turn"),
   run: z.string(),
   player: z.string(),
   persona: z.string(),
-  brain: z.enum(["scripted", "llm"]),
+  brain: z.enum(["scripted", "llm", "jev"]),
   model: z.string().nullable(),
   epoch: z.number(),
   cycle: z.number(),
@@ -58,6 +66,8 @@ export const TurnRecordSchema = z.object({
   ended_by: z.enum(["end_turn", "text", "cap", "budget", "error", "script"]),
   error: z.string().nullable(),
   usage: UsageSchema,
+  /** A Jev turn's typed decisions (SJ.1): the slot, the option, the confidence, whether it was a do-nothing option, whether it ran. */
+  decisions: z.array(DecisionSchema).optional(),
 });
 export type TurnRecord = z.infer<typeof TurnRecordSchema>;
 

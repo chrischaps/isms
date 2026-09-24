@@ -11,7 +11,7 @@ import type { Persona } from "../brain/brain.ts";
 const Frontmatter = z.object({
   name: z.string(),
   slug: z.string().regex(/^[a-z0-9-]{2,20}$/),
-  brain: z.enum(["scripted", "llm"]),
+  brain: z.enum(["scripted", "llm", "jev"]),
   goals: z.array(z.string()).min(1),
   temperament: z.string(),
   risk: z.enum(["low", "medium", "high"]),

@@ -103,7 +103,8 @@ sim-detail:
 	cargo run -p isms-sim --release -- run --preset $(PRESET) --epochs $(EPOCHS) --seed $(SEED) --out docs/tuning/runs --detail
 
 # A synthetic cohort against a throwaway lab society (S1.16): report in docs/playtest/runs/<RUN>.md.
-# BRAIN=scripted costs nothing; mixed and llm need ANTHROPIC_API_KEY in the environment or .env.
+# BRAIN=scripted costs nothing; mixed and llm need ANTHROPIC_API_KEY in the environment or .env;
+# BRAIN=jev (SJ.1) needs OPENROUTER_API_KEY and costs cents.
 RUN ?= $(shell date +%Y%m%d-%H%M)
 PLAYERS ?= 8
 TICK_SECONDS ?= 10
