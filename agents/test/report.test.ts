@@ -2,7 +2,7 @@ import { copyFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildReport, endpointOf, fold, normalise } from "../src/report/report.ts";
+import { buildReport, economyTable, endpointOf, fold, normalise, standingsTable } from "../src/report/report.ts";
 
 const T = join(import.meta.dirname, "fixtures", "transcripts");
 
@@ -45,5 +45,30 @@ describe("buildReport", () => {
     expect(md).toMatch(/### [a-z_]+ \(\d+\)/);
     expect(md).toContain("Refusals that name things by raw id");
     expect(md).toContain("**rule-prober-1** (rule-prober, scripted) took 20 turns");
+  });
+});
+
+describe("the economy day by day and the standings (SJ.2)", () => {
+  it("draws one row per day from the /stats snapshots", () => {
+    const day = (cycle: number, wage: number, gini: number) => ({
+      cycle,
+      live: { food_last_price: 131 },
+      aggregates: { mean_cycle_wage: wage, price_index: 1.1, unemployed: 2, firm_count: 20, credit_outstanding: 5000, real_output: 1335, materials_produced: 710, materials_to_machines: 36, investment_share: 0.05, consumption_gini: gini, need_fulfillment_rate: 0.975, hardship_count: 0, median_wellbeing: 89.8 },
+    });
+    const lines = economyTable([day(1, 61.7, 0.04), day(2, 63.2, 0.05)]);
+    expect(lines[0]).toBe("## The economy, day by day");
+    expect(lines).toContain("| 1 | 61.70 | 1.10 | 1.31 | 2 | 20 | 50.00 | 1335 | 710 | 36 | 5% | 0.040 | 98% | 0 | 89.8 |");
+    expect(lines.filter((l) => /^\| \d+ \|/.test(l))).toHaveLength(2);
+    expect(economyTable([])).toEqual([]);
+  });
+  it("marks the cohort's players on the scoreboard and keeps every player's rank", () => {
+    const rows = Array.from({ length: 14 }, (_, i) => ({ citizen: i, handle: `h${i}`, net_worth: 100000 - i * 1000, self_made: -i * 1000, firms: [] }));
+    rows[12]!.handle = "founder-1";
+    const lines = standingsTable({ rows }, new Set(["founder-1", "h0"]));
+    expect(lines).toContain("| 1 | **h0** | 1000.00 | 0.00 | 0 |");
+    expect(lines).toContain("| 13 | **founder-1** | 880.00 | -120.00 | 0 |");
+    expect(lines.filter((l) => l.startsWith("| …"))).toHaveLength(1);
+    expect(lines.filter((l) => /^\| \d+ \|/.test(l))).toHaveLength(11);
+    expect(standingsTable(null, new Set())).toEqual([]);
   });
 });

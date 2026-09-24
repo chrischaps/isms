@@ -2,7 +2,7 @@
 // reflects when the day ends, and the run stops at the epoch's end or the
 // budget's, writing `summary.json` and a `/stats` snapshot either way.
 
-import { writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Client, unwrap } from "../api/client.ts";
 import type { Budget } from "../budget/budget.ts";
@@ -64,6 +64,17 @@ export async function runCohort(opts: CohortOpts, ticks: AsyncIterable<TickSigna
     inFlight.add(p);
     p.finally(() => inFlight.delete(p)).catch(() => undefined);
   };
+  // The economy day by day (SJ.2): `/stats` at each day's end, its `last_cycle` aggregates being the day just closed, one line per day in `days.jsonl`.
+  const daysFile = join(opts.runDir, "days.jsonl");
+  writeFileSync(daysFile, "");
+  const snapshotDay = async (cycle: number) => {
+    try {
+      const v = unwrap(await opts.client.GET("/s/{id}/stats", { params: { path: { id: opts.sid } } })) as { live?: unknown; last_cycle?: unknown };
+      appendFileSync(daysFile, JSON.stringify({ cycle, live: v.live ?? null, aggregates: v.last_cycle ?? null }) + "\n");
+    } catch (e) {
+      log(`could not read /stats at the end of day ${cycle}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
 
   for await (const signal of ticks) {
     if (opts.budget.exhausted()) {
@@ -79,6 +90,7 @@ export async function runCohort(opts: CohortOpts, ticks: AsyncIterable<TickSigna
     if (signal.kind === "cycle") {
       cyclesSeen += 1;
       log(`day ${signal.clock.cycle - 1} ended; players reflect`);
+      track(snapshotDay(signal.clock.cycle - 1));
       for (const p of opts.players) {
         // Outside the turn pool: a reflection holds no slot, so the day's turns keep going.
         track(p.reflect(signal.clock).catch((e) => log(`${p.name}: reflection failed: ${e instanceof Error ? e.message : String(e)}`)));
@@ -112,10 +124,22 @@ export async function runCohort(opts: CohortOpts, ticks: AsyncIterable<TickSigna
   let stats: unknown = null;
   try {
     stats = unwrap(await opts.client.GET("/s/{id}/stats", { params: { path: { id: opts.sid } } }));
+    // The epoch's last day closed with the epoch, so no `cycle` signal snapshotted it.
+    if (stoppedBy === "epoch_end") {
+      const v = stats as { clock?: { cycle?: number }; live?: unknown; last_cycle?: unknown };
+      appendFileSync(daysFile, JSON.stringify({ cycle: (v.clock?.cycle ?? cyclesSeen + 1) - 1, live: v.live ?? null, aggregates: v.last_cycle ?? null }) + "\n");
+    }
   } catch (e) {
     log(`could not read /stats at the end: ${e instanceof Error ? e.message : String(e)}`);
   }
   writeFileSync(join(opts.runDir, "stats.json"), JSON.stringify(stats, null, 2) + "\n");
+  // Who ended where (SJ.2): the scoreboard, for the report's standings table.
+  try {
+    const board = unwrap(await opts.client.GET("/s/{id}/scoreboard", { params: { path: { id: opts.sid } } }));
+    writeFileSync(join(opts.runDir, "scoreboard.json"), JSON.stringify(board, null, 2) + "\n");
+  } catch (e) {
+    log(`could not read /scoreboard at the end: ${e instanceof Error ? e.message : String(e)}`);
+  }
   const summary: Summary = {
     run: opts.run,
     stopped_by: stoppedBy,

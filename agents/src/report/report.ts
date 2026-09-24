@@ -113,9 +113,16 @@ export type Folded = {
   stats: Record<string, unknown> | null;
   /** S1.15: what the epoch-end sequence left behind, when the run waited for it. */
   rollover: Record<string, unknown> | null;
+  /** SJ.2: `/stats` at each day's end (`days.jsonl`), oldest first. */
+  days: DayRecord[];
+  /** SJ.2: the scoreboard at the end (`scoreboard.json`). */
+  scoreboard: { rows: ScoreRow[] } | null;
   players: Map<string, JournalRecord[]>;
   turns: TurnRecord[];
 };
+
+export type DayRecord = { cycle: number; live: Record<string, unknown> | null; aggregates: Record<string, unknown> | null };
+export type ScoreRow = { citizen: number; handle: string; net_worth: number; self_made: number; firms: unknown[] };
 
 export function fold(runDir: string, run: string): Folded {
   const players = new Map<string, JournalRecord[]>();
@@ -126,15 +133,68 @@ export function fold(runDir: string, run: string): Folded {
   const summaryFile = join(runDir, "summary.json");
   const statsFile = join(runDir, "stats.json");
   const rolloverFile = join(runDir, "rollover.json");
+  const daysFile = join(runDir, "days.jsonl");
+  const boardFile = join(runDir, "scoreboard.json");
   const turns = [...players.values()].flat().filter((r): r is TurnRecord => r.kind === "turn");
   return {
     run,
     summary: existsSync(summaryFile) ? (JSON.parse(readFileSync(summaryFile, "utf8")) as Summary) : null,
     stats: existsSync(statsFile) ? (JSON.parse(readFileSync(statsFile, "utf8")) as Record<string, unknown> | null) : null,
     rollover: existsSync(rolloverFile) ? (JSON.parse(readFileSync(rolloverFile, "utf8")) as Record<string, unknown>) : null,
+    days: existsSync(daysFile)
+      ? readFileSync(daysFile, "utf8")
+          .split("\n")
+          .filter((l) => l.trim() !== "")
+          .map((l) => JSON.parse(l) as DayRecord)
+      : [],
+    scoreboard: existsSync(boardFile) ? (JSON.parse(readFileSync(boardFile, "utf8")) as { rows: ScoreRow[] }) : null,
     players,
     turns,
   };
+}
+
+const num = (v: unknown, digits = 0): string => (typeof v === "number" ? v.toFixed(digits) : "?");
+const pct = (v: unknown): string => (typeof v === "number" ? `${(v * 100).toFixed(0)}%` : "?");
+
+/** The economy day by day (SJ.2): the aggregates that say whether the town is fed, working, investing and unequal. */
+export function economyTable(days: DayRecord[]): string[] {
+  if (days.length === 0) return [];
+  const out = [
+    "## The economy, day by day",
+    "",
+    "| day | day wage | price index | food | unemployed | firms | credit | output | materials | to machines | invest | Gini | needs met | hardship | wellbeing |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+  ];
+  for (const d of days) {
+    const a = d.aggregates ?? {};
+    const live = d.live ?? {};
+    const food = live.food_last_price;
+    out.push(
+      `| ${d.cycle} | ${num(a.mean_cycle_wage, 2)} | ${num(a.price_index, 2)} | ${typeof food === "number" ? (food / 100).toFixed(2) : "?"} | ${num(a.unemployed)} | ${num(a.firm_count)} | ${typeof a.credit_outstanding === "number" ? (a.credit_outstanding / 100).toFixed(2) : "?"} | ${num(a.real_output)} | ${num(a.materials_produced)} | ${num(a.materials_to_machines)} | ${pct(a.investment_share)} | ${num(a.consumption_gini, 3)} | ${pct(a.need_fulfillment_rate)} | ${num(a.hardship_count)} | ${num(a.median_wellbeing, 1)} |`,
+    );
+  }
+  out.push(
+    "",
+    "Day wage and credit in credits; food is the day's last Food price; output and materials in units; invest is the share of Materials that became Machines or dwellings; Gini is of consumption; needs met is the fulfilment rate. A vibrant economy moves on this table: wages and prices that differ from day to day, credit above zero, an investment share that is not the legacy runner's constant, a Gini that opens as strategies diverge.",
+    "",
+  );
+  return out;
+}
+
+/** Who ended where (SJ.2): the top of the scoreboard with the cohort's players marked, and every player's rank. */
+export function standingsTable(board: { rows: ScoreRow[] } | null, playerHandles: Set<string>): string[] {
+  if (!board || board.rows.length === 0) return [];
+  const rows = [...board.rows].sort((a, b) => Number(b.net_worth) - Number(a.net_worth) || a.citizen - b.citizen);
+  const out = ["## Standings at the end", "", "| rank | citizen | net worth | self-made | firms |", "|---|---|---|---|---|"];
+  const shown = rows.map((r, i) => ({ r, i })).filter(({ r, i }) => i < 10 || playerHandles.has(r.handle));
+  let last = -1;
+  for (const { r, i } of shown) {
+    if (last >= 0 && i > last + 1) out.push("| … | | | | |");
+    out.push(`| ${i + 1} | ${playerHandles.has(r.handle) ? `**${r.handle}**` : r.handle} | ${cr(Number(r.net_worth))} | ${cr(Number(r.self_made))} | ${r.firms.length} |`);
+    last = i;
+  }
+  out.push("", `${rows.length} citizens ranked by net worth; the cohort's players in bold. Self-made is net worth less the endowment.`, "");
+  return out;
 }
 
 const cr = (cents: number) => (cents / 100).toFixed(2);
@@ -199,6 +259,8 @@ export function buildReport(f: Folded): string {
     }
   } else out.push("(no /stats snapshot)");
   out.push("");
+  out.push(...economyTable(f.days));
+  out.push(...standingsTable(f.scoreboard, new Set(f.players.keys())));
   if (f.rollover) {
     const r = f.rollover;
     const windowSecs = Math.round((new Date(String(r.closes_at)).getTime() - new Date(String(r.ended_at)).getTime()) / 1000);
