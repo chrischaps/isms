@@ -265,8 +265,9 @@ async function main(argv: string[]) {
     });
   });
 
-  const first = players[0]!;
-  const readClock = async () => (await first.home()).clock;
+  // The tick watcher's own clock reads go through an unrecorded client: a recording holds only the player's turns (SJ.1 found the startup read shifting a replay by one).
+  const clockClient = makeClient({ baseUrl: env.ismsUrl, auth: { key: accounts[0]!.key } });
+  const readClock = async () => unwrap(await clockClient.GET("/s/{id}/home", { params: { path: { id: env.society } } })).clock;
   const aborter = new AbortController();
   process.on("SIGINT", () => {
     log("stopping after the turns in flight");
