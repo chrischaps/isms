@@ -71,7 +71,8 @@ export async function decide(req: DecisionRequest, opts: DecideOpts): Promise<De
       body: JSON.stringify(req),
     });
   let res = await send();
-  if (res.status === 429 || res.status === 503 || res.status === 529) {
+  // A rate limit, an overload, or a gateway between us and the model (OpenRouter answered 520 once in 1,162 turns): one retry.
+  if (res.status === 429 || res.status === 529 || (res.status >= 500 && res.status !== 500)) {
     await sleep(RETRY_AFTER_MS);
     res = await send();
   }

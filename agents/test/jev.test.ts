@@ -297,6 +297,21 @@ describe("when the decisions API fails", () => {
     expect(out.decisions).toEqual([]);
     expect(c.turn.calls.some((x) => x.tool === "set_labor")).toBe(false);
   });
+  it("retries a gateway error once and takes the second answer", async () => {
+    const home = employedHome();
+    const best = jobOffers(board().offers)[0]!;
+    let n = 0;
+    const inner = fixtureTransport(FIX, { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, [JEV]: answer({ work: ["full_normal", 0.9], plan: ["keep_plan", 0.9] }) });
+    const flaky: Transport = async (input, init) => {
+      if (String(input).includes("/decisions") && n++ === 0) return new Response("<html>520</html>", { status: 520 });
+      return inner(input, init);
+    };
+    const { brain: b, ctx: c } = brain("wage-maximiser", {}, { transport: flaky });
+    const out = await b.takeTurn(c, turnInput(home));
+    expect(out.ended_by).toBe("script");
+    expect(n).toBe(2);
+    expect(c.turn.calls.find((x) => x.tool === "set_labor")?.input).toMatchObject({ allocations: [{ workplace: best.workplace }] });
+  });
   it("stops asking after the key is refused", async () => {
     const home = employedHome();
     let jevCalls = 0;
