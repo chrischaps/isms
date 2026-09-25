@@ -1,6 +1,6 @@
 # The Jev brain — side-cards SJ.1–SJ.6, and the engine cards they hand on
 
-Written 2026-09-24. A side-series in `agents/` (no engine change), like SB.1–SB.5: each card commits to main and pushes on green. The decision is ADR-0014 (with its SJ.2 amendment); the brain is `agents/src/brain/jev/`; the runs are in `docs/playtest/runs/sj*.md`. One paid run per explicit approval stands (ADR-0011).
+Written 2026-09-24; the order to do the cards after SJ.3 is in `docs/plans/market-liveliness.md`. A side-series in `agents/` (no engine change), like SB.1–SB.5: each card commits to main and pushes on green. The decision is ADR-0014 (with its SJ.2 amendment); the brain is `agents/src/brain/jev/`; the runs are in `docs/playtest/runs/sj*.md`. One paid run per explicit approval stands (ADR-0011).
 
 ## Context
 
