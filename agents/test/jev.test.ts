@@ -217,8 +217,8 @@ describe("the builder's roof (SJ.3)", () => {
     expect(none.some((s) => s.key === "dwelling")).toBe(false);
     // The firm slot the builder shares with the founder names its inputs.
     const venture = slots.find((s) => s.key === "venture")!;
-    expect(venture.candidates.map((x) => x.option)).toContain("buy_materials");
-    expect(venture.candidates.find((x) => x.option === "buy_materials")!.describe).toContain("10 materials, one dwelling's worth");
+    expect(venture.candidates.map((x) => x.option)).toEqual(expect.arrayContaining(["take_ask_materials", "bid_under_materials"]));
+    expect(venture.candidates.find((x) => x.option === "take_ask_materials")!.describe).toContain("10 materials, one dwelling's worth");
   });
   it("posts the sale, or the lease, on the firm's behalf", async () => {
     const home = workingHome();
@@ -264,6 +264,153 @@ describe("the lender (SJ.3)", () => {
     expect(out.error).toBeNull();
     expect(c.turn.calls.find((x) => x.tool === "post_credit_offer")?.input).toEqual({ principal: 24200, rate_per_cycle_bp: 300, term_cycles: 5, collateral: null, to: null, on_behalf_of: null });
     expect(out.intent).toContain("offered 242.00 at 3% a day over 5 days (dear)");
+  });
+});
+
+// -- SJ.5: prices from the players ----------------------------------------------------------------
+
+/** A books view with resting sides: `[last, bid, ask, bidDepth, askDepth]` per good. */
+const booksWith = (rows: Record<string, [number | null, number | null, number | null, number?, number?]>) => ({
+  status: 200,
+  body: { books: Object.entries(rows).map(([instrument, [last_price, best_bid, best_ask, bid_depth, ask_depth]]) => ({ instrument, last_price, best_bid, best_ask, bid_depth: bid_depth ?? 0, ask_depth: ask_depth ?? 0 })), price_index: 1 },
+});
+
+describe("pricing in the firm slot (SJ.5)", () => {
+  it("offers undercut one tick under the best ask and hold_price 5% over the last, with the days unsold in the sentence", async () => {
+    const home = workingHome();
+    const stocked = { "GET /s/1/orgs": managedOrgs({ inventory: { ore: 40 }, treasury: 5000 }), "GET /s/1/books": booksWith({ ore: [92, 88, 92, 30, 400] }) };
+    // Day-old shelf memory: 30 ore yesterday, 40 today, so nothing sold.
+    const memory = { firm, shelf: { ore: { cycle: home.clock.cycle - 1, qty: 30 } }, unsold: { ore: 1 } };
+    const slots = await layOut("founder", new Script(ctx(fixtureTransport(FIX, stocked)), turnInput(home), memory, "f"));
+    const venture = slots.find((s) => s.key === "venture")!;
+    const options = venture.candidates.map((x) => x.option);
+    expect(options).toEqual(expect.arrayContaining(["undercut", "hold_price"]));
+    expect(options).not.toContain("sell_output");
+    expect(venture.candidates.find((x) => x.option === "undercut")!.describe).toBe("ask 40 ore at 0.91, one tick under the best ask (400 ore asked at 0.92), so yours sells first: 40 ore unsold for 2 day(s)");
+    expect(venture.candidates.find((x) => x.option === "hold_price")!.describe).toContain("ask 40 ore at 0.97, 5% over the last price");
+    expect(venture.facts.books).toEqual({ ore: { last: "0.92", best_bid: "0.88", best_ask: "0.92", bid_depth: 30, ask_depth: 400, days_unsold: 2 } });
+    expect(memory.unsold).toEqual({ ore: 2 });
+    // The same day again: the shelf is read once a day, so the count holds.
+    await layOut("founder", new Script(ctx(fixtureTransport(FIX, stocked)), turnInput(home), memory, "f"));
+    expect(memory.unsold).toEqual({ ore: 2 });
+  });
+  it("places the undercut ask on the firm's behalf, and resets the days unsold when the shelf shrank", async () => {
+    const home = workingHome();
+    const { brain: b, ctx: c } = brain("founder", { "PUT /s/1/plan": ok, "GET /s/1/orgs": managedOrgs({ inventory: { ore: 12 }, treasury: 5000 }), "GET /s/1/books": booksWith({ ore: [92, 88, 92, 30, 400] }), "POST /s/1/orders": ok, [JEV]: answer({ venture: ["undercut", 0.8] }) });
+    const m = (b as unknown as { memory: Record<string, unknown> }).memory;
+    Object.assign(m, { firm, shelf: { ore: { cycle: home.clock.cycle - 1, qty: 30 } }, unsold: { ore: 3 } });
+    const out = await b.takeTurn(c, turnInput(home));
+    expect(out.error).toBeNull();
+    expect(c.turn.calls.find((x) => x.tool === "place_order")?.input).toEqual({ instrument: "ore", side: "ask", qty: 12, limit_price: 91, on_behalf_of: 18 });
+    expect(out.intent).toContain("asked 12 ore @91 (undercut)");
+    expect(m.unsold).toEqual({ ore: 0 });
+  });
+  it("buys an input at the ask or bids one tick under it, from the treasury", async () => {
+    const home = workingHome();
+    const roofs = { "GET /s/1/orgs": managedOrgs({ kind: "builder", treasury: 5000 }), "GET /s/1/books": booksWith({ materials: [200, 190, 204, 10, 60] }) };
+    const slots = await layOut("builder", new Script(ctx(fixtureTransport(FIX, roofs)), turnInput(home), {}, "b"));
+    const venture = slots.find((s) => s.key === "venture")!;
+    expect(venture.candidates.find((x) => x.option === "take_ask_materials")!.describe).toContain("at once at 2.04 each: 60 materials are asked at 2.04");
+    expect(venture.candidates.find((x) => x.option === "bid_under_materials")!.describe).toContain("at 2.03 each, one tick under");
+    const { brain: b, ctx: c } = brain("builder", { "PUT /s/1/plan": ok, ...roofs, "POST /s/1/orders": ok, [JEV]: answer({ venture: ["bid_under_materials", 0.8] }) });
+    await b.takeTurn(c, turnInput(home));
+    expect(c.turn.calls.find((x) => x.tool === "place_order")?.input).toEqual({ instrument: "materials", side: "bid", qty: 10, limit_price: 203, on_behalf_of: 18 });
+    // Too poor for the ask but not for the bid under it: only the resting bid is offered.
+    const thin = await layOut("builder", new Script(ctx(fixtureTransport(FIX, { ...roofs, "GET /s/1/orgs": managedOrgs({ kind: "builder", treasury: 2035 }) })), turnInput(home), {}, "b"));
+    expect(thin.find((s) => s.key === "venture")!.candidates.map((x) => x.option)).toContain("bid_under_materials");
+    expect(thin.find((s) => s.key === "venture")!.candidates.map((x) => x.option)).not.toContain("take_ask_materials");
+  });
+});
+
+describe("which workplace (SJ.5)", () => {
+  /** Twenty Materials and the fee in hand, a job held: ready to found. */
+  const ready = () => {
+    const home = workingHome();
+    return { ...home, household: { ...home.household, balance: 50000, pantry: { ...home.household.pantry, materials: 20 } } } as unknown as HomeView;
+  };
+  // At the recorded recipes and these prices: mill 120 food x 1.31 = 157.20 less 120 grain x 0.61 = 73.20; foundry 80 materials x 2.00 = 160.00 less 80 ore x 0.92 = 73.60;
+  // mine 80 ore x 0.92 = 73.60; workshop 40 wares x 4.12 = 164.80 less 40 materials x 2.00 = 80.00. Less a day's wage at the job held.
+  const prices = books({ food: 131, grain: 61, ore: 92, materials: 200, wares: 412, machines: 1052 });
+  it("ranks the four kinds by a day's margin, best first, once a day", async () => {
+    const home = ready();
+    const script = new Script(ctx(fixtureTransport(FIX, { "GET /s/1/books": prices })), turnInput(home), {}, "f");
+    const slots = await layOut("founder", script);
+    const which = slots.find((s) => s.key === "which_workplace")!;
+    expect(which.candidates.map((x) => x.option)).toEqual(["open_foundry", "open_workshop", "open_mill", "open_mine", "decide_later"]);
+    const wage = jobOffers(board().offers)[0]!.hourly * 8;
+    expect(which.facts.foundry).toEqual({ units_a_day: 80, revenue: "160.00", inputs: "73.60", margin: ((16000 - 7360 - wage) / 100).toFixed(2) });
+    expect(which.candidates[0]!.describe).toContain("open a foundry: about 80 materials a day, worth 160.00, less 73.60 for 80 ore");
+    // Not yet chosen: founding is not offered this hour.
+    expect(slots.find((s) => s.key === "venture")?.candidates.map((x) => x.option) ?? []).not.toContain("found_now");
+    // Once a day.
+    expect((await layOut("founder", script)).some((s) => s.key === "which_workplace")).toBe(false);
+    // Without the Materials, no question.
+    expect((await layOut("founder", new Script(ctx(fixtureTransport(FIX, { "GET /s/1/books": prices })), turnInput(workingHome()), {}, "f"))).some((s) => s.key === "which_workplace")).toBe(false);
+  });
+  it("founds what it chose", async () => {
+    const home = ready();
+    const chosen = brain("founder", { "PUT /s/1/plan": ok, "GET /s/1/books": prices, [JEV]: answer({ which_workplace: ["open_mill", 0.8] }) });
+    const first = await chosen.brain.takeTurn(chosen.ctx, turnInput(home));
+    expect(first.error).toBeNull();
+    expect(first.intent).toContain("which_workplace open_mill (0.80): chose a mill");
+    const m = (chosen.brain as unknown as { memory: Record<string, unknown> }).memory;
+    expect(m.workplaceKind).toBe("mill");
+    // Next hour: found_now names the mill and opens one.
+    const founding = brain("founder", { "PUT /s/1/plan": ok, "GET /s/1/books": prices, "POST /s/1/orgs": ok, [JEV]: answer({ venture: ["found_now", 0.95] }) });
+    Object.assign((founding.brain as unknown as { memory: Record<string, unknown> }).memory, { workplaceKind: "mill", "asked:which_workplace": home.clock.cycle });
+    const out = await founding.brain.takeTurn(founding.ctx, turnInput(home));
+    expect(out.error).toBeNull();
+    expect(founding.ctx.turn.calls.find((x) => x.tool === "found_org")?.input).toEqual({ kind: "firm", name: "founder's Works", first_workplace: { kind: "mill", slot: null } });
+    expect(out.intent).toContain("founded founder's Works with a mill");
+  });
+});
+
+describe("a job while unemployed (SJ.5)", () => {
+  it("re-asks with the days without a job and the wage gone unearned in the sentence", async () => {
+    const home = unemployedHome();
+    const script = new Script(ctx(fixtureTransport(FIX)), turnInput(home), { unemployedSince: home.clock.cycle - 3 }, "l");
+    const job = (await layOut("lender", script)).find((s) => s.key === "job")!;
+    const best = jobOffers(board().offers)[0]!;
+    expect(job.ask).toContain(`You have had no job for 3 day(s) and ${(best.hourly * 24 / 100).toFixed(2)}, 3 day(s) of the best wage, has gone unearned.`);
+    expect(job.facts).toMatchObject({ days_without_a_job: 3, unearned_credits: (best.hourly * 24 / 100).toFixed(2) });
+    expect(job.candidates.at(-1)!).toMatchObject({ option: "wait", describe: "keep waiting, another day without a wage" });
+    // The first hour without a job says nothing of days, and a job held forgets the count.
+    const fresh = new Script(ctx(fixtureTransport(FIX)), turnInput(home), {}, "l");
+    const day0 = (await layOut("lender", fresh)).find((s) => s.key === "job")!;
+    expect(day0.ask).not.toContain("no job for");
+    expect(fresh.memory.unemployedSince).toBe(home.clock.cycle);
+    const held = new Script(ctx(fixtureTransport(FIX)), turnInput(employedHome()), { unemployedSince: 1 }, "l");
+    await layOut("lender", held);
+    expect(held.memory.unemployedSince).toBeUndefined();
+  });
+});
+
+describe("comfort (SJ.5)", () => {
+  const low = (comfort: number, wares = 0) => {
+    const home = employedHome();
+    return { ...home, needs: { ...home.needs, comfort }, household: { ...home.household, pantry: { ...home.household.pantry, wares } } } as unknown as HomeView;
+  };
+  it("offers Wares at the ask or under it once a day while Comfort is under 60, for every persona", async () => {
+    const script = new Script(ctx(fixtureTransport(FIX, { "GET /s/1/books": booksWith({ wares: [412, 400, 412, 5, 90] }) })), turnInput(low(41)), {}, "s");
+    const slots = await layOut("saver", script);
+    const comfort = slots.find((s) => s.key === "comfort")!;
+    expect(comfort.candidates.map((x) => x.option)).toEqual(["take_ask", "bid_under", "go_without"]);
+    // (80 - 41) / 6 = 6.5 -> capped at five, lifting Comfort by 30.
+    expect(comfort.ask).toContain("Comfort is 41 of 100 and falls 1 an hour; 5 Wares would lift it by about 30. 90 are asked at 4.12; the best bid is 4.00.");
+    expect(comfort.candidates[0]!.describe).toBe("buy 5 Wares now at 4.12 each, 20.60 in all, lifting Comfort by about 30");
+    expect(comfort.candidates[1]!.describe).toContain("bid 4.11 each for 5 Wares, one tick under the ask");
+    expect(comfort.facts).toMatchObject({ comfort: 41, wares_wanted: 5, comfort_lift: 30, cost_at_ask: "20.60" });
+    expect((await layOut("saver", script)).some((s) => s.key === "comfort")).toBe(false);
+    // Comfortable, or Wares already in the pantry: no question.
+    expect((await layOut("saver", new Script(ctx(fixtureTransport(FIX)), turnInput(low(60)), {}, "s"))).some((s) => s.key === "comfort")).toBe(false);
+    expect((await layOut("saver", new Script(ctx(fixtureTransport(FIX)), turnInput(low(41, 2)), {}, "s"))).some((s) => s.key === "comfort")).toBe(false);
+  });
+  it("bids for the Wares it chose", async () => {
+    const { brain: b, ctx: c } = brain("slacker", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, "GET /s/1/books": booksWith({ wares: [412, 400, 412, 5, 90] }), "POST /s/1/orders": ok, [JEV]: answer({ work: ["few_low", 0.9], comfort: ["take_ask", 0.8] }) });
+    const out = await b.takeTurn(c, turnInput(low(50)));
+    expect(out.error).toBeNull();
+    expect(c.turn.calls.find((x) => x.tool === "place_order")?.input).toEqual({ instrument: "wares", side: "bid", qty: 5, limit_price: 412 });
+    expect(out.intent).toContain("comfort take_ask (0.80): bid 5 wares @412 (at the ask)");
   });
 });
 

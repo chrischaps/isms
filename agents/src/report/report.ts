@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readJournal, type Record as JournalRecord, type TurnRecord } from "../journal/journal.ts";
-import type { Summary } from "../cohort/cohort.ts";
+import type { PriceRow, Summary } from "../cohort/cohort.ts";
 
 const ENDPOINT_WORDS: [RegExp, string][] = [
   [/\b(job|employ|hire|offer|notice|board|contract|notice_cycles|max_hours)\b/i, "offers and contracts"],
@@ -121,7 +121,7 @@ export type Folded = {
   turns: TurnRecord[];
 };
 
-export type DayRecord = { cycle: number; live: Record<string, unknown> | null; aggregates: Record<string, unknown> | null; headlines?: string[] };
+export type DayRecord = { cycle: number; live: Record<string, unknown> | null; aggregates: Record<string, unknown> | null; headlines?: string[]; prices?: PriceRow[] };
 export type ScoreRow = { citizen: number; handle: string; net_worth: number; self_made: number; firms: unknown[] };
 
 export function fold(runDir: string, run: string): Folded {
@@ -188,6 +188,51 @@ export function economyTable(days: DayRecord[]): string[] {
       out.push("");
     }
   }
+  return out;
+}
+
+/** The goods in the order the recipes chain them; anything else the books carry comes after, alphabetically. */
+const GOOD_ORDER = ["food", "grain", "ore", "materials", "wares", "machines"];
+
+/** Prices, day by day (SJ.5): one column per good, the last price at each day's end, in bold when it differs from the day before; then the books under it, the best bid and ask with their depth, because a cut ask sells at the resting bid's price (ADR-0001) and only the ask shows the runner's move (E-1). */
+export function pricesTable(days: DayRecord[]): string[] {
+  const priced = days.filter((d) => d.prices && d.prices.length > 0);
+  if (priced.length === 0) return [];
+  const goods = [...new Set(priced.flatMap((d) => d.prices!.map((p) => p.good)))].sort((a, b) => {
+    const ia = GOOD_ORDER.indexOf(a);
+    const ib = GOOD_ORDER.indexOf(b);
+    return (ia < 0 ? GOOD_ORDER.length : ia) - (ib < 0 ? GOOD_ORDER.length : ib) || a.localeCompare(b);
+  });
+  const row = (d: DayRecord, good: string) => d.prices!.find((p) => p.good === good);
+  const price = (c: number | null) => (c === null ? "–" : cr(c));
+  const head = `| day | ${goods.join(" | ")} |`;
+  const rule = `|---|${goods.map(() => "---").join("|")}|`;
+  const out = ["## Prices, day by day", "", head, rule];
+  let before: Record<string, number | null> = {};
+  for (const d of priced) {
+    const cells = goods.map((g) => {
+      const last = row(d, g)?.last ?? null;
+      const moved = g in before && before[g] !== last;
+      before[g] = last;
+      return moved ? `**${price(last)}**` : price(last);
+    });
+    out.push(`| ${d.cycle} | ${cells.join(" | ")} |`);
+  }
+  out.push("", "The last price of each good at the day's end, in bold when it differs from the day before. A line is a market that did not move.", "", "### The books at each day's end", "", head, rule);
+  before = {};
+  for (const d of priced) {
+    const cells = goods.map((g) => {
+      const p = row(d, g);
+      if (!p) return "–";
+      const bid = p.bid === null ? "no bid" : `${cr(p.bid)} (${p.bids})`;
+      const ask = p.ask === null ? "no ask" : `${cr(p.ask)} (${p.asks})`;
+      const moved = g in before && before[g] !== p.ask;
+      before[g] = p.ask;
+      return `${bid} / ${moved ? `**${ask}**` : ask}`;
+    });
+    out.push(`| ${d.cycle} | ${cells.join(" | ")} |`);
+  }
+  out.push("", "Best bid / best ask, each with the units resting at it; the ask in bold when it differs from the day before. The ask, not the print, is the seller's signal: a cut ask fills at the resting bid's price, so the tape shows the old price the hour the ask drops.", "");
   return out;
 }
 
@@ -270,6 +315,7 @@ export function buildReport(f: Folded): string {
   } else out.push("(no /stats snapshot)");
   out.push("");
   out.push(...economyTable(f.days));
+  out.push(...pricesTable(f.days));
   out.push(...standingsTable(f.scoreboard, new Set(f.players.keys())));
   if (f.rollover) {
     const r = f.rollover;

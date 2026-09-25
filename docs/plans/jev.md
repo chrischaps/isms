@@ -22,7 +22,7 @@ What the runs so far have shown (`sj1-*`, `sj2-*`, six runs, $0.15):
 | SJ.2 | slots only for a reason; `housing`, `plan`, `credit`, `fund_firm`, two wage tiers; `standing` from the scoreboard; `ambition`; all seven personas; the lab seeds a dwelling per player (Q159); the economy day by day and the standings in the report | 8 tests; two-day and seven-day runs clean | done 2026-09-24, $0.11 |
 | SJ.3 | founders that can decide; a lender; a seller; a town of players; the day's headlines | below | done 2026-09-24, $0.14 |
 | SJ.4 | the Commune's slots: ballots, offices, the Plan, the Store | later | |
-| SJ.5 | prices from the players: `undercut`/`hold_price`, resting bids, a workplace chosen by margin, `job` re-asked while unemployed, the price graph in the report | below | |
+| SJ.5 | prices from the players: `undercut`/`hold_price`, resting bids, a workplace chosen by margin, `job` re-asked while unemployed, the price graph in the report | below | built 2026-09-25; free gates green; the paid seven-day run awaits approval |
 | SJ.6 | the town with eight householders (`POPULATION_FLOOR=24`), read on the price graph | below | |
 
 ## SJ.3 — Founders that decide, a lender, a seller, and a town of players

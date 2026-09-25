@@ -22,6 +22,8 @@ function fakeClient(calls: string[]): Client {
     else if (path === "/s/{id}/chronicle") {
       const c = o.params!.query!.cycle!;
       data = { clock: clock(3), cycle: c, headlines: [{ seq: c, ordinal: 0, cycle: c, tick: 0, text: `Day ${c} opens.` }, ...(c === 2 ? [{ seq: 9, ordinal: 1, cycle: 2, tick: 5, text: "A mine runs short of hands." }] : [])] };
+    } else if (path === "/s/{id}/books") {
+      data = { clock: clock(3), price_index: 1.1, books: [{ instrument: "food", last_price: 131, best_bid: 130, best_ask: 126, bid_depth: 12, ask_depth: 340 }, { instrument: "share:18", last_price: null, best_bid: null, best_ask: null, bid_depth: 0, ask_depth: 0 }] };
     } else data = { clock: clock(3), rows: [] };
     return { data, response: { ok: true, status: 200 } as Response };
   };
@@ -44,9 +46,11 @@ describe("the day-end snapshot", () => {
     const days = readFileSync(join(runDir, "days.jsonl"), "utf8")
       .split("\n")
       .filter((l) => l.trim() !== "")
-      .map((l) => JSON.parse(l) as { cycle: number; aggregates: unknown; headlines: string[] });
+      .map((l) => JSON.parse(l) as { cycle: number; aggregates: unknown; headlines: string[]; prices: unknown[] });
     expect(days.map((d) => d.cycle)).toEqual([1, 2]);
     expect(days[0]).toMatchObject({ aggregates: { mean_cycle_wage: 60 }, headlines: ["Day 1 opens."] });
+    // The books at the day's end (SJ.5): the goods, not the shares.
+    expect(days[1]!.prices).toEqual([{ good: "food", last: 131, bid: 130, ask: 126, bids: 12, asks: 340 }]);
     expect(days[1]!.headlines).toEqual(["Day 2 opens.", "A mine runs short of hands."]);
     expect(calls.filter((c) => c.startsWith("/s/{id}/chronicle"))).toEqual(["/s/{id}/chronicle?cycle=1", "/s/{id}/chronicle?cycle=2"]);
   });

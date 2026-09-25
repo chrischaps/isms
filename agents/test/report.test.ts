@@ -2,7 +2,7 @@ import { copyFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildReport, economyTable, endpointOf, fold, normalise, standingsTable } from "../src/report/report.ts";
+import { buildReport, economyTable, endpointOf, fold, normalise, pricesTable, standingsTable } from "../src/report/report.ts";
 
 const T = join(import.meta.dirname, "fixtures", "transcripts");
 
@@ -70,6 +70,25 @@ describe("the economy day by day and the standings (SJ.2)", () => {
     expect(lines).toContain("- H-3 \\| leaves the mine");
     expect(lines.some((l) => l.startsWith("**Day 1**") || l.startsWith("**Day 3**"))).toBe(false);
     expect(economyTable([day(1), day(2)])).not.toContain("### The days' headlines");
+  });
+  it("draws the prices day by day, one column per good, a move in bold (SJ.5)", () => {
+    const p = (good: string, last: number | null, bid: number | null, ask: number | null, bids = 0, asks = 0) => ({ good, last, bid, ask, bids, asks });
+    const day = (cycle: number, prices?: ReturnType<typeof p>[]) => ({ cycle, live: null, aggregates: null, ...(prices ? { prices } : {}) });
+    const lines = pricesTable([day(1, [p("ore", 92, 88, 92, 30, 400), p("food", 131, 130, 131, 12, 340)]), day(2, [p("ore", 92, 88, 92, 30, 420), p("food", 131, 130, 126, 12, 300)]), day(3, [p("ore", 91, 88, 91, 30, 10), p("food", 126, 125, 126, 0, 200)])]);
+    expect(lines[0]).toBe("## Prices, day by day");
+    expect(lines).toContain("| day | food | ore |");
+    expect(lines).toContain("| 1 | 1.31 | 0.92 |");
+    expect(lines).toContain("| 2 | 1.31 | 0.92 |");
+    expect(lines).toContain("| 3 | **1.26** | **0.91** |");
+    expect(lines).toContain("### The books at each day's end");
+    expect(lines).toContain("| 2 | 1.30 (12) / **1.26 (300)** | 0.88 (30) / 0.92 (420) |");
+    expect(lines).toContain("| 3 | 1.25 (0) / 1.26 (200) | 0.88 (30) / **0.91 (10)** |");
+    // A good with no print yet, and a day without a books read.
+    const thin = pricesTable([day(1, [p("wares", null, null, 412, 0, 50)]), day(2)]);
+    expect(thin).toContain("| 1 | – |");
+    expect(thin).toContain("| 1 | no bid / 4.12 (50) |");
+    expect(thin.filter((l) => /^\| \d+ \|/.test(l))).toHaveLength(2);
+    expect(pricesTable([day(1), day(2)])).toEqual([]);
   });
   it("marks the cohort's players on the scoreboard and keeps every player's rank", () => {
     const rows = Array.from({ length: 14 }, (_, i) => ({ citizen: i, handle: `h${i}`, net_worth: 100000 - i * 1000, self_made: -i * 1000, firms: [] }));

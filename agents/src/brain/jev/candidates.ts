@@ -8,7 +8,7 @@
 // the hours are not re-asked every hour they are already set (SJ.2).
 
 import * as act from "../../tools/act.ts";
-import { currentJobs, goingRent, jobOffers, lastPrice, median, workFullHours, workerContracts, type Offer, type Script } from "../scripted/script.ts";
+import { currentJobs, goingRent, jobOffers, lastPrice, median, workFullHours, workerContracts, type BooksView, type Offer, type Script } from "../scripted/script.ts";
 import { dwellingAskPrice } from "../scripted/strategies.ts";
 
 export type Candidate = {
@@ -37,6 +37,50 @@ export type SlotGen = (s: Script) => Promise<Slot | null>;
 const credits = (cents: number) => (cents / 100).toFixed(2);
 const none = (option: string, describe: string): Candidate => ({ option, describe, act: null, irreversible: false });
 const doing = (option: string, describe: string, act: (s: Script) => Promise<string>, irreversible = false): Candidate => ({ option, describe, act, irreversible });
+
+/** The market's tick (SJ.5, Q163): prices are whole cents, so the smallest undercut is one. */
+export const TICK = 1;
+
+/** One good's book as a price-setter reads it (SJ.5): the last print, the best resting bid and ask, and how deep each side is. */
+export type Book = { last: number | null; bestBid: number | null; bestAsk: number | null; bidDepth: number; askDepth: number };
+
+export function bookOf(books: BooksView | null, instrument: string): Book {
+  const b = books?.books.find((x) => x.instrument === instrument);
+  return { last: b?.last_price ?? null, bestBid: b?.best_bid ?? null, bestAsk: b?.best_ask ?? null, bidDepth: b?.bid_depth ?? 0, askDepth: b?.ask_depth ?? 0 };
+}
+
+/** One tick under the best ask, or under the last print when nobody is asking: the price that sells first. */
+export function undercutPrice(b: Book): number | null {
+  const ref = b.bestAsk ?? b.last;
+  return ref === null ? null : Math.max(TICK, ref - TICK);
+}
+
+/** The book's numbers as facts for the state, with the days the firm's shelf has not shrunk. */
+function bookFacts(b: Book, daysUnsold?: number): Record<string, unknown> {
+  return {
+    last: b.last !== null ? credits(b.last) : null,
+    best_bid: b.bestBid !== null ? credits(b.bestBid) : null,
+    best_ask: b.bestAsk !== null ? credits(b.bestAsk) : null,
+    bid_depth: b.bidDepth,
+    ask_depth: b.askDepth,
+    ...(daysUnsold !== undefined ? { days_unsold: daysUnsold } : {}),
+  };
+}
+
+/** How many days each good on the firm's shelf has gone without shrinking (SJ.5): the shelf is read once a day and compared with the day before. */
+function daysUnsold(s: Script, inventory: Record<string, number>): Record<string, number> {
+  const shelf = (s.memory.shelf ??= {}) as Record<string, { cycle: number; qty: number }>;
+  const unsold = (s.memory.unsold ??= {}) as Record<string, number>;
+  for (const [good, qty] of Object.entries(inventory)) {
+    const seen = shelf[good];
+    if (seen && seen.cycle === s.clock.cycle) continue;
+    if (seen) unsold[good] = qty >= seen.qty ? (unsold[good] ?? 0) + (s.clock.cycle - seen.cycle) : 0;
+    else unsold[good] = 0;
+    shelf[good] = { cycle: s.clock.cycle, qty };
+  }
+  for (const good of Object.keys(unsold)) if (!(good in inventory)) delete unsold[good];
+  return unsold;
+}
 
 /** What a day's work pays at this citizen's best rate, or the board's median, or the legacy wage. */
 function dayWage(s: Script, offers: ReturnType<typeof jobOffers>): number {
@@ -218,6 +262,9 @@ export const jobSlot: SlotGen = async (s) => {
   const jobs = currentJobs(s.home);
   const society = s.home.society;
   if (jobs.length === 0) {
+    // The days without a job (SJ.5), so waiting is re-asked as a change with a cost and not a resting state.
+    if (typeof s.memory.unemployedSince !== "number") s.memory.unemployedSince = s.clock.cycle;
+    const idle = s.clock.cycle - (s.memory.unemployedSince as number);
     if (offers.length === 0) return null;
     const best = offers[0]!;
     const second = offers[1];
@@ -225,18 +272,27 @@ export const jobSlot: SlotGen = async (s) => {
       (await sc.do(act.acceptOffer, { offer: o.id })) ? `took job ${o.id} at ${credits(o.hourly)}/h` : `was refused job ${o.id}`;
     const candidates = [doing("take_best", `take the best-paying open job, ${credits(best.hourly)} an hour for up to ${best.maxHours} h a day`, accept(best))];
     if (second) candidates.push(doing("take_second", `take the next one instead, ${credits(second.hourly)} an hour for up to ${second.maxHours} h a day`, accept(second)));
-    candidates.push(none("wait", "take nothing yet and wait for a better offer"));
+    candidates.push(none("wait", idle > 0 ? "keep waiting, another day without a wage" : "take nothing yet and wait for a better offer"));
+    const unearned = idle * best.hourly * 8;
     return {
       key: "job",
       tier: 1,
       ask:
         `whether to take a job now. You have none. ${offers.length} offer(s) are open; the best pays ${credits(best.hourly)} an hour` +
         `${second ? `, the next ${credits(second.hourly)}` : ""}. Food ${s.food.toFixed(0)} of 100, balance ${credits(s.balance)} credits; ` +
-        `${society.unemployed} of ${society.population} citizens are unemployed.`,
-      facts: { employed: false, offers_open: offers.length, best_offer_hourly: credits(best.hourly), second_offer_hourly: second ? credits(second.hourly) : null },
+        `${society.unemployed} of ${society.population} citizens are unemployed.` +
+        (idle > 0 ? ` You have had no job for ${idle} day(s) and ${credits(unearned)}, ${idle} day(s) of the best wage, has gone unearned.` : ""),
+      facts: {
+        employed: false,
+        offers_open: offers.length,
+        best_offer_hourly: credits(best.hourly),
+        second_offer_hourly: second ? credits(second.hourly) : null,
+        ...(idle > 0 ? { days_without_a_job: idle, unearned_credits: credits(unearned) } : {}),
+      },
       candidates,
     };
   }
+  delete s.memory.unemployedSince;
   const mine = Math.max(...jobs.map((j) => j.hourly));
   const best = offers.find((o) => !jobs.some((j) => j.org === o.org && j.workplace === o.workplace));
   if (!best || best.hourly <= mine) return null;
@@ -416,8 +472,72 @@ export const creditSlot: SlotGen = async (s) => {
   };
 };
 
-/** The founder's road: save, buy the Materials, found a firm of `kind`; then fund it, hire at one of two wages, keep it in inputs, sell the output, lay off when wages outrun output, pay a dividend from surplus. */
-export function ventureSlotOf(kind: "mine" | "builder", firmName: string): SlotGen {
+/** The workplaces a founder may open on the strength of a margin (SJ.5): a Builder's output is a dwelling, priced by the `dwelling` slot, so it is not among them. */
+export const WORKPLACE_KINDS = ["mine", "mill", "workshop", "foundry"] as const;
+export type WorkplaceKind = (typeof WORKPLACE_KINDS)[number] | "builder";
+
+/** What a day at one workplace of `kind` clears (SJ.5): the product's last price × the base rate × 8 h, less the inputs at their last price and a day's wage; null when a price is missing. */
+export function dayMargin(kind: string, orgs: { recipes: { workplace_kind: string; produces: string; consumes: Record<string, number>; base_rate: number }[] }, books: BooksView | null, dayWage: number): { units: number; revenue: number; inputs: number; margin: number } | null {
+  const recipe = orgs.recipes.find((r) => r.workplace_kind === kind);
+  if (!recipe) return null;
+  const price = lastPrice(books, recipe.produces);
+  if (price === null) return null;
+  const units = Math.floor(recipe.base_rate * 8);
+  let inputs = 0;
+  for (const [good, per] of Object.entries(recipe.consumes)) {
+    const p = lastPrice(books, good);
+    if (p === null) return null;
+    inputs += per * units * p;
+  }
+  const revenue = units * price;
+  return { units, revenue, inputs, margin: revenue - inputs - dayWage };
+}
+
+/** Which workplace to open (SJ.5): once a day when the Materials and the fee are in hand, the four kinds ranked by a day's margin at the last prices, the best first. */
+export const workplaceSlot: SlotGen = async (s) => {
+  // No Materials, nothing to open: spare the read.
+  if ((s.pantry.materials ?? 0) === 0) return null;
+  const orgs = await s.orgs();
+  if (!orgs || orgs.orgs.some((o) => o.i_manage)) return null;
+  if ((s.pantry.materials ?? 0) < orgs.founding.materials || s.balance < orgs.founding.money) return null;
+  if (!onceToday(s, "which_workplace")) return null;
+  const books = await s.books();
+  const wage = dayWage(s, jobOffers(await s.board()));
+  const ranked = WORKPLACE_KINDS.map((kind) => ({ kind, m: dayMargin(kind, orgs, books, wage) }))
+    .filter((x): x is { kind: (typeof WORKPLACE_KINDS)[number]; m: NonNullable<ReturnType<typeof dayMargin>> } => x.m !== null)
+    .sort((a, b) => b.m.margin - a.m.margin);
+  if (ranked.length === 0) return null;
+  const recipeOf = (kind: string) => orgs.recipes.find((r) => r.workplace_kind === kind)!;
+  const facts: Record<string, unknown> = { day_wage: credits(wage) };
+  for (const { kind, m } of ranked) facts[kind] = { units_a_day: m.units, revenue: credits(m.revenue), inputs: credits(m.inputs), margin: credits(m.margin) };
+  return {
+    key: "which_workplace",
+    tier: 2,
+    ask:
+      `which workplace to open, now that you hold the ${orgs.founding.materials} Materials and the ${credits(orgs.founding.money)} fee. One worker's day at each, at the last prices and a day's wage of ${credits(wage)}: ` +
+      ranked.map(({ kind, m }) => `${kind} ${m.margin >= 0 ? "clears" : "loses"} ${credits(Math.abs(m.margin))}`).join(", ") +
+      ". Founding follows tomorrow's question, not this one.",
+    facts,
+    candidates: [
+      ...ranked.map(({ kind, m }) => {
+        const r = recipeOf(kind);
+        const inputs = Object.entries(r.consumes).map(([g, per]) => `${per * m.units} ${g}`).join(", ");
+        return doing(
+          `open_${kind}`,
+          `open a ${kind}: about ${m.units} ${r.produces} a day, worth ${credits(m.revenue)}${inputs ? `, less ${credits(m.inputs)} for ${inputs}` : ""} and ${credits(wage)} in wages, ${m.margin >= 0 ? "clearing" : "losing"} ${credits(Math.abs(m.margin))} a day`,
+          async (sc) => {
+            sc.memory.workplaceKind = kind;
+            return `chose a ${kind}`;
+          },
+        );
+      }),
+      none("decide_later", "open nothing yet; decide another day"),
+    ],
+  };
+};
+
+/** The founder's road: save, buy the Materials, found a firm of `kind` (or, for a chooser, the kind `which_workplace` picked); then fund it, hire at one of two wages, keep it in inputs, sell the output, lay off when wages outrun output, pay a dividend from surplus. */
+export function ventureSlotOf(kind: WorkplaceKind, firmName: string, choose = false): SlotGen {
   return async (s) => {
     const orgs = await s.orgs();
     if (!orgs) return null;
@@ -485,30 +605,54 @@ export function ventureSlotOf(kind: "mine" | "builder", firmName: string): SlotG
           ),
         );
       }
-      // The inputs a unit consumes (a Builder's ten Materials a dwelling), one unit's worth, from the treasury.
+      // The book for every good the firm holds or needs (SJ.5): what a price-setter reads.
+      const unsold = daysUnsold(s, inv);
+      const bookOn: Record<string, unknown> = {};
+      // The inputs a unit consumes (a Builder's ten Materials a dwelling), one unit's worth, from the treasury:
+      // taken at the best ask, or bid one tick under it and left resting (SJ.5).
       for (const [good, per] of Object.entries(consumes)) {
-        const p = lastPrice(books, good);
+        const b = bookOf(books, good);
+        const p = b.last;
         if (p === null || per <= 0 || (inv[good] ?? 0) >= per) continue;
-        const limit = Math.round(p * 1.05);
-        if (mine.treasury < per * limit) continue;
-        candidates.push(
-          doing(`buy_${good}`, `bid for ${per} ${good}, one ${produces}'s worth, at ${credits(limit)} each from the firm's treasury of ${credits(mine.treasury)}`, async (sc) =>
-            (await sc.do(act.placeOrder, { instrument: good, side: "bid", qty: per, limit_price: limit, on_behalf_of: mine.id })) ? `bid ${per} ${good} @${limit} for the firm` : `bid for ${good} refused`,
-          ),
-        );
+        bookOn[good] = bookFacts(b);
+        const take = b.bestAsk ?? Math.round(p * 1.05);
+        const under = undercutPrice(b)!;
+        if (mine.treasury < per * under) continue;
+        const bid = (limit: number, label: string) => async (sc: Script) =>
+          (await sc.do(act.placeOrder, { instrument: good, side: "bid", qty: per, limit_price: limit, on_behalf_of: mine.id })) ? `bid ${per} ${good} @${limit} for the firm (${label})` : `bid for ${good} refused`;
+        const asking = b.bestAsk !== null ? `${b.askDepth} ${good} are asked at ${credits(b.bestAsk)}` : `nobody is asking ${good}; it last traded at ${credits(p)}`;
+        if (mine.treasury >= per * take) {
+          candidates.push(doing(`take_ask_${good}`, `buy ${per} ${good}, one ${produces}'s worth, at once at ${credits(take)} each: ${asking}; from the firm's treasury of ${credits(mine.treasury)}`, bid(take, "at the ask")));
+        }
+        candidates.push(doing(`bid_under_${good}`, `bid for ${per} ${good} at ${credits(under)} each, one tick under, and wait for a seller to come down to it`, bid(under, "under the ask")));
       }
+      // The output: one tick under the best ask, so the shelf sells first, or 5% over the last print and wait (SJ.5).
       if (sellable.length) {
+        const shelfWords = sellable.map(([g, q]) => `${q} ${g} unsold for ${unsold[g] ?? 0} day(s)`).join(", ");
+        const under: [string, number, number][] = [];
+        const over: [string, number, number][] = [];
+        for (const [g, q] of sellable) {
+          const b = bookOf(books, g);
+          bookOn[g] = bookFacts(b, unsold[g] ?? 0);
+          under.push([g, q, undercutPrice(b)!]);
+          over.push([g, q, Math.round((b.last ?? b.bestAsk)! * 1.05)]);
+        }
+        const askAll = (asks: [string, number, number][], label: string) => async (sc: Script) => {
+          const done: string[] = [];
+          for (const [g, q, ask] of asks) {
+            if (sc.actionsLeft <= 0) break;
+            if (await sc.do(act.placeOrder, { instrument: g, side: "ask", qty: q, limit_price: ask, on_behalf_of: mine.id })) done.push(`asked ${q} ${g} @${ask} (${label})`);
+          }
+          return done.length ? done.join(", ") : "asks refused";
+        };
+        const bestAsks = sellable.map(([g]) => {
+          const b = bookOf(books, g);
+          return b.bestAsk !== null ? `${b.askDepth} ${g} asked at ${credits(b.bestAsk)}` : `no ${g} asked`;
+        });
         candidates.push(
-          doing("sell_output", `ask ${sellable.map(([g, q]) => `${q} ${g}`).join(", ")} on the book at 5% over the last price`, async (sc) => {
-            const done: string[] = [];
-            for (const [g, q] of sellable) {
-              if (sc.actionsLeft <= 0) break;
-              const ask = Math.round(lastPrice(books, g)! * 1.05);
-              if (await sc.do(act.placeOrder, { instrument: g, side: "ask", qty: q, limit_price: ask, on_behalf_of: mine.id })) done.push(`asked ${q} ${g} @${ask}`);
-            }
-            return done.length ? done.join(", ") : "asks refused";
-          }),
+          doing("undercut", `ask ${under.map(([g, q, p]) => `${q} ${g} at ${credits(p)}`).join(", ")}, one tick under the best ask (${bestAsks.join("; ")}), so yours sells first: ${shelfWords}`, askAll(under, "undercut")),
         );
+        candidates.push(doing("hold_price", `ask ${over.map(([g, q, p]) => `${q} ${g} at ${credits(p)}`).join(", ")}, 5% over the last price, and wait for the book to come to you`, askAll(over, "held")));
       }
       const perShare = Math.floor(mine.treasury / 4 / Math.max(1, mine.my_shares));
       if (mine.treasury > 3 * dayOfWages * 2 && perShare > 0) {
@@ -537,6 +681,7 @@ export function ventureSlotOf(kind: "mine" | "builder", firmName: string): SlotG
           yesterday_output_value: yesterdayValue !== null ? credits(yesterdayValue) : null,
           inventory: Object.fromEntries(stock),
           going_wage: credits(wage),
+          books: bookOn,
         },
         candidates,
       };
@@ -547,14 +692,16 @@ export function ventureSlotOf(kind: "mine" | "builder", firmName: string): SlotG
     const have = s.pantry.materials ?? 0;
     const pm = lastPrice(books, "materials");
     const candidates: Candidate[] = [];
-    if (have >= need && s.balance >= fee) {
+    // A chooser founds the workplace `which_workplace` picked (SJ.5), and not before it has picked one.
+    const open = choose ? (s.memory.workplaceKind as WorkplaceKind | undefined) : kind;
+    if (have >= need && s.balance >= fee && open) {
       candidates.push(
         doing(
           "found_now",
-          `found a firm now, paying the ${credits(fee)} fee and the ${need} Materials, and open a ${kind}`,
+          `found a firm now, paying the ${credits(fee)} fee and the ${need} Materials, and open a ${open}${choose ? ", the workplace you chose" : ""}`,
           async (sc) => {
             const name = `${sc.handle}'s ${firmName}`;
-            return (await sc.do(act.foundOrg, { kind: "firm", name, first_workplace: { kind, slot: null } })) ? `founded ${name} with a ${kind}` : "founding refused";
+            return (await sc.do(act.foundOrg, { kind: "firm", name, first_workplace: { kind: open, slot: null } })) ? `founded ${name} with a ${open}` : "founding refused";
           },
           true,
         ),
@@ -583,8 +730,8 @@ export function ventureSlotOf(kind: "mine" | "builder", firmName: string): SlotG
   };
 }
 
-/** The founder's and the borrower's firm: a mine. */
-export const ventureSlot: SlotGen = ventureSlotOf("mine", "Works");
+/** The founder's and the borrower's firm: the workplace `which_workplace` chose (SJ.5). */
+export const ventureSlot: SlotGen = ventureSlotOf("mine", "Works", true);
 /** The builder's firm (SJ.3): a Builder, whose output is dwellings. */
 export const builderVentureSlot: SlotGen = ventureSlotOf("builder", "Roofs");
 
@@ -713,18 +860,52 @@ export const propertySlot: SlotGen = async (s) => {
   };
 };
 
+/** Comfort under 60 lifts Wares off the shelf (the preset's `wares_comfort_below`); each unit restores `comfort_per_wares`, six. */
+export const COMFORT_LOW = 60;
+export const COMFORT_PER_WARES = 6;
+
+/** Comfort (SJ.5): every persona's first Wares demand. Once a day while Comfort is under 60, none are in the pantry and the balance covers them: take the ask, bid one tick under it, or go without. */
+export const comfortSlot: SlotGen = async (s) => {
+  const comfort = s.home.needs.comfort;
+  if (comfort >= COMFORT_LOW || (s.pantry.wares ?? 0) > 0) return null;
+  if (!onceToday(s, "comfort")) return null;
+  const b = bookOf(await s.books(), "wares");
+  const take = b.bestAsk ?? b.last;
+  const under = undercutPrice(b);
+  if (take === null || under === null) return null;
+  // Enough to lift Comfort to 80, within five.
+  const qty = Math.max(1, Math.min(5, Math.ceil((80 - comfort) / COMFORT_PER_WARES)));
+  if (s.balance < qty * under) return null;
+  const lift = qty * COMFORT_PER_WARES;
+  const bid = (limit: number, label: string) => async (sc: Script) =>
+    (await sc.do(act.placeOrder, { instrument: "wares", side: "bid", qty, limit_price: limit })) ? `bid ${qty} wares @${limit} (${label})` : "the Wares bid was refused";
+  const candidates: Candidate[] = [];
+  if (s.balance >= qty * take) candidates.push(doing("take_ask", `buy ${qty} Wares now at ${credits(take)} each, ${credits(qty * take)} in all, lifting Comfort by about ${lift}`, bid(take, "at the ask")));
+  candidates.push(doing("bid_under", `bid ${credits(under)} each for ${qty} Wares, one tick under the ask, and wait for a seller to come down`, bid(under, "under the ask")));
+  candidates.push(none("go_without", "go without Wares and keep the money"));
+  return {
+    key: "comfort",
+    tier: 2,
+    ask:
+      `whether to buy Wares. Comfort is ${comfort.toFixed(0)} of 100 and falls 1 an hour; ${qty} Wares would lift it by about ${lift}. ` +
+      `${b.bestAsk !== null ? `${b.askDepth} are asked at ${credits(b.bestAsk)}` : `none are asked; Wares last traded at ${credits(take)}`}${b.bestBid !== null ? `; the best bid is ${credits(b.bestBid)}` : ""}. Balance ${credits(s.balance)} credits.`,
+    facts: { comfort: Math.round(comfort), wares_wanted: qty, comfort_lift: lift, cost_at_ask: credits(qty * take), wares: bookFacts(b) },
+    candidates,
+  };
+};
+
 /** The slots a persona is asked about, in tier order; a slug without its own list lives like a householder. */
-const HOUSEHOLDER: SlotGen[] = [workSlot, housingSlot, jobSlot, planSlot];
+const HOUSEHOLDER: SlotGen[] = [workSlot, housingSlot, jobSlot, comfortSlot, planSlot];
 export const SLOTS: Record<string, SlotGen[]> = {
-  founder: [workSlot, housingSlot, jobSlot, ventureSlot, planSlot],
-  borrower: [workSlot, housingSlot, jobSlot, creditSlot, ventureSlot, planSlot],
+  founder: [workSlot, housingSlot, jobSlot, workplaceSlot, ventureSlot, comfortSlot, planSlot],
+  borrower: [workSlot, housingSlot, jobSlot, creditSlot, workplaceSlot, ventureSlot, comfortSlot, planSlot],
   "wage-maximiser": HOUSEHOLDER,
-  speculator: [workSlot, housingSlot, jobSlot, marketSlot, planSlot],
-  landlord: [workSlot, housingSlot, jobSlot, propertySlot, planSlot],
+  speculator: [workSlot, housingSlot, jobSlot, marketSlot, comfortSlot, planSlot],
+  landlord: [workSlot, housingSlot, jobSlot, propertySlot, comfortSlot, planSlot],
   saver: HOUSEHOLDER,
   slacker: HOUSEHOLDER,
-  lender: [workSlot, housingSlot, jobSlot, lendSlot, planSlot],
-  builder: [workSlot, housingSlot, jobSlot, builderVentureSlot, dwellingSlot, planSlot],
+  lender: [workSlot, housingSlot, jobSlot, lendSlot, comfortSlot, planSlot],
+  builder: [workSlot, housingSlot, jobSlot, builderVentureSlot, dwellingSlot, comfortSlot, planSlot],
 };
 
 export function slotsFor(slug: string): SlotGen[] {

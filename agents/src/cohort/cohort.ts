@@ -22,6 +22,9 @@ export type CohortOpts = {
   log?: (line: string) => void;
 };
 
+/** One good's book at a day's end (SJ.5), in cents; null where nothing has traded or rests. */
+export type PriceRow = { good: string; last: number | null; bid: number | null; ask: number | null; bids: number; asks: number };
+
 export type Summary = {
   run: string;
   stopped_by: "epoch_end" | "budget" | "signal";
@@ -77,11 +80,24 @@ export async function runCohort(opts: CohortOpts, ticks: AsyncIterable<TickSigna
       return [];
     }
   };
+  // The books at the day's end (SJ.5): last price, best bid and ask, depth, per good, for the report's price graph.
+  const pricesOf = async (): Promise<PriceRow[]> => {
+    try {
+      const v = unwrap(await opts.client.GET("/s/{id}/books", { params: { path: { id: opts.sid } } }));
+      return v.books
+        .filter((b) => !b.instrument.startsWith("share:"))
+        .map((b) => ({ good: b.instrument, last: b.last_price ?? null, bid: b.best_bid ?? null, ask: b.best_ask ?? null, bids: b.bid_depth, asks: b.ask_depth }));
+    } catch (e) {
+      log(`could not read /books at the end of the day: ${e instanceof Error ? e.message : String(e)}`);
+      return [];
+    }
+  };
   const snapshotDay = async (cycle: number, stats?: { live?: unknown; last_cycle?: unknown }) => {
     try {
       const v = stats ?? (unwrap(await opts.client.GET("/s/{id}/stats", { params: { path: { id: opts.sid } } })) as { live?: unknown; last_cycle?: unknown });
       const headlines = await headlinesOf(cycle);
-      appendFileSync(daysFile, JSON.stringify({ cycle, live: v.live ?? null, aggregates: v.last_cycle ?? null, headlines }) + "\n");
+      const prices = await pricesOf();
+      appendFileSync(daysFile, JSON.stringify({ cycle, live: v.live ?? null, aggregates: v.last_cycle ?? null, headlines, prices }) + "\n");
     } catch (e) {
       log(`could not read /stats at the end of day ${cycle}: ${e instanceof Error ? e.message : String(e)}`);
     }
