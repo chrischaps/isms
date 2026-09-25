@@ -9,8 +9,8 @@
 # BRAIN=scripted needs no ANTHROPIC_API_KEY and is what CI runs (make e2e-agents, both presets).
 # BRAIN=jev plays the [jev] personas on TypeSafe's Jev through OpenRouter (SJ.1); needs OPENROUTER_API_KEY.
 # A town of players (SJ.3): CAST=freeport-town PLAYERS=16 puts sixteen players among the floor's other
-# twenty-four householders (the engine fills to POPULATION_FLOOR, 40 by default, counting the humans);
-# the persona list is config.toml's `personas_for.<CAST>`, cycled to PLAYERS.
+# twenty-four householders (the seed fills to POPULATION_FLOOR, 40 by default, less the PLAYERS it
+# expects, E-4); the persona list is config.toml's `personas_for.<CAST>`, cycled to PLAYERS.
 # ASSERT_CLEAN=1 fails the script when the report has a fuzzer defect or a 5xx.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -50,11 +50,13 @@ say "build the server and the harness"
 SQLX_OFFLINE=true cargo build -q -p isms-server
 pnpm --dir agents install --frozen-lockfile --silent
 
-# The population floor's householders fill the preset's dwellings before the players join (SJ.2, Q159):
-# a lab seeds one dwelling per householder and one more per player, so renting a home is a choice the players actually have.
-say "a fresh database and a lab $PRESET ($EPOCH_CYCLES-day epoch, $TICK_SECONDS s an hour, a floor of $POPULATION_FLOOR householders)"
+# The seed leaves the players' places in the floor empty (E-4, Q161) rather than filling them with
+# householders that emigrate at day 1's end; and it seeds a dwelling per place in the floor and one more
+# per player (SJ.2, Q159), so renting a home is a choice the players actually have.
+say "a fresh database and a lab $PRESET ($EPOCH_CYCLES-day epoch, $TICK_SECONDS s an hour, a floor of $POPULATION_FLOOR with $PLAYERS places kept for the players)"
 RUST_LOG=warn "$SERVER" migrate
 SID="$(RUST_LOG=warn "$SERVER" seed --preset "$PRESET" --class lab --name "lab-$RUN" --tick-seconds "$TICK_SECONDS" \
+  --expect-humans "$PLAYERS" \
   --param "params.time.epoch_cycles=$EPOCH_CYCLES" \
   --param "params.time.closing_window_minutes=${CLOSING_WINDOW_MINUTES:-1}" \
   --param "params.initial_dwellings=${INITIAL_DWELLINGS:-$((POPULATION_FLOOR + PLAYERS))}" \

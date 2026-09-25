@@ -223,6 +223,11 @@ pub struct RateLimit {
 #[serde(deny_unknown_fields)]
 pub struct PopulationParams {
     pub floor: u32,
+    /// Humans the seed expects to join: an epoch's start fills the floor to
+    /// `floor - max(active humans, expected_humans)` so their places stand
+    /// empty rather than emigrate at the first cycle end (E-4, Q161). Zero
+    /// in every preset; a lab seed sets it with `seed --expect-humans N`.
+    pub expected_humans: u32,
     pub comfortable_min: u32,
     pub comfortable_max: u32,
     pub cap: u32,

@@ -188,9 +188,12 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
             });
         }
     }
-    // Householders up to the floor.
-    // A later epoch resets the roster first (Q41): humans start dormant and the
-    // old householders are gone, so the fill is the whole floor.
+    // Householders up to the floor, less the humans the seed expects (E-4,
+    // Q161): their places stand empty until they join, and 8l fills any that
+    // stay empty at the first cycle end, instead of emigrating a householder
+    // per joiner. A later epoch resets the roster first (Q41): humans start
+    // dormant and the old householders are gone, so the fill is the whole
+    // floor less the expected.
     let (active_humans, householders) = if epoch == 0 {
         (
             world
@@ -207,9 +210,10 @@ pub fn start_epoch(world: &World, _rules: &Rules, epoch: Epoch) -> Vec<Event> {
     } else {
         (0, 0)
     };
+    let expected = usize::try_from(p.population.expected_humans).unwrap_or(0);
     let fill = usize::try_from(p.population.floor)
         .unwrap_or(0)
-        .saturating_sub(active_humans)
+        .saturating_sub(active_humans.max(expected))
         .saturating_sub(householders);
     // In collective systems the dwellings just built are the society's and are
     // assigned at join (GDD 6.2), one per householder while they last.
