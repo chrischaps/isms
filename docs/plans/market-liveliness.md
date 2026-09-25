@@ -14,10 +14,11 @@ Two kinds of fix follow. **Levers** change what happens in the economy; **measur
 |---|---|---|---|---|---|
 | 1 ✅ | **E-1** the runner's markup responds to stock — **done 2026-09-24** (`s3.1-runner-markup`, Q162; the shelf's step, `ShelfClosed` at 8m) | lever, engine | PR `s3.1-runner-markup` | a day; $0 | `make check`; `sim-check` all five presets stable; the founding curves (docs/tuning) re-read; green Linux CI |
 | 2 ✅ | **SJ.5** prices from the players — **done 2026-09-25** (SESSIONS SJ.5, SJ.5b, SJ.5c; `sj5-7day.md` found the foundry defects, `sj5b-7day.md` met the card's three reads: a founder's 332 Materials sold in one undercut a tick under the runner on day 5, every good but machines moved, both lenders hold jobs). The plan's stricter "done" below is not yet met: the moves are E-1's; the player's dent in a day-VWAP was 0.8 cents against a ~8.6-cent step | lever, agents | main | a day; $0.22 over two weeks | the card's tests ✅; `make e2e-agents` ✅; a seven-day sixteen-player run read on its own price graph ✅ |
-| 3 | **SJ.6** the town with eight householders | run | main (docs) | ~$0.15 on approval | the run clean; both weeks' price graphs side by side |
-| 4 | **E-2** net worth counts dwellings and loans out (with Q157) | measurement, engine | PR | half a day | `scoreboard` tests; the archive's standings |
-| 5 | **E-4** `seed --expect-humans` (Q161) · **E-3** an owner's position at founding (Q160) | cleanup, engine | one PR or two | half a day | `make e2e-agents`; the harness's token-wage trick and the day-1 emigration retired |
-| 6 | **E-5** `/prices` across epochs · **E-6** the questions in the journal | observability | PR / agents | small | `pnpm --dir agents check`; a rollover read |
+| 3 ✅ | **SJ.6** the town with eight householders — **done 2026-09-25** (`sj6-7day.md`, SESSIONS SJ.6: clean, $0.15; the town starved — needs met 0 % from day 3, fifteen payrolls missed on day 2, the wage never bid for; a player set day 7's Materials print by two cents) | run | main (docs) | $0.15 | the run clean ✅; both weeks' price graphs side by side ✅ |
+| 4 | **E-4** `seed --expect-humans` (Q161) — **moved up**: Q161's emigration strips the mills of exactly the hands a low-floor town needs; no further lab week at a low floor is readable until it lands | cleanup, engine | PR | half a day | `make e2e-agents`; the day-1 emigration retired |
+| 5 | **E-7** the runner's wage answers its staffing — the labour-side twin of E-1 (raise the offer a step when a workplace closes short of hands, cut it when the shelf grew; post offers when idle hands, not full shelves, are the reason) | lever, engine | PR | a day | `sim-check` all five presets; a low-floor sim epoch that does not starve |
+| 6 | **E-2** net worth counts dwellings and loans out (with Q157) · **E-3** an owner's position at founding (Q160) | measurement, cleanup, engine | PR | a day | `scoreboard` tests; the token-wage trick retired |
+| 7 | **E-5** `/prices` across epochs · **E-6** the questions in the journal | observability | PR / agents | small | `pnpm --dir agents check`; a rollover read |
 | — | **SJ.4** the Commune's slots | independent | main | ~$0.15 on approval | its own card |
 
 ## Why this order
@@ -29,6 +30,8 @@ Two kinds of fix follow. **Levers** change what happens in the economy; **measur
 - **SJ.4 is independent.** The Commune has no money and no books; nothing here touches it. It goes whenever a change of subject is wanted.
 
 ## What "done" looks like
+
+**Where it stands after steps 1–3 (2026-09-25):** every good but machines moves, and the mover is E-1's runner on the ask side; a player has sold (332 Materials in one undercut, `sj5b-7day`) and set a day's print (`sj6-7day`, by two cents), but not by more than the runner's step. The low-floor week answered the wage question the hard way: the runner's wage is a constant, so a town it cannot restaff idles, misses payroll and starves. The liveliness question is now an engine question — E-4, then E-7 — before another SJ week.
 
 The liveliness question is answered when a seven-day run's price table shows, for at least one good, a day-VWAP that differs between two days by more than the runner's cost-plus step, with a player on the moving side of the trade — and the answer is read from the graph, not the database. If after steps 1–3 the basket is still a line, the next lever is the recipes' start prices (the sim's, not the harness's), and that is a tuning card for Phase 3, not another SJ.
 

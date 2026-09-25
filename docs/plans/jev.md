@@ -22,8 +22,8 @@ What the runs so far have shown (`sj1-*`, `sj2-*`, six runs, $0.15):
 | SJ.2 | slots only for a reason; `housing`, `plan`, `credit`, `fund_firm`, two wage tiers; `standing` from the scoreboard; `ambition`; all seven personas; the lab seeds a dwelling per player (Q159); the economy day by day and the standings in the report | 8 tests; two-day and seven-day runs clean | done 2026-09-24, $0.11 |
 | SJ.3 | founders that can decide; a lender; a seller; a town of players; the day's headlines | below | done 2026-09-24, $0.14 |
 | SJ.4 | the Commune's slots: ballots, offices, the Plan, the Store | later | |
-| SJ.5 | prices from the players: `undercut`/`hold_price`, resting bids, a workplace chosen by margin, `job` re-asked while unemployed, the price graph in the report | below | built 2026-09-25; free gates green; the paid seven-day run awaits approval |
-| SJ.6 | the town with eight householders (`POPULATION_FLOOR=24`), read on the price graph | below | |
+| SJ.5 | prices from the players: `undercut`/`hold_price`, resting bids, a workplace chosen by margin, `job` re-asked while unemployed, the price graph in the report | below | done 2026-09-25, $0.22 over two weeks (SESSIONS SJ.5, SJ.5b, SJ.5c) |
+| SJ.6 | the town with eight householders (`POPULATION_FLOOR=24`), read on the price graph | below | done 2026-09-25, $0.15; the town starved (SESSIONS SJ.6) |
 
 ## SJ.3 — Founders that decide, a lender, a seller, and a town of players
 
@@ -73,6 +73,7 @@ Every good traded every day — Food 400–1,560 trades a day, grain and ore ~75
 | E-3 | **An owner's position at founding** (Q160): `FoundOrg` emits `Assigned { contract: None }` for the founder at the first workplace, as a cooperative member's | the harness hires the founder at a token wage to get its hours counted; the game should not need the trick | SJ.3, Q160 |
 | E-4 | **A seed that expects its players** (Q161): `seed --expect-humans N` fills the floor to `floor − N` | every lab run emigrates one householder per player at day 1's end and reads day 2 as a slump | SJ.3, Q161 |
 | E-5 | **`/prices` across epochs**: the window may cross a rollover, or the archive keeps the epoch's per-good series | after a rollover the week's prices are only in the event log | SJ.3b |
+| E-7 | **The runner's wage answers its staffing**: raise a workplace's offer a step when it closes short of hands, cut it when the shelf grew; post offers when idle hands, not full shelves, are the reason (Q2); a tunable step in `presets/_base.toml` | `sj6-7day`: fifteen payrolls missed on day 2 and every offer at 8.00 all week; the day wage fell 54 → 33 only because fewer hours were paid; E-1's labour-side twin | SJ.6 |
 | E-6 | **The questions in the journal**: a Jev turn's request (state and questions) kept beside its decisions, or a `--journal-questions` flag | whether `lay_off` was ever offered is unreadable from `sj3-7day` | SJ.3b |
 
 ## Rules of the series
