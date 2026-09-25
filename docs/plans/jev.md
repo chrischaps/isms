@@ -63,6 +63,7 @@ Every good traded every day — Food 400–1,560 trades a day, grain and ore ~75
 - **Goal.** Make the players the labour force and see whether wages move.
 - **Build.** A run, not code: `POPULATION_FLOOR=24 PLAYERS=16 CAST=freeport-town BRAIN=jev` for seven days (~$0.15, on approval); the day table and the price graph read against SJ.3's week. If legacy firms cannot hire, the day wage is the number to watch; if they idle, that is the finding for E-1.
 - **Done gate.** The run clean; the read in SESSIONS; the two weeks' price graphs side by side in the report of the second.
+- **Re-run 2026-09-25** with E-4, E-7, E-2 and E-3 in (`sj6b-7day.md`, SESSIONS SJ.6b, $0.15): the town ate (needs 96–100 %), the board climbed 8.00 → 10.40 and the wage-maximisers climbed it, Food fell 1.31 → 1.14 on the mills' shelf step, and a player's 4.04 Materials bid set day 6's print (day-VWAP 3.06 → 4.05 → 2.46) while the foundries were idle. Found: the founders found on day 6 and all open foundries; nobody sells the runner's goods; escrow is invisible to net worth (Q167). Next SJ cards should be a day-1 founder and a Food or grain seller.
 
 ## Engine cards handed to the sim (PRs, `s3.<n>-<slug>` branches)
 
