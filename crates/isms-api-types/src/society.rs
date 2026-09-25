@@ -296,6 +296,9 @@ pub struct PlaceOrderRequest {
 
 #[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct PricePoint {
+    /// The epoch the tick belongs to (1-based, as the clock's); ticks restart
+    /// with every epoch, so a window that crosses a rollover needs it (E-5).
+    pub epoch: u32,
     pub tick: u32,
     pub instrument: String,
     pub vwap: Cents,

@@ -63,10 +63,16 @@ export const book = read(
 
 export const prices = read(
   "prices",
-  "Per-hour volume-weighted prices per instrument over a window of hours (default one day).",
-  z.object({ window: z.number().int().min(1).max(500).optional().describe("hours of history") }),
+  "Per-hour volume-weighted prices per instrument over a window of hours (default one day); the window runs back across an epoch's end unless an epoch is named.",
+  z.object({
+    window: z.number().int().min(1).max(500).optional().describe("hours of history"),
+    epoch: z.number().int().min(1).optional().describe("read inside this epoch only (1 is the first)"),
+  }),
   async (i, ctx) => {
-    const v = unwrap(await ctx.client.GET("/s/{id}/prices", { params: { path: { id: ctx.sid }, query: i.window === undefined ? {} : { window: i.window } } }));
+    const query: { window?: number; epoch?: number } = {};
+    if (i.window !== undefined) query.window = i.window;
+    if (i.epoch !== undefined) query.epoch = i.epoch;
+    const v = unwrap(await ctx.client.GET("/s/{id}/prices", { params: { path: { id: ctx.sid }, query } }));
     return { clock: v.clock, window: v.window, ...capRows(v.points, 120) };
   },
 );

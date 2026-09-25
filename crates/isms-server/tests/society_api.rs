@@ -386,6 +386,63 @@ async fn market_books_orders_prices(pool: PgPool) {
     let prices: PricesView = a.get(f.id, "/prices?window=24").await;
     assert_eq!(prices.window, 24);
     assert!(prices.points.iter().any(|p| p.instrument == "food"));
+    assert!(prices.points.iter().all(|p| p.epoch == 1));
+}
+
+#[sqlx::test(migrator = "isms_store::MIGRATOR")]
+async fn prices_cross_a_rollover_and_read_one_epoch(pool: PgPool) {
+    // E-5: after a rollover the window runs back into the epoch before, every
+    // point carrying its epoch in log order; `epoch=` keeps the window inside
+    // one epoch, so an archived epoch's last days stay readable; an epoch that
+    // never was is 404.
+    let f = fixture(pool, "freeport").await;
+    let a = f.client("reader").await;
+    f.tick(6).await;
+    f.handle
+        .command(envelope(
+            Actor::System,
+            ClientKind::Sim,
+            Command::EndEpoch {
+                reason: "test".into(),
+            },
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    f.handle.new_epoch().await.unwrap().unwrap();
+    f.tick(3).await;
+
+    let v: PricesView = a.get(f.id, "/prices?window=24").await;
+    assert_eq!(v.clock.epoch, 2);
+    let mut epochs: Vec<u32> = v.points.iter().map(|p| p.epoch).collect();
+    epochs.dedup();
+    assert_eq!(epochs, [1, 2], "both epochs, the old one first");
+    assert!(
+        v.points
+            .iter()
+            .any(|p| p.epoch == 1 && p.instrument == "food")
+    );
+    assert!(
+        v.points
+            .iter()
+            .any(|p| p.epoch == 2 && p.instrument == "food")
+    );
+
+    let old: PricesView = a.get(f.id, "/prices?window=24&epoch=1").await;
+    assert!(!old.points.is_empty());
+    assert!(old.points.iter().all(|p| p.epoch == 1));
+    let new: PricesView = a.get(f.id, "/prices?window=24&epoch=2").await;
+    assert!(!new.points.is_empty());
+    assert!(new.points.iter().all(|p| p.epoch == 2));
+    for wrong in [0, 3] {
+        assert_eq!(
+            a.server
+                .get(&format!("/s/{}/prices?epoch={wrong}", f.id))
+                .await
+                .status_code(),
+            404
+        );
+    }
 }
 
 #[sqlx::test(migrator = "isms_store::MIGRATOR")]

@@ -1156,7 +1156,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Per-tick VWAP per instrument over a window of ticks */
+        /** Per-tick VWAP per instrument over a window of ticks, across a rollover or inside one epoch */
         get: operations["prices"];
         put?: never;
         post?: never;
@@ -1586,7 +1586,10 @@ export interface components {
             /**
              * @description The engine's `EpochSummary`: `aggregates` (the last day's `CycleAggregates`)
              *     and `standings` (every citizen ranked by net worth: `citizen`, `handle`,
-             *     `kind`, `dormant`, `net_worth`, `self_made`, in cents).
+             *     `kind`, `dormant`, `net_worth`, `self_made`, in cents, `honors`; where
+             *     labor is by norm each carries `contribution` — `hours_total`, `days`,
+             *     `norm_met_days` — and the ranking is by hours, then honors (E-2, Q157)).
+             *     Net worth counts dwellings held and loans out, less loans owed (E-2).
              */
             summary: Record<string, never>;
         };
@@ -2438,6 +2441,12 @@ export interface components {
             body: string;
         };
         PricePoint: {
+            /**
+             * Format: int32
+             * @description The epoch the tick belongs to (1-based, as the clock's); ticks restart
+             *     with every epoch, so a window that crosses a rollover needs it (E-5).
+             */
+            epoch: number;
             instrument: string;
             /** Format: int32 */
             tick: number;
@@ -5425,8 +5434,15 @@ export interface operations {
     prices: {
         parameters: {
             query?: {
-                /** @description Ticks of history; default one cycle. */
+                /** @description Ticks of history; default one cycle, at most ten. */
                 window?: number | null;
+                /**
+                 * @description The epoch the window ends in (1-based, as the clock's); default the
+                 *     current one. Without it the window runs back across a rollover into
+                 *     the epochs before; with it the window stays inside that epoch, so an
+                 *     archived epoch's last days are still readable after the rollover (E-5).
+                 */
+                epoch?: number | null;
             };
             header?: never;
             path: {
@@ -5443,6 +5459,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PricesView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

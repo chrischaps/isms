@@ -475,12 +475,17 @@ async fn cancel_order(
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 struct WindowQuery {
-    /// Ticks of history; default one cycle.
+    /// Ticks of history; default one cycle, at most ten.
     window: Option<u32>,
+    /// The epoch the window ends in (1-based, as the clock's); default the
+    /// current one. Without it the window runs back across a rollover into
+    /// the epochs before; with it the window stays inside that epoch, so an
+    /// archived epoch's last days are still readable after the rollover (E-5).
+    epoch: Option<u32>,
 }
 
-#[utoipa::path(get, path = "/s/{id}/prices", summary = "Per-tick VWAP per instrument over a window of ticks",
-    params(("id" = i64, Path, description = "Society id"), WindowQuery), responses((status = 200, body = PricesView)), security(("session" = []), ("api_key" = [])))]
+#[utoipa::path(get, path = "/s/{id}/prices", summary = "Per-tick VWAP per instrument over a window of ticks, across a rollover or inside one epoch",
+    params(("id" = i64, Path, description = "Society id"), WindowQuery), responses((status = 200, body = PricesView), (status = 404, body = Problem)), security(("session" = []), ("api_key" = [])))]
 async fn prices(
     State(state): State<AppState>,
     auth: Auth,
@@ -488,21 +493,29 @@ async fn prices(
     Query(q): Query<WindowQuery>,
 ) -> ApiResult<Json<PricesView>> {
     let (entry, _me) = me_in(&state, &auth, id).await?;
-    let (now, tpc, epoch) = {
+    let (tpc, current) = {
         let world = entry.handle.world.read().await;
-        (world.meta.tick, world.ticks_per_cycle(), world.meta.epoch)
+        (world.ticks_per_cycle(), world.meta.epoch)
     };
     let window = q.window.unwrap_or(tpc).clamp(1, 10 * tpc);
-    let since = now.saturating_sub(window);
-    let stored = state
-        .store
-        .read_kind_since_tick(id, epoch, "TickResolved", since, i64::from(window) + 1)
-        .await?;
+    // One `TickResolved` per tick: the window's ticks and the one before them.
+    let n = i64::from(window) + 1;
+    let stored = match q.epoch {
+        None => state.store.read_last_of_kind(id, "TickResolved", n).await?,
+        Some(e) if e >= 1 && e <= current + 1 => {
+            state
+                .store
+                .read_last_of_kind_in_epoch(id, e - 1, "TickResolved", n)
+                .await?
+        }
+        Some(e) => return Err(ApiError::NotFound(format!("no epoch {e}"))),
+    };
     let mut points = Vec::new();
     for e in &stored {
         if let Event::TickResolved { tick, vwap, .. } = &e.event {
             for (i, p) in vwap {
                 points.push(PricePoint {
+                    epoch: e.meta.epoch + 1,
                     tick: *tick,
                     instrument: instrument_name(*i),
                     vwap: cents(*p),

@@ -121,6 +121,46 @@ impl PgEventStore {
         Ok(events)
     }
 
+    /// The last `n` events of one kind inside one epoch, in log order (E-5:
+    /// an archived epoch's price series is read from its tail, not from a
+    /// tick that would need the epoch's length worked out first).
+    pub async fn read_last_of_kind_in_epoch(
+        &self,
+        society: i64,
+        epoch: u32,
+        kind: &str,
+        n: i64,
+    ) -> Result<Vec<StoredEvent>> {
+        let epoch = i32::try_from(epoch)?;
+        let rows = sqlx::query!(
+            "SELECT seq, tick, cycle, epoch, actor, client_kind, payload, received_at
+             FROM events WHERE society_id = $1 AND epoch = $2 AND kind = $3 ORDER BY seq DESC LIMIT $4",
+            society,
+            epoch,
+            kind,
+            n
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut events: Vec<StoredEvent> = rows
+            .into_iter()
+            .map(|r| {
+                row_to_event(
+                    r.seq,
+                    r.tick,
+                    r.cycle,
+                    r.epoch,
+                    r.actor,
+                    r.client_kind,
+                    r.payload,
+                    r.received_at,
+                )
+            })
+            .collect::<Result<_>>()?;
+        events.reverse();
+        Ok(events)
+    }
+
     /// Events of one kind and one epoch with `tick >= since`, in log order, at most `limit`.
     pub async fn read_kind_since_tick(
         &self,

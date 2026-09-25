@@ -372,6 +372,19 @@ async fn since_tick_reads_stay_inside_their_epoch(pool: PgPool) {
             all.iter()
                 .all(|e| e.meta.epoch == epoch && e.meta.tick >= 40)
         );
+
+        // E-5: an epoch's tail, in log order, without knowing where it ends.
+        let tail = store
+            .read_last_of_kind_in_epoch(SOCIETY, epoch, "TickResolved", 5)
+            .await
+            .unwrap();
+        assert_eq!(tail.len(), 5, "the last five ticks of epoch {epoch}");
+        assert!(tail.iter().all(|e| e.meta.epoch == epoch));
+        assert!(tail.windows(2).all(|w| w[0].meta.tick < w[1].meta.tick));
+        assert_eq!(
+            tail.last().unwrap().meta.tick,
+            ticks.last().unwrap().meta.tick
+        );
     }
 }
 
