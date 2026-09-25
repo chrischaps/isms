@@ -6,13 +6,13 @@ use crate::command::{Command, Envelope, Reject, RejectCode, acting_citizen};
 use crate::event::Event;
 use crate::explain::{Explain, RuleId};
 use crate::ids::{CitizenId, OrgId};
-use crate::kinds::Good;
+use crate::kinds::{Good, WorkplaceKind};
 use crate::ledger::Party;
 use crate::market::last_price;
 use crate::money::Money;
 use crate::orgs::controlling_owner;
 use crate::tick::TickBuilder;
-use crate::world::{Instrument, Org, Ownership, ShareHolder, World};
+use crate::world::{Instrument, Org, Owner, Ownership, ShareHolder, World};
 
 /// The share holder a party acts as: a citizen's own account, or the org itself.
 #[must_use]
@@ -181,10 +181,52 @@ pub fn cycle_end_8e_dividends(b: &mut TickBuilder) {
     }
 }
 
-/// Book value per share: (treasury + inventory and machines at last price) / issued.
+/// What a dwelling is worth on the scoreboard (E-2, Q166): the last price one
+/// changed hands at for money, else its build cost at last prices — the
+/// Builder recipe's Materials and the hours a unit takes at the legacy wage —
+/// as a share without a trade is worth its book.
+#[must_use]
+pub fn dwelling_value(world: &World) -> Money {
+    if let Some(p) = world.meta.last_dwelling_price {
+        return p;
+    }
+    let Some(recipe) = world.params.recipes.get(&WorkplaceKind::Builder) else {
+        return Money::ZERO;
+    };
+    let mut cost = Money::ZERO;
+    for (g, q) in &recipe.consumes {
+        if let Some(p) = last_price(world, Instrument::Good(*g)) {
+            cost += Money(p.0 * i64::from(*q));
+        }
+    }
+    if recipe.base_rate > 0.0 {
+        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+        let labour = (world.params.money.legacy_wage.0 as f64 / recipe.base_rate) as i64;
+        cost += Money(labour);
+    }
+    cost
+}
+
+/// The dwellings an owner holds, at `dwelling_value`.
+#[must_use]
+pub fn dwellings_value(world: &World, owner: Owner) -> Money {
+    let held = world
+        .dwellings
+        .values()
+        .filter(|d| d.owner == owner)
+        .count();
+    Money(dwelling_value(world).0 * i64::try_from(held).unwrap_or(i64::MAX))
+}
+
+/// Book value per share: treasury + inventory and machines at last price +
+/// dwellings held + loans out, less loans owed (E-2), over the shares issued.
 #[must_use]
 pub fn book_value(world: &World, org: &Org) -> Money {
     let mut value = org.treasury;
+    value += dwellings_value(world, Owner::Org(org.id));
+    let (receivable, payable) = crate::credit::outstanding(world, Party::Org(org.id));
+    value += receivable;
+    value -= payable;
     for (g, q) in &org.inventory {
         if let Some(p) = last_price(world, Instrument::Good(*g)) {
             value += Money(p.0 * i64::from(*q));
@@ -216,13 +258,18 @@ pub fn share_value(world: &World, org: &Org) -> Money {
     }
 }
 
-/// Net worth (GDD §6.1): balance + pantry at last price + shares at value.
+/// Net worth (GDD §6.1): balance + pantry at last price + shares at value +
+/// dwellings held + loans out, less loans owed (E-2, Q166).
 #[must_use]
 pub fn net_worth(world: &World, citizen: CitizenId) -> Money {
     let Some(c) = world.citizens.get(&citizen) else {
         return Money::ZERO;
     };
     let mut worth = c.household.balance;
+    worth += dwellings_value(world, Owner::Citizen(citizen));
+    let (receivable, payable) = crate::credit::outstanding(world, Party::Citizen(citizen));
+    worth += receivable;
+    worth -= payable;
     for (g, q) in &c.household.pantry {
         if let Some(p) = last_price(world, Instrument::Good(*g)) {
             worth += Money(p.0 * i64::from(*q));

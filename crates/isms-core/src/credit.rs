@@ -171,6 +171,38 @@ pub fn accept_credit(
     }])
 }
 
+/// What a party is owed and owes on its live loans, at the unpaid principal
+/// (E-2, Q166): `principal x installments_left / term`, interest left out until
+/// it is paid. A lender's loans out are a holding; a borrower's loans in are a
+/// debt against the money they put in its pocket.
+#[must_use]
+pub fn outstanding(world: &World, party: Party) -> (Money, Money) {
+    let mut receivable = Money::ZERO;
+    let mut payable = Money::ZERO;
+    for k in world.contracts.values() {
+        if k.status != ContractStatus::Active {
+            continue;
+        }
+        let ContractBody::Credit {
+            principal,
+            installments_left,
+            ..
+        } = k.body
+        else {
+            continue;
+        };
+        let term = k.term_cycles.unwrap_or(installments_left).max(1);
+        let unpaid = Money(principal.0 * i64::from(installments_left) / i64::from(term));
+        if k.parties.0 == party {
+            receivable += unpaid;
+        }
+        if k.parties.1 == party {
+            payable += unpaid;
+        }
+    }
+    (receivable, payable)
+}
+
 /// Step 8c: installments, borrower to lender. A borrower who cannot pay pays
 /// nothing; the miss resolves as a default in phase 7 of the next tick.
 #[allow(clippy::type_complexity)]

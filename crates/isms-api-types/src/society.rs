@@ -1022,7 +1022,10 @@ pub struct ArchiveView {
     pub open: bool,
     /// The engine's `EpochSummary`: `aggregates` (the last day's `CycleAggregates`)
     /// and `standings` (every citizen ranked by net worth: `citizen`, `handle`,
-    /// `kind`, `dormant`, `net_worth`, `self_made`, in cents).
+    /// `kind`, `dormant`, `net_worth`, `self_made`, in cents, `honors`; where
+    /// labor is by norm each carries `contribution` — `hours_total`, `days`,
+    /// `norm_met_days` — and the ranking is by hours, then honors (E-2, Q157)).
+    /// Net worth counts dwellings held and loans out, less loans owed (E-2).
     #[schema(value_type = Object)]
     pub summary: serde_json::Value,
     /// In the order citizens first spoke.

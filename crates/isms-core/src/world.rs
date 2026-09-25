@@ -39,6 +39,10 @@ pub struct SocietyMeta {
     /// of this epoch. Collapse counts only after that (ADR-0006): a society that
     /// never drew a crowd is an AI economy, not an abandoned one.
     pub reached_floor: bool,
+    /// The last price a dwelling changed hands at for money (E-2, Q166): what
+    /// a dwelling held is worth on the scoreboard, as a share's last trade is.
+    #[serde(default)]
+    pub last_dwelling_price: Option<Money>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,6 +133,7 @@ impl World {
                 epoch_ending: None,
                 low_population_cycles: 0,
                 reached_floor: false,
+                last_dwelling_price: None,
             },
             constitution: preset.constitution.clone(),
             policy: preset.policy.clone(),

@@ -182,6 +182,15 @@ pub fn found_org(
             slot,
             materials_consumed: materials,
         });
+        // The owner-operator's position (E-3, Q160): the founder holds a place
+        // at its first workplace with no contract, as a cooperative member
+        // does, so it can set its own hours there; the firm's output, not a
+        // wage, is its return.
+        events.push(Event::Assigned {
+            workplace: world.next.workplace,
+            citizen: citizen.id,
+            contract: None,
+        });
     }
     Ok(events)
 }

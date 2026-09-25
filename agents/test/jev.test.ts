@@ -99,9 +99,16 @@ function workingHome(): HomeView {
 }
 const firm = { org: 18, workplace: 18, kind: "mine", produces: "ore", base_rate: 10, consumes: {}, inventory: {}, price: 97 };
 
+/** A founder at home: the position founding granted at its own workplace (E-3, Q160), held with no contract, beside a wage job. */
+function founderHome(): HomeView {
+  const home = workingHome();
+  const position = { workplace: 18, org: 18, org_name: "Iron & Sons", kind: "mine", contract: null } as unknown as NonNullable<HomeView["labor"]["positions"]>[number];
+  return { ...home, labor: { ...home.labor, positions: [position] } };
+}
+
 describe("a manager's own workplace (SJ.3)", () => {
-  it("offers work_own once a day when the firm slot has seen a firm and no hours are there, and hires the manager itself (Q160)", async () => {
-    const home = workingHome();
+  it("offers work_own once a day when the firm slot has seen a firm and no hours are there, and puts the hours at the position founding granted (E-3, Q160)", async () => {
+    const home = founderHome();
     const c = ctx(fixtureTransport(FIX));
     const script = new Script(c, turnInput(home), { firm }, "f");
     const slots = await layOut("founder", script);
@@ -109,45 +116,39 @@ describe("a manager's own workplace (SJ.3)", () => {
     expect(work.candidates.map((x) => x.option)).toEqual(["work_own", "keep_hours"]);
     // Housed at output x0.7 in the recorded view: 10 an hour x 8 h x 0.7 = 56 ore, at 0.97.
     expect(work.candidates[0]!.describe).toContain("about 56 ore a day at your rate, worth 54.32");
+    expect(work.candidates[0]!.describe).toContain("unpaid");
     expect(work.facts.own_workplace).toMatchObject({ kind: "mine", hours_there: 0, day_output_units: 56 });
     // Declined, it is not re-asked until tomorrow.
     expect((await layOut("founder", script)).some((s) => s.key === "work")).toBe(false);
-    // Taken: the firm's token place on the board is accepted, then the hours go there.
-    const place = { id: 88, by: { org: 18 }, created_tick: 0, kind: "employment", body: { employment: { org: 18, workplace: 18, pay: { hourly: 1 }, max_hours: 8, notice_cycles: 0, places: 1, term_cycles: null } } };
-    const withPlace = { status: 200, body: { ...board(), offers: [...board().offers, place] } };
-    const { brain: b, ctx: c2 } = brain("founder", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, "GET /s/1/notice-board": withPlace, "GET /s/1/orgs": managedOrgs(), ...{ "GET /s/1/books": books({ ore: 97 }) }, "POST /s/1/offers/88/accept": ok, [JEV]: answer({ work: ["work_own", 0.9], venture: ["run_quietly", 0.9] }) });
+    // Taken: the hours go straight to the position; nothing is posted or accepted (the token-wage self-hire is gone).
+    const { brain: b, ctx: c2 } = brain("founder", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, "GET /s/1/orgs": managedOrgs(), "GET /s/1/books": books({ ore: 97 }), [JEV]: answer({ work: ["work_own", 0.9], venture: ["run_quietly", 0.9] }) });
     (b as unknown as { memory: Record<string, unknown> }).memory.firm = firm;
     const out = await b.takeTurn(c2, turnInput(home));
     expect(out.error).toBeNull();
-    expect(c2.turn.calls.find((x) => x.tool === "accept_offer")?.input).toEqual({ offer: 88 });
+    expect(c2.turn.calls.some((x) => x.tool === "accept_offer" || x.tool === "post_employment_offer")).toBe(false);
     expect(c2.turn.calls.find((x) => x.tool === "set_labor")?.input).toEqual({ allocations: [{ workplace: 18, hours: 8, effort: "normal" }] });
     expect(out.intent).toContain("work work_own (0.90): set 8 h at my own mine");
   });
-  it("posts the token place when the board has none, and caps the day's output by the inputs the firm holds", async () => {
-    const home = workingHome();
-    let posted = false;
-    const inner = fixtureTransport(FIX, { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, "POST /s/1/orgs/18/offers": ok, "POST /s/1/offers/89/accept": ok, "GET /s/1/orgs": managedOrgs(), [JEV]: answer({ work: ["work_own", 0.9], venture: ["run_quietly", 0.9] }) });
-    const t: Transport = async (input, init) => {
-      const req = input instanceof Request ? input : new Request(input, init);
-      if (req.method === "POST" && req.url.endsWith("/orgs/18/offers")) posted = true;
-      if (req.method === "GET" && req.url.endsWith("/notice-board") && posted) {
-        const place = { id: 89, by: { org: 18 }, created_tick: 0, kind: "employment", body: { employment: { org: 18, workplace: 18, pay: { hourly: 1 }, max_hours: 8, notice_cycles: 0, places: 1, term_cycles: null } } };
-        return new Response(JSON.stringify({ ...board(), offers: [...board().offers, place] }), { status: 200, headers: { "content-type": "application/json" } });
-      }
-      return inner(input, init);
-    };
+  it("offers no work_own without a position at the firm, and caps the day's output by the inputs the firm holds", async () => {
     const roofs = { ...firm, kind: "builder", produces: "dwelling", base_rate: 0.5, consumes: { materials: 10 }, inventory: { materials: 10 }, price: null };
+    // No position: a firm founded without a workplace, or one added later, grants none (Q160).
+    const without = await layOut("builder", new Script(ctx(fixtureTransport(FIX)), turnInput(workingHome()), { firm: roofs }, "b"));
+    expect(without.find((s) => s.key === "work")?.candidates.map((x) => x.option) ?? []).not.toContain("work_own");
     // 0.5 x 8 x 0.7 = 2.8 -> 2 dwellings by rate, but the ten Materials held make one.
-    const slots = await layOut("builder", new Script(ctx(t), turnInput(home), { firm: roofs }, "b"));
+    const slots = await layOut("builder", new Script(ctx(fixtureTransport(FIX)), turnInput(founderHome()), { firm: roofs }, "b"));
     expect(slots.find((s) => s.key === "work")!.candidates[0]!.describe).toContain("about 1 dwelling a day at your rate, the firm's to sell");
-    const { brain: b, ctx: c } = brain("builder", {}, { transport: t });
-    (b as unknown as { memory: Record<string, unknown> }).memory.firm = roofs;
-    const out = await b.takeTurn(c, turnInput(home));
-    expect(out.error).toBeNull();
-    expect(c.turn.calls.find((x) => x.tool === "post_employment_offer")?.input).toEqual({ org: 18, workplace: 18, pay: { hourly: 1 }, max_hours: 8, places: 1, notice_cycles: 0, term_cycles: null });
-    expect(c.turn.calls.find((x) => x.tool === "accept_offer")?.input).toEqual({ offer: 89 });
-    expect(c.turn.calls.find((x) => x.tool === "set_labor")?.input).toEqual({ allocations: [{ workplace: 18, hours: 8, effort: "normal" }] });
-    expect(out.intent).toContain("set 8 h at my own builder");
+  });
+  it("gives an owner with no wage job the whole day at its own workplace", async () => {
+    const home = founderHome();
+    const alone = { ...home, labor: { ...home.labor, employment: [], allocations: [] } } as HomeView;
+    const slots = await layOut("founder", new Script(ctx(fixtureTransport(FIX)), turnInput(alone), { firm }, "f"));
+    const work = slots.find((s) => s.key === "work")!;
+    expect(work.candidates.map((x) => x.option)).toContain("work_own");
+    expect(work.candidates.find((x) => x.option === "work_own")!.describe).not.toContain("your job pays");
+    const full = work.candidates.find((x) => x.option === "full_normal")!;
+    const c = ctx(fixtureTransport(FIX, { "PUT /s/1/labor": ok }));
+    await full.act!(new Script(c, turnInput(alone), { firm }, "f"));
+    expect(c.turn.calls.find((x) => x.tool === "set_labor")?.input).toMatchObject({ allocations: [{ workplace: 18, effort: "normal" }] });
   });
 });
 

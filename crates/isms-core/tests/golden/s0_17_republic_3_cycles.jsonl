@@ -278,7 +278,7 @@
 {"LeaseOffered":{"offer":50,"body":{"lease":{"asset":{"dwelling":34},"rent_per_cycle":800,"term_cycles":null}}}}
 {"LeaseOffered":{"offer":51,"body":{"lease":{"asset":{"dwelling":36},"rent_per_cycle":800,"term_cycles":null}}}}
 {"LeaseOffered":{"offer":52,"body":{"lease":{"asset":{"dwelling":38},"rent_per_cycle":800,"term_cycles":null}}}}
-{"SaleOffered":{"offer":53,"by":{"org":16},"asset":{"shares":[16,100]},"price":{"money":38400},"to":null}}
+{"SaleOffered":{"offer":53,"by":{"org":16},"asset":{"shares":[16,100]},"price":{"money":110400},"to":null}}
 {"PlanChanged":{"citizen":17,"plan":{"labor":"explicit","keep_food_at_least":24,"max_food_price":null,"buy_wares_when":{"comfort_below":60,"balance_above":9440,"max_price":null},"keep_balance_at_least":0,"standing_orders":[],"vote_default":"none"}}}
 {"EmploymentAccepted":{"contract":16,"offer":32,"org":16,"workplace":16,"citizen":17,"pay":{"hourly":800},"max_hours":8,"term_cycles":null,"notice_cycles":1}}
 {"Assigned":{"workplace":16,"citizen":17,"contract":16}}
@@ -306,7 +306,7 @@
 {"LeaseOffered":{"offer":72,"body":{"lease":{"asset":{"dwelling":35},"rent_per_cycle":800,"term_cycles":null}}}}
 {"LeaseOffered":{"offer":73,"body":{"lease":{"asset":{"dwelling":37},"rent_per_cycle":800,"term_cycles":null}}}}
 {"LeaseOffered":{"offer":74,"body":{"lease":{"asset":{"dwelling":39},"rent_per_cycle":800,"term_cycles":null}}}}
-{"SaleOffered":{"offer":75,"by":{"org":17},"asset":{"shares":[17,100]},"price":{"money":38400},"to":null}}
+{"SaleOffered":{"offer":75,"by":{"org":17},"asset":{"shares":[17,100]},"price":{"money":110400},"to":null}}
 {"PlanChanged":{"citizen":18,"plan":{"labor":"explicit","keep_food_at_least":24,"max_food_price":null,"buy_wares_when":{"comfort_below":60,"balance_above":9440,"max_price":null},"keep_balance_at_least":0,"standing_orders":[],"vote_default":"none"}}}
 {"EmploymentAccepted":{"contract":18,"offer":54,"org":17,"workplace":17,"citizen":18,"pay":{"hourly":800},"max_hours":8,"term_cycles":null,"notice_cycles":1}}
 {"Assigned":{"workplace":17,"citizen":18,"contract":18}}

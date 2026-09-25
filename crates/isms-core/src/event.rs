@@ -802,12 +802,23 @@ pub struct WorkerCycle {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EpochSummary {
     pub aggregates: CycleAggregates,
-    /// Every citizen, ranked by net worth, highest first, ties by id.
+    /// Every citizen, ranked by net worth, highest first, ties by id; where
+    /// labor is by norm, by the contribution record, then honors (Q157).
     pub standings: Vec<Standing>,
 }
 
+/// The Ledger of Contribution in three figures (GDD §6.2 Scoreboard), carried
+/// on a standing where labor is by norm so the archive can rank a Commune's
+/// epoch by its own scoreboard (Q157).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ContributionTotals {
+    pub hours_total: f64,
+    pub days: u32,
+    pub norm_met_days: u32,
+}
+
 /// One citizen's line in the epoch summary.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Standing {
     pub citizen: CitizenId,
     pub handle: String,
@@ -818,6 +829,9 @@ pub struct Standing {
     /// Assembly honors on the record (S2.3; the Commune's scoreboard).
     #[serde(default)]
     pub honors: u32,
+    /// The contribution record where labor is by norm (Q157); `None` elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contribution: Option<ContributionTotals>,
 }
 
 /// Per-cycle metrics snapshot (TDD §13), computed in the engine at step 8m.

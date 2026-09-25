@@ -422,3 +422,161 @@ fn share_orders_validate_holdings_and_cancel_releases_shares() {
     let _ = WorkplaceId(0);
     h.check();
 }
+
+/// Two humans, a householder managing "Legacy Builders" with two dwellings
+/// and no treasury; quiet plans (E-2).
+fn builders() -> Harness {
+    let mut h = WorldBuilder::new("freeport")
+        .with_preset(|p| p.params.population.collapse_enabled = false)
+        .humans(2)
+        .householders(1)
+        .org(OrgKind::Firm, "Legacy Builders")
+        .dwelling(0)
+        .dwelling(0)
+        .build();
+    for who in h.citizen_ids() {
+        let mut p = h.citizen(who).plan.clone();
+        p.keep_food_at_least = 0;
+        h.apply(Event::PlanChanged {
+            citizen: who,
+            plan: Box::new(p),
+        });
+    }
+    h.apply(Event::ManagerAppointed {
+        org: OrgId(0),
+        citizen: Some(nth(&h, 2)),
+    });
+    h
+}
+
+#[test]
+fn a_dwelling_held_counts_at_its_build_cost_until_one_sells() {
+    use isms_core::ids::DwellingId;
+    use isms_core::shares::{dwelling_value, dwellings_value};
+    use isms_core::world::Owner;
+    let mut h = builders();
+    let (buyer, mgr) = (nth(&h, 0), nth(&h, 2));
+    // No dwelling has sold: 10 Materials at 2.00 plus two hours at the legacy wage 8.00.
+    assert_eq!(dwelling_value(&h.world), Money::credits(36));
+    assert_eq!(
+        dwellings_value(&h.world, Owner::Org(OrgId(0))),
+        Money::credits(72)
+    );
+    assert_eq!(
+        book_value(&h.world, &h.world.orgs[&OrgId(0)]),
+        Money::credits(72),
+        "the dwellings a Builder holds are its book"
+    );
+    assert_eq!(net_worth(&h.world, buyer), Money::credits(1000));
+    h.cmd(
+        Envelope::citizen(
+            mgr,
+            Command::OfferSale {
+                asset: SaleAsset::Dwelling(DwellingId(0)),
+                price: Price::Money(Money::credits(50)),
+                to: None,
+            },
+            0,
+        )
+        .on_behalf_of(OrgId(0)),
+    )
+    .unwrap();
+    h.cmd(Envelope::citizen(
+        buyer,
+        Command::AcceptSale { offer: OfferId(0) },
+        0,
+    ))
+    .unwrap();
+    // The sale sets the price every dwelling in the society is worth.
+    assert_eq!(h.world.meta.last_dwelling_price, Some(Money::credits(50)));
+    assert_eq!(dwelling_value(&h.world), Money::credits(50));
+    assert_eq!(
+        net_worth(&h.world, buyer),
+        Money::credits(1000),
+        "950 in hand and a dwelling at the price paid"
+    );
+    assert_eq!(self_made(&h.world, buyer), Money::ZERO);
+    assert_eq!(
+        book_value(&h.world, &h.world.orgs[&OrgId(0)]),
+        Money::credits(100),
+        "50 in the treasury and one dwelling at 50"
+    );
+    h.check();
+}
+
+#[test]
+fn a_loan_counts_for_the_lender_and_against_the_borrower_at_the_unpaid_principal() {
+    use isms_core::credit::outstanding;
+    let mut h = builders();
+    let (l, b) = (nth(&h, 0), nth(&h, 1));
+    h.cmd(Envelope::citizen(
+        l,
+        Command::OfferCredit {
+            to: Some(Party::Citizen(b)),
+            principal: Money::credits(100),
+            rate_per_cycle_bp: 200,
+            term_cycles: 5,
+            collateral: None,
+        },
+        0,
+    ))
+    .unwrap();
+    assert_eq!(
+        net_worth(&h.world, l),
+        Money::credits(900),
+        "escrowed, not yet lent"
+    );
+    h.cmd(Envelope::citizen(
+        b,
+        Command::AcceptCredit { offer: OfferId(0) },
+        0,
+    ))
+    .unwrap();
+    assert_eq!(
+        outstanding(&h.world, Party::Citizen(l)),
+        (Money::credits(100), Money::ZERO)
+    );
+    assert_eq!(
+        outstanding(&h.world, Party::Citizen(b)),
+        (Money::ZERO, Money::credits(100))
+    );
+    assert_eq!(
+        net_worth(&h.world, l),
+        Money::credits(1000),
+        "the loan is a holding"
+    );
+    assert_eq!(
+        net_worth(&h.world, b),
+        Money::credits(1000),
+        "the money in hand is owed"
+    );
+    h.check_every_step = false;
+    let events = h.run_cycle();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::CreditInstallment { .. }))
+    );
+    // One of five installments paid: four fifths of the principal stand.
+    assert_eq!(
+        outstanding(&h.world, Party::Citizen(l)),
+        (Money::credits(80), Money::ZERO)
+    );
+    assert_eq!(
+        outstanding(&h.world, Party::Citizen(b)),
+        (Money::ZERO, Money::credits(80))
+    );
+    let pantry = |who| {
+        let c = h.citizen(who);
+        c.household
+            .pantry
+            .get(&Good::Food)
+            .map_or(Money::ZERO, |q| Money(130 * i64::from(*q)))
+    };
+    assert_eq!(
+        net_worth(&h.world, l) - h.citizen(l).household.balance - pantry(l),
+        Money::credits(80),
+        "the interest arrived as balance; the principal is still out"
+    );
+    h.check();
+}

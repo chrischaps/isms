@@ -52,7 +52,7 @@ export function situationText(home: HomeView): string {
     `You are ${home.citizen.handle} (citizen ${home.citizen.id})${flags.length ? `; flags: ${flags.join(", ")}` : ""}.`,
     `Needs: food ${home.needs.food.toFixed(0)}, shelter ${home.needs.shelter.toFixed(0)}, comfort ${home.needs.comfort.toFixed(0)} (each 0-100; below 20 food for a whole day is hardship).`,
     `Balance ${credits(h.balance)} credits. Pantry: ${pantry || "empty"}. Housing: ${dwelling}.`,
-    positions.length ? `Positions under the norm: ${positions.join("; ")}.` : `Jobs: ${jobs.length ? jobs.join("; ") : "none"}.`,
+    positions.length ? `Positions without a contract (under a norm, or at your own firm): ${positions.join("; ")}.` : `Jobs: ${jobs.length ? jobs.join("; ") : "none"}.`,
     `Labor this day: ${alloc.length ? alloc.join("; ") : "nothing allocated"}; budget ${home.labor.budget} h; output multiplier ${home.labor.output_mult.toFixed(2)}${home.labor.fatigue_debt ? `; fatigue debt ${home.labor.fatigue_debt} h` : ""}.`,
     `Society: ${home.society.population} citizens, ${home.society.active_humans} people, ${home.society.unemployed} unemployed; food last ${home.society.food_last_price != null ? credits(home.society.food_last_price) : "?"}; price index ${home.society.price_index?.toFixed(2) ?? "?"}.`,
     home.headlines.length ? `Headlines: ${home.headlines.map((x) => x.text).join(" | ")}` : "No headlines yet.",

@@ -289,10 +289,13 @@ pub fn apply(world: &mut World, event: &Event) {
             {
                 move_shares(world, org, None, Some(h), q);
             }
-            if let crate::world::SaleAsset::Dwelling(d) = asset
-                && let Some(dw) = world.dwellings.get_mut(d)
-            {
-                dw.owner = crate::housing::owner_of(*buyer);
+            if let crate::world::SaleAsset::Dwelling(d) = asset {
+                if let Some(dw) = world.dwellings.get_mut(d) {
+                    dw.owner = crate::housing::owner_of(*buyer);
+                }
+                if let crate::world::Price::Money(m) = price {
+                    world.meta.last_dwelling_price = Some(*m);
+                }
             }
             let paid = match price {
                 crate::world::Price::Money(m) => Asset::Money(*m),
