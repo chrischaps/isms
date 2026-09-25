@@ -1161,6 +1161,7 @@ All live in `presets/_base.toml` alongside GDD Appendix A; starting values only.
 | `legacy_wage` | 8.00 credits/h | §5.7 | first job offers |
 | `legacy_firms` | Farm 3, Mine 3, Foundry 3, Mill 3, Workshop 3, Machine Shop 1, Builder 2; markup 0.15 | §7 | ≥ 3 producers per consumer good (GDD Q5) |
 | `initial_dwellings` | 40 (= population floor) | §7 | owned by legacy Builders |
+| `population.expected_humans` | 0 | §7 | the seed fills the floor to `floor − max(active humans, expected)`; a lab's `seed --expect-humans N` (E-4, Q161) |
 | Legacy machine-buy threshold | treasury > 3 × last cycle's payroll | §9.3 | |
 | Householder plan | Food target 24; Wares when Comfort < 60 and balance > 2 × living cost; save 10 % | §9.3 | published |
 | `food_meter_per_unit` / `comfort_per_wares` / `shelter_recovery_per_tick` | 4 / 6 / 2 | §5.5 | GDD gives decay, not recovery |

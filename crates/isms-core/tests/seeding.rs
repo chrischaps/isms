@@ -158,6 +158,101 @@ fn a_human_joining_triggers_exactly_one_emigration_at_the_next_cycle_end() {
     )));
 }
 
+/// E-4 (Q161): a seed that expects its players leaves their places in the
+/// floor empty, so their joining emigrates nobody; one more than expected
+/// still does.
+#[test]
+fn a_seed_that_expects_its_players_leaves_their_places_empty() {
+    let mut h = WorldBuilder::new("freeport")
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.expected_humans = 2;
+        })
+        .seed_epoch()
+        .build();
+    h.check_every_step = false;
+    let active_hh = |h: &isms_core::test_support::Harness| {
+        h.world
+            .citizens
+            .values()
+            .filter(|c| c.kind == CitizenKind::Householder && !c.dormant)
+            .count()
+    };
+    assert_eq!(active_hh(&h), 38, "the floor less the two expected");
+    // every seeded org still has a householder manager
+    assert!(h.world.orgs.values().all(|o| o.manager.is_some()));
+    for name in ["ada", "bob"] {
+        h.cmd(Envelope::system(
+            Command::Join {
+                handle: name.into(),
+                kind: CitizenKind::Human,
+            },
+            0,
+        ))
+        .unwrap();
+    }
+    let events = h.run_cycle();
+    assert!(
+        !events.iter().any(|e| matches!(
+            e,
+            Event::HouseholderEmigrated { .. } | Event::HouseholderJoined { .. }
+        )),
+        "the expected players take the empty places"
+    );
+    assert_eq!(active_hh(&h), 38);
+    h.check();
+    // a third, unexpected, human still emigrates one householder
+    h.cmd(Envelope::system(
+        Command::Join {
+            handle: "cyd".into(),
+            kind: CitizenKind::Human,
+        },
+        0,
+    ))
+    .unwrap();
+    let events = h.run_cycle();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::HouseholderEmigrated { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(active_hh(&h), 37);
+    h.check();
+}
+
+/// The places kept for players who never come are filled at the first cycle
+/// end, as 8l fills any shortfall.
+#[test]
+fn an_expected_player_who_never_comes_is_backfilled_at_the_cycle_end() {
+    let mut h = WorldBuilder::new("freeport")
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.expected_humans = 2;
+        })
+        .seed_epoch()
+        .build();
+    h.check_every_step = false;
+    let events = h.run_cycle();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::HouseholderJoined { .. }))
+            .count(),
+        2
+    );
+    assert_eq!(
+        h.world
+            .citizens
+            .values()
+            .filter(|c| c.kind == CitizenKind::Householder && !c.dormant)
+            .count(),
+        40
+    );
+    h.check();
+}
+
 #[test]
 fn a_dormant_human_is_backfilled() {
     let mut h = WorldBuilder::new("freeport")

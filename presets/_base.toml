@@ -100,6 +100,7 @@ rate_limit = { per_second = 5, burst = 20 }   # [new tunable] TDD 10.2
 
 [params.population]
 floor = 40
+expected_humans = 0                      # a lab seed's `--expect-humans N` (E-4, Q161)
 comfortable_min = 100
 comfortable_max = 300
 cap = 500

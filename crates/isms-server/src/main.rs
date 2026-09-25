@@ -55,6 +55,11 @@ enum Cmd {
         /// Param override `params.x.y=value` (TOML value syntax); repeatable.
         #[arg(long = "param")]
         params: Vec<String>,
+        /// Humans expected to join: the seed fills the population floor to
+        /// `floor - N`, so their arrival emigrates nobody (E-4, Q161).
+        /// Shorthand for `--param params.population.expected_humans=N`.
+        #[arg(long, default_value_t = 0)]
+        expect_humans: u32,
     },
     /// Mint invite codes (Phase 1 sign-up is invite only) and print them.
     Invite {
@@ -177,12 +182,19 @@ async fn run(cli: Cli) -> Result<(), ServerError> {
             tick_seconds,
             cycle_boundary_hour,
             params,
+            expect_humans,
         } => {
             let store = connect(cli.database_url.as_deref()).await?;
-            let overrides = params
+            let mut overrides = params
                 .iter()
                 .map(|p| parse_override(p))
                 .collect::<Result<Vec<_>, _>>()?;
+            if expect_humans > 0 {
+                overrides.push((
+                    "params.population.expected_humans".to_owned(),
+                    toml::Value::Integer(i64::from(expect_humans)),
+                ));
+            }
             let spec = SeedSpec {
                 name,
                 preset,
