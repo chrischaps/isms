@@ -41,7 +41,7 @@ fn founding_a_firm_with_a_mine_costs_fee_and_materials() {
         .unwrap();
     assert_eq!(
         kinds(&events),
-        ["OrgFounded", "Transferred", "WorkplaceAdded"]
+        ["OrgFounded", "Transferred", "WorkplaceAdded", "Assigned"]
     );
     let org = &h.world.orgs[&OrgId(0)];
     assert_eq!(org.manager, Some(me));
@@ -169,7 +169,11 @@ fn the_ninth_farm_is_rejected_and_mills_need_no_slot() {
             0,
         ))
         .unwrap();
-    assert_eq!(ok.len(), 3);
+    assert_eq!(
+        ok.len(),
+        4,
+        "founded, Materials moved, added, the founder placed"
+    );
     assert_eq!(h.world.workplaces[&WorkplaceId(8)].slot, None);
 }
 
@@ -374,4 +378,84 @@ fn appoint_manager_needs_the_controlling_owner() {
     ))
     .unwrap();
     assert_eq!(h.world.orgs[&OrgId(0)].manager, Some(other));
+}
+
+#[test]
+fn the_founder_holds_an_unpaid_position_at_its_first_workplace() {
+    use isms_core::world::Allocation;
+    let mut h = founder_world();
+    let me = nth(&h, 0);
+    h.cmd(Envelope::citizen(
+        me,
+        Command::FoundOrg {
+            kind: OrgKind::Firm,
+            name: "Iron & Sons".into(),
+            first_workplace: Some((WorkplaceKind::Mine, None)),
+        },
+        0,
+    ))
+    .unwrap();
+    // The owner-operator position (E-3, Q160): no contract, as a coop member holds.
+    let a = &h.world.workplaces[&WorkplaceId(0)].workers[&me];
+    assert_eq!(a.contract, None);
+    assert!(isms_core::labor::has_position(&h.world, me));
+    h.cmd(Envelope::citizen(
+        me,
+        Command::SetLabor {
+            allocations: vec![Allocation {
+                workplace: WorkplaceId(0),
+                hours: 8,
+                effort: Effort::Normal,
+            }],
+        },
+        0,
+    ))
+    .unwrap();
+    h.check_every_step = false;
+    let events = h.run_cycle();
+    assert!(
+        !events.iter().any(
+            |e| matches!(e, Event::Paid { citizen, org, .. } if *citizen == me && *org == OrgId(0))
+        ),
+        "no wage: the output of the firm is the return"
+    );
+    assert!(
+        events.iter().any(
+            |e| matches!(e, Event::Produced { workplace, .. } if *workplace == WorkplaceId(0))
+        ),
+        "the hours of the founder produce"
+    );
+    assert!(
+        h.world.orgs[&OrgId(0)]
+            .inventory
+            .get(&Good::Ore)
+            .is_some_and(|q| *q > 0),
+        "ore in the inventory of the firm"
+    );
+    assert!(
+        h.world.workplaces[&WorkplaceId(0)]
+            .workers
+            .contains_key(&me),
+        "the position survives payroll"
+    );
+    h.check();
+}
+
+#[test]
+fn founding_without_a_workplace_grants_no_position() {
+    let mut h = founder_world();
+    let me = nth(&h, 0);
+    let events = h
+        .cmd(Envelope::citizen(
+            me,
+            Command::FoundOrg {
+                kind: OrgKind::Firm,
+                name: "Iron & Sons".into(),
+                first_workplace: None,
+            },
+            0,
+        ))
+        .unwrap();
+    assert_eq!(kinds(&events), ["OrgFounded"]);
+    assert!(!isms_core::labor::has_position(&h.world, me));
 }

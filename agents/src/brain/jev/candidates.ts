@@ -104,23 +104,15 @@ export type Firm = {
   price: number | null;
 };
 
-/** The token wage a manager pays itself to hold a place at its own workplace (Q160): the smallest the engine accepts; the firm's output is the return. */
-export const OWN_PLACE_WAGE = 1;
+/** The owner-operator position (E-3, Q160): the place the engine grants a founder at its first workplace, held with no contract and no wage; the firm's output is the return. */
+function ownPosition(s: Script, firm: Firm): boolean {
+  return s.positions.some((p) => p.workplace === firm.workplace);
+}
 
-/** Hire yourself (Q160) if you hold no place at your own workplace, then put the hours there. */
+/** Put the hours at the position the founding granted (E-3, Q160). */
 function workOwn(firm: Firm, hours: number) {
   return async (sc: Script) => {
-    if (!currentJobs(sc.home).some((j) => j.workplace === firm.workplace)) {
-      const mine = (offers: ReturnType<typeof jobOffers>) => offers.find((o) => o.org === firm.org && o.workplace === firm.workplace && o.hourly <= OWN_PLACE_WAGE);
-      let place = mine(jobOffers(await sc.board()));
-      if (!place) {
-        const posted = await sc.do(act.offerEmployment, { org: firm.org, workplace: firm.workplace, pay: { hourly: OWN_PLACE_WAGE }, max_hours: hours, places: 1, notice_cycles: 0, term_cycles: null });
-        if (!posted) return `could not post my own place at the ${firm.kind}`;
-        place = mine(jobOffers(await sc.board()));
-        if (!place) return "posted my own place but it is not on the board";
-      }
-      if (!(await sc.do(act.acceptOffer, { offer: place.id }))) return `was refused my own place at the ${firm.kind}`;
-    }
+    if (!ownPosition(sc, firm)) return `hold no place at my own ${firm.kind}`;
     const ok = await sc.do(act.setLabor, { allocations: [{ workplace: firm.workplace, hours, effort: "normal" }] });
     return ok ? `set ${hours} h at my own ${firm.kind}` : `could not set ${hours} h at my own ${firm.kind}`;
   };
@@ -136,31 +128,34 @@ export function ownDayOutput(firm: Firm, hours: number, outputMult: number): num
 /** How many hours, how hard. The full menu when nothing is set today; afterwards only when something gives a reason to change. */
 export const workSlot: SlotGen = async (s) => {
   const jobs = currentJobs(s.home);
-  if (jobs.length === 0) return null;
+  // The manager's own workplace (SJ.3): the position founding granted (E-3), when the firm slot has seen the firm.
+  const firm = s.memory.firm as Firm | undefined;
+  const ownPlace = firm !== undefined && ownPosition(s, firm);
+  if (jobs.length === 0 && !ownPlace) return null;
   const budget = s.home.labor.budget;
   const contractHours = jobs.slice(0, 2).reduce((n, j) => n + j.maxHours, 0);
-  const full = Math.max(1, Math.min(contractHours, budget));
+  // An owner with no wage job has the whole day for its own workplace.
+  const full = Math.max(1, Math.min(contractHours > 0 ? contractHours : budget, budget));
   const half = Math.max(1, Math.floor(full / 2));
   const few = Math.max(1, Math.min(4, budget));
   const set = s.home.labor.allocations.reduce((n, a) => n + a.hours, 0);
   const effort = s.home.labor.allocations[0]?.effort ?? "normal";
-  // The manager's own workplace (SJ.3), when the firm slot has seen one and a wage job exists beside it.
-  const firm = s.memory.firm as Firm | undefined;
   const ownHours = firm ? (s.home.labor.allocations.find((a) => a.workplace === firm.workplace)?.hours ?? 0) : 0;
   const wageJobs = firm ? jobs.filter((j) => j.workplace !== firm.workplace) : jobs;
   const best = wageJobs.length ? Math.max(...wageJobs.map((j) => j.hourly)) : 0;
   const fatigue = s.home.labor.fatigue_debt ?? 0;
   const day = best * 8;
+  // Once the hours are at the manager's own workplace, or it has no wage job beside it, a change keeps them there.
+  const atOwn = firm !== undefined && (ownHours > 0 || (ownPlace && wageJobs.length === 0));
   const run = (e: "low" | "normal" | "high", cap: number) => async (sc: Script) => {
-    // Once the hours are at the manager's own workplace, a change keeps them there.
-    const ok = firm && ownHours > 0 ? await sc.do(act.setLabor, { allocations: [{ workplace: firm.workplace, hours: cap, effort: e }] }) : await workFullHours(sc, e, cap);
+    const ok = atOwn ? await sc.do(act.setLabor, { allocations: [{ workplace: firm.workplace, hours: cap, effort: e }] }) : await workFullHours(sc, e, cap);
     return ok ? `set ${cap} h at ${e} effort` : `could not set ${cap} h`;
   };
   const facts: Record<string, unknown> = { contract_hours: contractHours, hour_budget: budget, hours_set_today: set, effort_set: effort, best_hourly_credits: credits(best), fatigue_debt: fatigue };
   const who = `Food ${s.food.toFixed(0)} of 100, balance ${credits(s.balance)} credits, a day's wage ${credits(day)}.`;
   const own: Candidate[] = [];
   const ownReasons: string[] = [];
-  if (firm && wageJobs.length && ownHours < full && onceToday(s, "work_own")) {
+  if (firm && ownPlace && ownHours < full && onceToday(s, "work_own")) {
     const units = ownDayOutput(firm, full, s.home.labor.output_mult ?? 1);
     const value = firm.price !== null ? units * firm.price : null;
     facts.own_workplace = { kind: firm.kind, hours_there: ownHours, day_output_units: units, day_output_value_credits: value !== null ? credits(value) : null };
@@ -168,7 +163,7 @@ export const workSlot: SlotGen = async (s) => {
     own.push(
       doing(
         "work_own",
-        `work all ${full} hours at your own ${firm.kind} for a token wage: about ${units} ${firm.produces} a day at your rate${value !== null ? `, worth ${credits(value)} at the last price` : ""}, the firm's to sell, instead of the ${credits(day)} a day your job pays`,
+        `work all ${full} hours at your own ${firm.kind}, unpaid: about ${units} ${firm.produces} a day at your rate${value !== null ? `, worth ${credits(value)} at the last price` : ""}, the firm's to sell${wageJobs.length ? `, instead of the ${credits(day)} a day your job pays` : ""}`,
         workOwn(firm, full),
       ),
     );

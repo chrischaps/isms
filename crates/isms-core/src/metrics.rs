@@ -2,7 +2,7 @@
 //! 8m so live views, the simulator and the Observatory share one definition.
 //! Accumulators live in `World` and `Citizen` as continuous state.
 
-use crate::event::{CycleAggregates, EpochSummary, Standing};
+use crate::event::{ContributionTotals, CycleAggregates, EpochSummary, Standing};
 use crate::ids::CitizenId;
 use crate::kinds::{CitizenKind, Good, Product};
 use crate::money::Money;
@@ -317,8 +317,13 @@ pub fn honors_of(citizen: &crate::world::Citizen) -> u32 {
 /// The frozen summary an `EpochEnded` carries (S1.15): the aggregates as just
 /// computed and every citizen ranked on the Freeport scoreboard (net worth,
 /// self-made), dormant citizens included, since the archive is a record.
+/// Where labor is by norm the standings carry the contribution record and rank
+/// on it, hours first, then honors, as the live scoreboard does (Q157).
 #[must_use]
+#[allow(clippy::cast_precision_loss)]
 pub fn epoch_summary(world: &World, aggregates: CycleAggregates) -> EpochSummary {
+    let by_norm = world.constitution.labor == crate::constitution::LaborMode::Norm;
+    let tpc = f64::from(world.ticks_per_cycle());
     let mut standings: Vec<Standing> = world
         .citizens
         .values()
@@ -330,13 +335,28 @@ pub fn epoch_summary(world: &World, aggregates: CycleAggregates) -> EpochSummary
             net_worth: crate::shares::net_worth(world, c.id),
             self_made: crate::shares::self_made(world, c.id),
             honors: honors_of(c),
+            contribution: by_norm.then(|| ContributionTotals {
+                hours_total: c.contribution.tick_hours_total as f64 / tpc,
+                days: c.contribution.cycles,
+                norm_met_days: c.contribution.norm_met_cycles,
+            }),
         })
         .collect();
-    standings.sort_by(|a, b| {
-        b.net_worth
-            .cmp(&a.net_worth)
-            .then(a.citizen.cmp(&b.citizen))
-    });
+    if by_norm {
+        standings.sort_by(|a, b| {
+            let hours = |s: &Standing| s.contribution.as_ref().map_or(0.0, |x| x.hours_total);
+            hours(b)
+                .total_cmp(&hours(a))
+                .then(b.honors.cmp(&a.honors))
+                .then(a.citizen.cmp(&b.citizen))
+        });
+    } else {
+        standings.sort_by(|a, b| {
+            b.net_worth
+                .cmp(&a.net_worth)
+                .then(a.citizen.cmp(&b.citizen))
+        });
+    }
     EpochSummary {
         aggregates,
         standings,

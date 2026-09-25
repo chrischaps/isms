@@ -339,3 +339,43 @@ fn an_epoch_ended_carries_the_frozen_summary() {
     // The fold reproduces the live world, summary and all.
     isms_core::test_support::assert_fold_equals_live(&h.log, &h.world);
 }
+
+#[test]
+fn a_commune_epoch_ranks_its_standings_by_the_contribution_record() {
+    use isms_core::kinds::{Effort, OrgKind, WorkplaceKind};
+    let mut h = WorldBuilder::new("commune")
+        .seed(7)
+        .with_preset(|p| p.params.time.epoch_cycles = 1)
+        .humans(3)
+        .org(OrgKind::Collective, "The Collective")
+        .workplace(WorkplaceKind::Farm, 0, 0)
+        .assign(1, 0, 8, Effort::Normal)
+        .assign(2, 0, 4, Effort::Normal)
+        .build();
+    h.check_every_step = false;
+    let events = h.run_cycle();
+    let summary = events
+        .iter()
+        .find_map(|e| match e {
+            Event::EpochEnded { summary, .. } => Some(summary),
+            _ => None,
+        })
+        .expect("EpochEnded");
+    let hours: Vec<f64> = summary
+        .standings
+        .iter()
+        .map(|s| {
+            s.contribution
+                .as_ref()
+                .expect("the record, by norm")
+                .hours_total
+        })
+        .collect();
+    assert!(
+        hours[0] > hours[1] && hours[1] > hours[2],
+        "ranked by hours: {hours:?}"
+    );
+    assert_eq!(summary.standings[0].contribution.as_ref().unwrap().days, 1);
+    assert!(hours[2].abs() < f64::EPSILON, "the idle hand: {}", hours[2]);
+    isms_core::test_support::assert_fold_equals_live(&h.log, &h.world);
+}

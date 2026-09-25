@@ -140,7 +140,7 @@ describe("the situation under a norm", () => {
     const h = home();
     expect(h.labor.employment).toEqual([]);
     expect(extract(h).jobs).toBe(1);
-    expect(situationText(h)).toContain("Positions under the norm: workplace 1 (Legacy Farm No. 2, farm)");
+    expect(situationText(h)).toContain("Positions without a contract (under a norm, or at your own firm): workplace 1 (Legacy Farm No. 2, farm)");
   });
 });
 

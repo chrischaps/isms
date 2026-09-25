@@ -26,7 +26,17 @@ import { archiveVerdict, fedTone, needTone } from "../lib/verdict";
 import { epochEndingText } from "../lib/when";
 
 type Aggregates = Record<string, unknown>;
-type Standing = { citizen: number; handle: string; kind: string; dormant: boolean; net_worth: number; self_made: number; honors?: number };
+type Standing = {
+  citizen: number;
+  handle: string;
+  kind: string;
+  dormant: boolean;
+  net_worth: number;
+  self_made: number;
+  honors?: number;
+  /** The contribution record, where labor is by norm (E-2, Q157). */
+  contribution?: { hours_total: number; days: number; norm_met_days: number };
+};
 type Clock = { cycle: number; epoch: number; epoch_ending?: number | null; epoch_ended: boolean };
 
 /** How the epoch ended, as a clause after "Epoch N". */
@@ -88,15 +98,16 @@ function Summary({ a, money, t }: { a: Aggregates; money: boolean; t: (k: string
 }
 
 /**
- * Where everyone stood. The engine ranks by net worth (S1.15); where no money
- * exists that column is 0 cr for everyone and says nothing, so a money-less
- * society's table is the honors on the record, in the engine's order, and
- * the rank is not shown (S2.11, Q157: the archive carries no contribution
- * record yet).
+ * Where everyone stood. The engine ranks by net worth (S1.15); where labor is
+ * by norm the summary carries the Ledger of Contribution and ranks on it,
+ * hours first, then honors (E-2, Q157). An older money-less archive without
+ * the record is the honors in the engine's order, with no rank shown (S2.11).
  */
 function Standings({ rows, money }: { rows: Standing[]; money: boolean }) {
   const top = rows.slice(0, 10);
   const rest = rows.length - top.length;
+  const record = !money && rows.some((s) => s.contribution != null);
+  const ranked = money || record;
   return (
     <div>
       <table className="w-full border-collapse text-[15px]" data-testid="archive-standings">
@@ -108,6 +119,12 @@ function Standings({ rows, money }: { rows: Standing[]; money: boolean }) {
                 <th className={TH_NUM}>Net worth</th>
                 <th className={TH_NUM}>Self-made</th>
               </>
+            ) : record ? (
+              <>
+                <th className={TH_NUM}>Hours</th>
+                <th className={TH_NUM}>Norm met</th>
+                <th className={TH_NUM}>Honors</th>
+              </>
             ) : (
               <th className={TH_NUM}>Honors</th>
             )}
@@ -117,7 +134,7 @@ function Standings({ rows, money }: { rows: Standing[]; money: boolean }) {
           {top.map((s, i) => (
             <tr key={s.citizen} className="hover:bg-surface-2">
               <td className={TD}>
-                {money ? <span className="text-muted mr-2 tabular-nums">{i + 1}.</span> : null}
+                {ranked ? <span className="text-muted mr-2 tabular-nums">{i + 1}.</span> : null}
                 {s.handle}
                 {s.kind === "householder" ? <span className="text-muted text-sm"> householder</span> : null}
                 {s.dormant ? <span className="text-muted text-sm"> away</span> : null}
@@ -127,6 +144,14 @@ function Standings({ rows, money }: { rows: Standing[]; money: boolean }) {
                   <td className={TD_NUM}>{credits(s.net_worth)} cr</td>
                   <td className={TD_NUM}>{credits(s.self_made)} cr</td>
                 </>
+              ) : record ? (
+                <>
+                  <td className={TD_NUM}>{(s.contribution?.hours_total ?? 0).toFixed(0)} h</td>
+                  <td className={TD_NUM}>
+                    {s.contribution?.norm_met_days ?? 0} of {s.contribution?.days ?? 0} days
+                  </td>
+                  <td className={TD_NUM}>{(s.honors ?? 0) > 0 ? s.honors : <span className="text-muted">—</span>}</td>
+                </>
               ) : (
                 <td className={TD_NUM}>{(s.honors ?? 0) > 0 ? s.honors : <span className="text-muted">—</span>}</td>
               )}
@@ -134,7 +159,7 @@ function Standings({ rows, money }: { rows: Standing[]; money: boolean }) {
           ))}
         </tbody>
       </table>
-      {rest > 0 ? <p className="text-muted mt-2 mb-0 text-sm">and {rest} more{money ? ", ranked the same way" : ""}.</p> : null}
+      {rest > 0 ? <p className="text-muted mt-2 mb-0 text-sm">and {rest} more{ranked ? ", ranked the same way" : ""}.</p> : null}
     </div>
   );
 }
