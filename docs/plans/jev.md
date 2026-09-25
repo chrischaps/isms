@@ -20,7 +20,7 @@ What the runs so far have shown (`sj1-*`, `sj2-*`, six runs, $0.15):
 |---|---|---|---|
 | SJ.1 | `JevBrain` behind the `Brain` seam; `work`/`job`/`venture`/`market`/`property` slots; the client; floors; the report's Jev table; the founder-1 replay | 16 tests; a two-day and a seven-day run clean | done 2026-09-24, $0.04 |
 | SJ.2 | slots only for a reason; `housing`, `plan`, `credit`, `fund_firm`, two wage tiers; `standing` from the scoreboard; `ambition`; all seven personas; the lab seeds a dwelling per player (Q159); the economy day by day and the standings in the report | 8 tests; two-day and seven-day runs clean | done 2026-09-24, $0.11 |
-| SJ.3 | founders that can decide; a lender; a seller; a town of players; the day's headlines | below | built 2026-09-24; runs pending approval |
+| SJ.3 | founders that can decide; a lender; a seller; a town of players; the day's headlines | below | done 2026-09-24, $0.14 |
 | SJ.4 | the Commune's slots: ballots, offices, the Plan, the Store | later | |
 
 ## SJ.3 — Founders that decide, a lender, a seller, and a town of players
