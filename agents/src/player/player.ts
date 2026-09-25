@@ -101,6 +101,7 @@ export class Player {
         error: outcome.error,
         usage: outcome.usage,
         ...(outcome.decisions ? { decisions: outcome.decisions } : {}),
+        ...(outcome.request ? { request: outcome.request } : {}),
       };
       this.o.journal.append(record);
       this.lastTurn = record;

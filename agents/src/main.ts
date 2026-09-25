@@ -1,7 +1,7 @@
 // The command line: bootstrap the accounts, run the cohort, fold a run into a
 // report, or record one player for the replay test.
 //
-//   pnpm run -- --run <name> [--preset freeport|commune] [--cast <name>] [--players N] [--brain scripted|llm|mixed|jev] [--model id] [--cycle-model id] [--max-usd n] [--record <player>]
+//   pnpm run -- --run <name> [--preset freeport|commune] [--cast <name>] [--players N] [--brain scripted|llm|mixed|jev] [--model id] [--cycle-model id] [--max-usd n] [--record <player>] [--journal-questions]
 //   pnpm bootstrap -- --run <name>
 //   pnpm report <run>
 //   pnpm rollover -- --run <name> [--wait <seconds>]   (S1.15: a closing statement, the archive, the next epoch)
@@ -184,6 +184,8 @@ async function main(argv: string[]) {
       preset: { type: "string", default: "freeport" },
       // A named cast from `run.personas_for` over the preset's list (SJ.3): `--cast freeport-town`.
       cast: { type: "string" },
+      // Keep every Jev turn's request (state and questions) in the journal beside its decisions (E-6).
+      "journal-questions": { type: "boolean" },
     },
   });
   const run = values.run ?? new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
@@ -195,6 +197,7 @@ async function main(argv: string[]) {
     cycleModel: values["cycle-model"],
     cycleProvider: values["cycle-provider"] as Config["models"]["cycle_provider"] | undefined,
     maxUsd: values["max-usd"] ? Number(values["max-usd"]) : undefined,
+    journalQuestions: values["journal-questions"] ? true : undefined,
   });
   const env = readEnv();
   const runDir = join(RUNS_DIR, run);

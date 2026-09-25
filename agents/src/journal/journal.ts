@@ -41,10 +41,18 @@ export type Situation = z.infer<typeof SituationSchema>;
 
 export const DecisionSchema = z.object({
   slot: z.string(),
+  /** The options the slot offered, in the order asked (E-6); absent in journals from before it. */
+  offered: z.array(z.string()).optional(),
   option: z.string(),
   confidence: z.number(),
   none: z.boolean(),
   acted: z.boolean(),
+});
+
+/** A Jev turn's request as sent (E-6), kept when `jev.journal_questions` is on: the state and every question verbatim. */
+export const DecisionRequestSchema = z.object({
+  state: z.unknown(),
+  questions: z.record(z.string(), z.object({ type: z.literal("choice"), instructions: z.string(), criteria: z.record(z.string(), z.string()) })),
 });
 
 export const TurnRecordSchema = z.object({
@@ -68,6 +76,8 @@ export const TurnRecordSchema = z.object({
   usage: UsageSchema,
   /** A Jev turn's typed decisions (SJ.1): the slot, the option, the confidence, whether it was a do-nothing option, whether it ran. */
   decisions: z.array(DecisionSchema).optional(),
+  /** The request behind the decisions (E-6), only with `--journal-questions`. */
+  request: DecisionRequestSchema.optional(),
 });
 export type TurnRecord = z.infer<typeof TurnRecordSchema>;
 

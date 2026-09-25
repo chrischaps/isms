@@ -84,6 +84,8 @@ export const ConfigSchema = z.object({
       irreversible_confidence: z.number().min(0).max(1).default(0.5),
       /** A floor for one named slot, over `min_confidence` (SJ.3): `market` is the slot that flips. */
       floors: z.record(z.string(), z.number().min(0).max(1)).default({}),
+      /** Keep each turn's request (the state and the questions, verbatim) in the journal beside its decisions (E-6); `--journal-questions`. */
+      journal_questions: z.boolean().default(false),
     })
     .prefault({}),
 });
@@ -97,6 +99,7 @@ export type Overrides = {
   cycleModel?: string;
   cycleProvider?: Config["models"]["cycle_provider"];
   maxUsd?: number;
+  journalQuestions?: boolean;
 };
 
 export function loadConfig(path: string, overrides: Overrides = {}): Config {
@@ -111,6 +114,7 @@ export function applyOverrides(cfg: Config, overrides: Overrides): Config {
   if (overrides.cycleModel !== undefined) cfg.models.cycle = llmModelId.parse(overrides.cycleModel);
   if (overrides.cycleProvider !== undefined) cfg.models.cycle_provider = overrides.cycleProvider;
   if (overrides.maxUsd !== undefined) cfg.budget.max_usd = overrides.maxUsd;
+  if (overrides.journalQuestions !== undefined) cfg.jev.journal_questions = overrides.journalQuestions;
   return cfg;
 }
 

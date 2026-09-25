@@ -64,3 +64,6 @@ min_confidence = 0.35
 irreversible_confidence = 0.5
 # A floor for one named slot, over min_confidence (SJ.3). `market` is the one slot that flips (3–5 flip-flops a run).
 floors = { market = 0.5 }
+# Keep each turn's request (the state and the questions, verbatim) in the journal beside its decisions (E-6).
+# Every decision already records what its slot offered; this is for reading the words Jev read. `--journal-questions`.
+journal_questions = false

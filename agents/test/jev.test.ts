@@ -437,7 +437,7 @@ describe("per-slot floors (SJ.3)", () => {
     const cfg = ConfigSchema.parse({ jev: { floors: { plan: 0.9 } } });
     const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, [JEV]: answer({ work: ["full_normal", 0.4], plan: ["put_aside", 0.8] }) }, { cfg });
     const out = await b.takeTurn(c, turnInput(home));
-    expect(out.decisions).toEqual([
+    expect(out.decisions).toMatchObject([
       { slot: "work", option: "full_normal", confidence: 0.4, none: false, acted: true },
       { slot: "plan", option: "put_aside", confidence: 0.8, none: false, acted: false },
     ]);
@@ -587,10 +587,29 @@ describe("a Jev turn", () => {
     expect(out.ended_by).toBe("script");
     expect(out.error).toBeNull();
     expect(c.turn.calls.find((x) => x.tool === "accept_offer")?.input).toEqual({ offer: best.id });
-    expect(out.decisions).toEqual([{ slot: "job", option: "take_best", confidence: 0.8, none: false, acted: true }]);
+    expect(out.decisions).toMatchObject([{ slot: "job", option: "take_best", confidence: 0.8, none: false, acted: true }]);
     expect(out.intent).toContain("job take_best (0.80)");
     expect(out.usage.input).toBe(300);
     expect(out.usage.usd).toBeCloseTo((300 * 0.042) / 1_000_000, 12);
+  });
+  it("keeps what each slot offered beside the choice, and the whole request only when asked (E-6)", async () => {
+    const home = unemployedHome();
+    const best = jobOffers(board().offers)[0]!;
+    const overrides = { "PUT /s/1/plan": ok, [`POST /s/1/offers/${best.id}/accept`]: ok, [JEV]: answer({ job: ["take_best", 0.8] }) };
+    const { brain: b, ctx: c } = brain("founder", overrides);
+    const out = await b.takeTurn(c, turnInput(home));
+    const job = out.decisions!.find((d) => d.slot === "job")!;
+    // Every option the slot listed, the do-nothing one last, so "was it ever offered" is a journal read.
+    expect(job.offered[0]).toBe("take_best");
+    expect(job.offered[job.offered.length - 1]).toBe("wait");
+    expect(out.request).toBeUndefined();
+
+    const cfg = ConfigSchema.parse({ jev: { journal_questions: true } });
+    const { brain: b2, ctx: c2 } = brain("founder", overrides, { cfg });
+    const kept = await b2.takeTurn(c2, turnInput(home));
+    expect(Object.keys(kept.request!.questions.job!.criteria)).toEqual(job.offered);
+    expect(kept.request!.questions.job!.instructions).toContain("Decide only this:");
+    expect((kept.request!.state as { slots: Record<string, unknown> }).slots.job).toBeDefined();
   });
   it("sets the hours the scripted helper would", async () => {
     const home = employedHome();
@@ -610,7 +629,7 @@ describe("a Jev turn", () => {
     const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, [JEV]: answer({ work: ["none", 0.7], plan: ["keep_plan", 0.9] }) });
     const out = await b.takeTurn(c, turnInput(home));
     expect(c.turn.calls.filter((x) => x.tool !== "set_plan" && x.tool !== "notice_board" && x.tool !== "scoreboard").map((x) => x.tool)).toEqual([]);
-    expect(out.decisions).toEqual([
+    expect(out.decisions).toMatchObject([
       { slot: "work", option: "none", confidence: 0.7, none: true, acted: false },
       { slot: "plan", option: "keep_plan", confidence: 0.9, none: true, acted: false },
     ]);
@@ -646,7 +665,7 @@ describe("a Jev turn", () => {
     expect(out.did_not_understand).toHaveLength(2);
     expect(out.did_not_understand[0]).toMatch(/"nap", which was not offered/);
     expect(out.did_not_understand[1]).toMatch(/never asked: ballot_0/);
-    expect(out.decisions).toEqual([{ slot: "plan", option: "keep_plan", confidence: 0.9, none: true, acted: false }]);
+    expect(out.decisions).toMatchObject([{ slot: "plan", option: "keep_plan", confidence: 0.9, none: true, acted: false }]);
   });
   it("says nothing was decided when no slot had a choice in it", async () => {
     const home = unemployedHome();
@@ -736,7 +755,16 @@ describe("the report's Jev section", () => {
     expect(row).toContain("| 3 | 1 (33%) |");
     expect(row).toContain("| 1 of 5 |");
     expect(row).toContain("| 1 | 1 | 0 | 400 |");
-    expect(lines.some((l) => l.startsWith("| job | switch 2, stay 1"))).toBe(true);
+    // Journals from before E-6 carry no `offered`.
+    expect(lines.some((l) => l.startsWith("| job | switch 2, stay 1 | — |"))).toBe(true);
+  });
+  it("lists what each slot offered, so an option never chosen is still counted (E-6)", () => {
+    const d = (slot: string, offered: string[], option: string) => ({ slot, offered, option, confidence: 0.8, none: false, acted: true });
+    const lines = jevSection([
+      turn("f-1", 1, [d("firm", ["hire", "lay_off", "keep_staff"], "hire")]),
+      turn("f-1", 2, [d("firm", ["hire", "keep_staff"], "hire")]),
+    ]);
+    expect(lines.some((l) => l.startsWith("| firm | hire 2 | hire 2, keep_staff 2, lay_off 1 |"))).toBe(true);
   });
   it("is absent when no Jev player took a turn", () => {
     expect(jevSection([])).toEqual([]);

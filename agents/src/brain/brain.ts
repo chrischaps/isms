@@ -33,8 +33,11 @@ export type TurnInput = {
   lastTurn: { intent: string; rejections: { tool: string; code: string; detail: string }[] } | null;
 };
 
-/** One typed decision a Jev turn took: the slot asked, the option chosen, and whether it ran (SJ.1). */
-export type Decision = { slot: string; option: string; confidence: number; none: boolean; acted: boolean };
+/** One typed decision a Jev turn took: the slot asked, the options it was offered (E-6), the option chosen, and whether it ran (SJ.1). */
+export type Decision = { slot: string; offered: string[]; option: string; confidence: number; none: boolean; acted: boolean };
+
+/** What a Jev turn sent the decisions API, verbatim (E-6): the state and the questions with their options' sentences. */
+export type DecisionRequestRecord = { state: unknown; questions: Record<string, { type: "choice"; instructions: string; criteria: Record<string, string> }> };
 
 export type TurnOutcome = {
   intent: string;
@@ -44,6 +47,8 @@ export type TurnOutcome = {
   usage: Usage;
   /** Only a Jev turn has these; the report measures the brain by them. */
   decisions?: Decision[];
+  /** The Jev turn's request, when `jev.journal_questions` asks for it (E-6). */
+  request?: DecisionRequestRecord;
 };
 
 export type ReflectionInput = {

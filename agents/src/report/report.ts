@@ -75,20 +75,26 @@ export function jevSection(turns: TurnRecord[]): string[] {
       `| ${player} | ${ts.length} | ${held} (${decided.length ? Math.round((held / decided.length) * 100) : 0}%) | ${mean.toFixed(2)} | ${dropped} of ${decisions.length} | ${flips} | ${refused} | ${errors} | ${ms} | ${usd.toFixed(5)} |`,
     );
   }
-  // What each slot chose, over the whole cohort.
+  // What each slot chose, over the whole cohort, beside what it offered (E-6): an option offered and never chosen is a finding.
   const tally = new Map<string, Map<string, number>>();
+  const offered = new Map<string, Map<string, number>>();
+  const count = (into: Map<string, Map<string, number>>, slot: string, option: string) => {
+    const m = into.get(slot) ?? new Map<string, number>();
+    m.set(option, (m.get(option) ?? 0) + 1);
+    into.set(slot, m);
+  };
   for (const t of jev) for (const d of t.decisions ?? []) {
-    const m = tally.get(d.slot) ?? new Map<string, number>();
-    m.set(d.option, (m.get(d.option) ?? 0) + 1);
-    tally.set(d.slot, m);
+    count(tally, d.slot, d.option);
+    for (const o of d.offered ?? []) count(offered, d.slot, o);
   }
+  const listed = (m: Map<string, number> | undefined) => (m ? [...m].sort((a, b) => b[1] - a[1]).map(([o, n]) => `${o} ${n}`).join(", ") : "—");
   if (tally.size) {
-    out.push("", "| slot | options chosen |", "|---|---|");
+    out.push("", "| slot | options chosen | options offered |", "|---|---|---|");
     for (const [slot, m] of [...tally].sort((a, b) => a[0].localeCompare(b[0]))) {
-      out.push(`| ${slot} | ${[...m].sort((a, b) => b[1] - a[1]).map(([o, n]) => `${o} ${n}`).join(", ")} |`);
+      out.push(`| ${slot} | ${listed(m)} | ${listed(offered.get(slot))} |`);
     }
   }
-  out.push("", "Held: a turn in which no chosen option ran. Dropped by floor: a choice to act that fell under `jev.min_confidence` or, for an irreversible one, `jev.irreversible_confidence`. Flip-flops: a slot answered A, B, A on three consecutive turns.", "");
+  out.push("", "Held: a turn in which no chosen option ran. Dropped by floor: a choice to act that fell under `jev.min_confidence` or, for an irreversible one, `jev.irreversible_confidence`. Flip-flops: a slot answered A, B, A on three consecutive turns. Options offered: how often each option was on the slot's list (— in journals from before E-6); `--journal-questions` keeps the whole request in the journal.", "");
   return out;
 }
 

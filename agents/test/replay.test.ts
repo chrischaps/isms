@@ -4,7 +4,7 @@
 // tick signals it was given; timings and the run's name are the only fields
 // allowed to differ.
 
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -41,6 +41,16 @@ function strip(r: JournalRecord): unknown {
   return rest;
 }
 
+/** A regenerated record with the recorded run label and timings kept, so the fixture's diff is only the new fields. */
+function keepTiming(r: JournalRecord, was: JournalRecord | undefined): JournalRecord {
+  if (!was) return r;
+  const out = { ...r, run: was.run } as JournalRecord & { ms?: number; calls?: { ms: number }[] };
+  const before = was as JournalRecord & { ms?: number; calls?: { ms: number }[] };
+  if (out.ms !== undefined && before.ms !== undefined) out.ms = before.ms;
+  if (out.calls && before.calls) out.calls = out.calls.map((c, i) => ({ ...c, ms: before.calls![i]?.ms ?? c.ms }));
+  return out;
+}
+
 describe.each(PLAYERS)("replaying $player's recorded epoch", ({ player: PLAYER, persona: slug, brain }) => {
   it("produces the recorded journal without the network", async () => {
     const recording = readRecording(join(T, `${PLAYER}.recording.jsonl`));
@@ -73,6 +83,9 @@ describe.each(PLAYERS)("replaying $player's recorded epoch", ({ player: PLAYER, 
       else if (s.kind === "cycle") await player.reflect(s.clock);
     }
     const got = readJournal(join(dir, "j.jsonl"));
+    // `UPDATE_TRANSCRIPTS=1 pnpm test replay` rewrites the expected journal from the same recording, as the engine's goldens do,
+    // when a journal field is added (E-6's `offered`); a change in what the brain sends or does still needs a re-recording.
+    if (process.env.UPDATE_TRANSCRIPTS) writeFileSync(join(T, `${PLAYER}.journal.jsonl`), got.map((r, i) => JSON.stringify(keepTiming(r, expected[i]))).join("\n") + "\n");
     expect(got.length).toBe(expected.length);
     for (let i = 0; i < expected.length; i++) expect(strip(got[i]!)).toEqual(strip(expected[i]!));
     expect(transport.remaining()).toBe(0);

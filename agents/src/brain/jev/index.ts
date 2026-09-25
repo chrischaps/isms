@@ -113,6 +113,8 @@ export class JevBrain implements Brain {
         error: null,
         usage,
         decisions: picks.map((p) => p.decision),
+        // The request as sent, beside what came of it (E-6): what a slot offered and never got chosen is readable from the journal.
+        ...(cfg.jev.journal_questions ? { request: { state, questions } } : {}),
       };
     } catch (e) {
       if (e instanceof JevError && e.fatal) this.dead = e.message;
@@ -139,6 +141,6 @@ export class JevBrain implements Brain {
     const floor = cfg.jev.floors[slot.key] ?? cfg.jev.min_confidence;
     let acted = !none && confidence >= floor;
     if (acted && candidate.irreversible) acted = confidence >= cfg.jev.irreversible_confidence && mass >= IRREVERSIBLE_MASS;
-    return { slot, candidate, decision: { slot: slot.key, option: candidate.option, confidence, none, acted } };
+    return { slot, candidate, decision: { slot: slot.key, offered: slot.candidates.map((c) => c.option), option: candidate.option, confidence, none, acted } };
   }
 }
