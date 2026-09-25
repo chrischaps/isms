@@ -368,12 +368,17 @@ pub fn reference_price(world: &World, good: Good) -> Money {
         .max(Money(1))
 }
 
-/// Cost-plus ask price for a workplace kind (Q40): labor cost per unit at the
-/// legacy wage plus inputs at last price, times the markup, never below the
-/// start price.
+/// Cost-plus ask price for a workplace kind at the legacy markup (Q40): labor
+/// cost per unit at the legacy wage plus inputs at reference price, times the
+/// markup. The ask a firm actually posts is `ask_price`, whose markup its
+/// shelf has moved (E-1, Q162).
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 pub fn cost_plus(world: &World, kind: WorkplaceKind) -> Money {
+    cost_plus_at(world, kind, world.params.householder.legacy_markup)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn cost_plus_at(world: &World, kind: WorkplaceKind, markup: f64) -> Money {
     let recipe = &world.params.recipes[&kind];
     let wage = world.params.money.legacy_wage.0 as f64;
     let labor = wage / recipe.base_rate;
@@ -382,11 +387,90 @@ pub fn cost_plus(world: &World, kind: WorkplaceKind) -> Money {
         .iter()
         .map(|(g, per)| reference_price(world, *g).0 as f64 * f64::from(*per))
         .sum();
-    let price = ((labor + inputs) * (1.0 + world.params.householder.legacy_markup)).round() as i64;
-    let floor = recipe.produces.as_good().map_or(0, |g| {
-        world.params.money.start_prices.get(&g).map_or(0, |m| m.0)
-    });
-    Money(price.max(floor).max(1))
+    Money((((labor + inputs) * (1.0 + markup)).round() as i64).max(1))
+}
+
+/// The markup an org's householder manager asks for `good` (E-1, TDD 9.3):
+/// the legacy markup moved one `legacy_markup_step` per step its shelf has
+/// taken, clamped to the preset's band. A good the org has never closed a
+/// cycle with sits at the legacy markup.
+#[must_use]
+pub fn ask_markup(world: &World, org: OrgId, good: Good) -> f64 {
+    let p = &world.params.householder;
+    let step = world
+        .orgs
+        .get(&org)
+        .and_then(|o| o.shelf.get(&good))
+        .map_or(0, |s| s.step);
+    (p.legacy_markup + f64::from(step) * p.legacy_markup_step)
+        .clamp(p.legacy_markup_min, p.legacy_markup_max)
+}
+
+/// The ask an org's householder manager posts for a workplace kind's output:
+/// cost-plus at the shelf's markup (E-1).
+#[must_use]
+pub fn ask_price(world: &World, org: OrgId, kind: WorkplaceKind) -> Money {
+    let markup = world.params.recipes[&kind]
+        .produces
+        .as_good()
+        .map_or(world.params.householder.legacy_markup, |g| {
+            ask_markup(world, org, g)
+        });
+    cost_plus_at(world, kind, markup)
+}
+
+/// 8m (E-1): every market org's shelves answer the cycle. For each good an
+/// org's workplaces produce, the step falls by one when the closing stock is
+/// above the last close's (the shelf grew: the price is too high for the
+/// buyers there are) and rises by one when the shelf closed empty after the
+/// org produced any (the price is too low for the buyers there are); a first
+/// close only takes the reading. Society-owned orgs have no prices to move.
+pub fn cycle_end_8m_shelves(b: &mut crate::tick::TickBuilder) {
+    if !b.world.constitution.has_money() || !b.world.rules_order_books() {
+        return;
+    }
+    let cycle = b.cycle;
+    let mut closes = Vec::new();
+    for org in b.world.orgs.values() {
+        if org.ownership == Ownership::Society {
+            continue;
+        }
+        // Output good -> this cycle's production over the org's workplaces of it.
+        let mut produced: std::collections::BTreeMap<Good, f64> = std::collections::BTreeMap::new();
+        for wp_id in &org.workplaces {
+            let Some(wp) = b.world.workplaces.get(wp_id) else {
+                continue;
+            };
+            if let Some(g) = b.world.params.recipes[&wp.kind].produces.as_good() {
+                *produced.entry(g).or_insert(0.0) += wp.cycle_output;
+            }
+        }
+        if produced.is_empty() {
+            continue;
+        }
+        let mut shelf = org.shelf.clone();
+        for (good, output) in produced {
+            let close = org.inventory.get(&good).copied().unwrap_or(0);
+            let entry = shelf.entry(good).or_insert(crate::world::Shelf {
+                last_close: close,
+                step: 0,
+            });
+            let grew = close > entry.last_close;
+            let sold_out = close == 0 && output > 0.0;
+            if grew {
+                entry.step -= 1;
+            } else if sold_out {
+                entry.step += 1;
+            }
+            entry.last_close = close;
+        }
+        if shelf != org.shelf {
+            closes.push((org.id, shelf));
+        }
+    }
+    for (org, shelf) in closes {
+        b.emit(Event::ShelfClosed { org, cycle, shelf });
+    }
 }
 
 /// The legacy manager's commands for one org this round (market systems).
@@ -564,10 +648,11 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
                 }
             }
         }
-        // Asks for the output at cost-plus, refreshed when the price moves.
+        // Asks for the output at cost-plus at the shelf's markup (E-1),
+        // refreshed when the price moves.
         if let Some(out) = recipe.produces.as_good() {
             let held = org.inventory.get(&out).copied().unwrap_or(0);
-            let price = cost_plus(world, wp.kind);
+            let price = ask_price(world, org_id, wp.kind);
             let mine: Vec<&crate::world::Order> = world
                 .books
                 .get(&Instrument::Good(out))

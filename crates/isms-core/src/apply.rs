@@ -1207,6 +1207,11 @@ pub fn apply(world: &mut World, event: &Event) {
             debit(world, Holder::Org(*org), *asset);
             credit(world, Holder::from(*to), *asset);
         }
+        Event::ShelfClosed { org, shelf, .. } => {
+            if let Some(o) = world.orgs.get_mut(org) {
+                o.shelf.clone_from(shelf);
+            }
+        }
         Event::UnionFormed { org, firm } => {
             if let Some(o) = world.orgs.get_mut(org) {
                 o.union = Some(crate::world::UnionState {
@@ -1883,6 +1888,7 @@ fn apply_org_founded(
             last_surplus: Money::ZERO,
             last_share_out_members: 0,
             union: None,
+            shelf: BTreeMap::new(),
         },
     );
     if world.next.org.0 <= org.0 {

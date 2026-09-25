@@ -315,6 +315,7 @@ fn unimplemented_registry_matches_the_enum() {
         "WorkplaceClosed",
         "Honored",
         "Disbursed",
+        "ShelfClosed",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -333,16 +334,10 @@ fn unimplemented_registry_matches_the_enum() {
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
     // Phase 0b variants are appended after `CycleClosed` (Q64); Phase 2 after `EpochEnding`.
-    let last = Event::Disbursed {
-        proposal: crate::ids::ProposalId(0),
+    let last = Event::ShelfClosed {
         org: crate::ids::OrgId(0),
-        to: crate::ledger::Party::Citizen(CitizenId(0)),
-        asset: crate::ledger::Asset::Good(crate::kinds::Good::Food, 1),
-        explain: crate::explain::Explain::new(
-            crate::explain::RuleId::Disbursement,
-            "yes * 2 > members",
-            1u32,
-        ),
+        cycle: 0,
+        shelf: std::collections::BTreeMap::new(),
     };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {

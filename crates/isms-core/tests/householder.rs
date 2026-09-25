@@ -8,12 +8,12 @@
 use isms_core::command::{Command, Envelope};
 use isms_core::employment::employed;
 use isms_core::event::Event;
-use isms_core::householder::{cost_plus, run_round};
+use isms_core::householder::{ask_price, cost_plus, run_round};
 use isms_core::kinds::{CitizenKind, Good, WorkplaceKind};
 use isms_core::ledger::Party;
 use isms_core::money::Money;
 use isms_core::test_support::{Harness, WorldBuilder, check_golden};
-use isms_core::world::{OfferBody, SaleAsset};
+use isms_core::world::{Instrument, OfferBody, SaleAsset, Shelf, Side};
 
 fn seeded(seed: u64) -> Harness {
     WorldBuilder::new("freeport")
@@ -169,6 +169,137 @@ fn a_human_buying_a_legacy_firm_takes_control_and_the_householder_steps_down() {
     );
     h.check();
     let _ = Party::Citizen(marlow);
+}
+
+/// The legacy org that runs a workplace of `kind`.
+fn legacy_org(h: &Harness, kind: WorkplaceKind) -> isms_core::ids::OrgId {
+    h.world
+        .workplaces
+        .values()
+        .find(|w| w.kind == kind)
+        .map(|w| w.org)
+        .expect("a seeded workplace of that kind")
+}
+
+/// E-1: the ask is cost-plus at the shelf's markup, one step per step the
+/// shelf has taken, clamped to the band; a good never closed sits at the
+/// legacy markup.
+#[test]
+fn a_shelf_moves_the_ask_by_a_step_within_the_band() {
+    let mut h = seeded(1);
+    h.check_every_step = false;
+    let mill = legacy_org(&h, WorkplaceKind::Mill);
+    assert_eq!(
+        ask_price(&h.world, mill, WorkplaceKind::Mill),
+        Money::cents(131)
+    );
+    // 114.33 cents of cost: x1.10 = 126, x1.00 = 114 (the floor, markup 0),
+    // x1.45 = 166 (the ceiling, markup 0.45)
+    for (step, cents) in [(-1, 126), (-3, 114), (-10, 114), (6, 166), (20, 166)] {
+        h.apply(Event::ShelfClosed {
+            org: mill,
+            cycle: 0,
+            shelf: [(
+                Good::Food,
+                Shelf {
+                    last_close: 0,
+                    step,
+                },
+            )]
+            .into(),
+        });
+        assert_eq!(
+            ask_price(&h.world, mill, WorkplaceKind::Mill),
+            Money::cents(cents),
+            "step {step}"
+        );
+    }
+    // the base price the tests above anchor on has not moved
+    assert_eq!(cost_plus(&h.world, WorkplaceKind::Mill), Money::cents(131));
+    h.check();
+}
+
+/// E-1: the first close only takes the reading; a shelf that closes fuller
+/// than the close before steps down and the next hour's ask follows; an org
+/// that produced nothing holds even with an empty shelf.
+#[test]
+fn a_shelf_that_closed_fuller_steps_down_and_the_ask_follows() {
+    let mut h = seeded(1);
+    h.check_every_step = false;
+    let mill = legacy_org(&h, WorkplaceKind::Mill);
+    let mut events = Vec::new();
+    for _ in 0..24 {
+        events.extend(step(&mut h).0);
+    }
+    let closes: Vec<_> = events
+        .iter()
+        .filter(|e| matches!(e, Event::ShelfClosed { .. }))
+        .collect();
+    assert!(!closes.is_empty(), "every market org closes its shelf once");
+    for o in h.world.orgs.values() {
+        for (g, s) in &o.shelf {
+            assert_eq!(s.step, 0, "{}'s {g:?}: a first close takes no step", o.name);
+            assert_eq!(s.last_close, o.inventory.get(g).copied().unwrap_or(0));
+        }
+    }
+    // Pretend the mill's shelf was bare at the last close: whatever Food it
+    // holds at the next close is growth.
+    h.apply(Event::ShelfClosed {
+        org: mill,
+        cycle: 0,
+        shelf: [(
+            Good::Food,
+            Shelf {
+                last_close: 0,
+                step: 0,
+            },
+        )]
+        .into(),
+    });
+    for _ in 0..24 {
+        step(&mut h);
+    }
+    let held = h.world.orgs[&mill]
+        .inventory
+        .get(&Good::Food)
+        .copied()
+        .unwrap_or(0);
+    assert!(held > 0, "the mill holds Food at the close");
+    assert_eq!(h.world.orgs[&mill].shelf[&Good::Food].step, -1);
+    assert_eq!(
+        ask_price(&h.world, mill, WorkplaceKind::Mill),
+        Money::cents(126)
+    );
+    // The next hour the manager re-posts at the new price, and the plans'
+    // bids resting at the old one cross it: the cut sells (at the resting
+    // bid's price, ADR-0001).
+    let (events, _) = step(&mut h);
+    let asks: Vec<Money> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::OrderPlaced { order, .. }
+                if order.owner == Party::Org(mill)
+                    && order.side == Side::Ask
+                    && order.instrument == Instrument::Good(Good::Food) =>
+            {
+                Some(order.limit_price)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        asks,
+        vec![Money::cents(126)],
+        "the mill's ask at the new price"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::Trade { seller, instrument, .. }
+            if *seller == Party::Org(mill) && *instrument == Instrument::Good(Good::Food))),
+        "the cheaper Food sold"
+    );
+    h.check();
 }
 
 #[test]

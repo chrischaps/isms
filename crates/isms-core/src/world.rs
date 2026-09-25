@@ -384,6 +384,21 @@ pub struct Org {
     pub last_share_out_members: u32,
     /// Set for a union org (S0.17d).
     pub union: Option<UnionState>,
+    /// The shelf of each good the org produces, as the last cycle close left
+    /// it (E-1): the runner's ask markup answers this.
+    #[serde(default)]
+    pub shelf: BTreeMap<Good, Shelf>,
+}
+
+/// One good's shelf at a market org, taken at cycle close (E-1, TDD 9.3): the
+/// stock then, and the markup step the runner prices its asks with. The step
+/// falls by one when the stock grew on the close before and rises by one when
+/// the shelf closed empty after producing; `householder::ask_markup` turns it
+/// into a markup.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Shelf {
+    pub last_close: u32,
+    pub step: i32,
 }
 
 /// A union's firm and its current strike, if any.

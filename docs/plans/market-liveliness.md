@@ -12,7 +12,7 @@ Two kinds of fix follow. **Levers** change what happens in the economy; **measur
 
 | step | card | kind | where | cost | gate |
 |---|---|---|---|---|---|
-| 1 | **E-1** the runner's markup responds to stock | lever, engine | PR `s3.1-runner-markup` | a day; $0 | `make check`; `sim-check` all five presets stable; the founding curves (docs/tuning) re-read; green Linux CI |
+| 1 ✅ | **E-1** the runner's markup responds to stock — **done 2026-09-24** (`s3.1-runner-markup`, Q162; the shelf's step, `ShelfClosed` at 8m) | lever, engine | PR `s3.1-runner-markup` | a day; $0 | `make check`; `sim-check` all five presets stable; the founding curves (docs/tuning) re-read; green Linux CI |
 | 2 | **SJ.5** prices from the players | lever, agents | main | a day; ~$0.15 on approval | the card's tests; `make e2e-agents`; a seven-day sixteen-player run read on its own price graph |
 | 3 | **SJ.6** the town with eight householders | run | main (docs) | ~$0.15 on approval | the run clean; both weeks' price graphs side by side |
 | 4 | **E-2** net worth counts dwellings and loans out (with Q157) | measurement, engine | PR | half a day | `scoreboard` tests; the archive's standings |
