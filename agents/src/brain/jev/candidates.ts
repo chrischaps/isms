@@ -565,7 +565,8 @@ export function ventureSlotOf(kind: WorkplaceKind, firmName: string, choose = fa
       const yesterdayValue = price !== null ? yesterdayUnits * price : null;
       const stock = Object.entries(inv).filter(([, q]) => q > 0);
       const consumes = (recipe?.consumes ?? {}) as Record<string, number>;
-      const sellable = stock.filter(([g]) => !(g in consumes) && g !== "materials" && lastPrice(books, g) !== null);
+      // Materials on a firm's shelf are capital (a Builder's, a founding's), not stock, unless Materials are what it makes (SJ.5b: a foundry sells them).
+      const sellable = stock.filter(([g]) => !(g in consumes) && (g !== "materials" || g === produces) && lastPrice(books, g) !== null);
       const dayOfWages = wage * 8;
       const coversDays = Math.floor(mine.treasury / Math.max(1, dayOfWages));
       const candidates: Candidate[] = [];
@@ -608,23 +609,29 @@ export function ventureSlotOf(kind: WorkplaceKind, firmName: string, choose = fa
       // The book for every good the firm holds or needs (SJ.5): what a price-setter reads.
       const unsold = daysUnsold(s, inv);
       const bookOn: Record<string, unknown> = {};
-      // The inputs a unit consumes (a Builder's ten Materials a dwelling), one unit's worth, from the treasury:
-      // taken at the best ask, or bid one tick under it and left resting (SJ.5).
+      // The inputs the recipe consumes, from the treasury: a Builder buys one dwelling's worth (ten Materials), a goods firm a day's worth
+      // at its base rate (a foundry's eighty ore; SJ.5b: one unit an hour starved the week's foundries), or what the treasury covers, at least one unit's.
+      // Taken at the best ask, or bid one tick under it and left resting (SJ.5).
+      const lotUnits = recipe?.produces_asset ? 1 : Math.max(1, Math.floor((recipe?.base_rate ?? 1) * 8));
+      const lotWords = recipe?.produces_asset ? `one ${produces}'s worth` : `a day's worth at the ${wp?.kind ?? "workplace"}`;
       for (const [good, per] of Object.entries(consumes)) {
         const b = bookOf(books, good);
         const p = b.last;
-        if (p === null || per <= 0 || (inv[good] ?? 0) >= per) continue;
+        if (p === null || per <= 0 || (inv[good] ?? 0) >= per * lotUnits) continue;
         bookOn[good] = bookFacts(b);
         const take = b.bestAsk ?? Math.round(p * 1.05);
         const under = undercutPrice(b)!;
-        if (mine.treasury < per * under) continue;
+        const short = per * lotUnits - (inv[good] ?? 0);
+        // What the treasury covers at the ask, in whole units' worth, at least one.
+        const qty = Math.max(per, Math.min(short, Math.floor(mine.treasury / take / per) * per));
+        if (mine.treasury < qty * under) continue;
         const bid = (limit: number, label: string) => async (sc: Script) =>
-          (await sc.do(act.placeOrder, { instrument: good, side: "bid", qty: per, limit_price: limit, on_behalf_of: mine.id })) ? `bid ${per} ${good} @${limit} for the firm (${label})` : `bid for ${good} refused`;
+          (await sc.do(act.placeOrder, { instrument: good, side: "bid", qty, limit_price: limit, on_behalf_of: mine.id })) ? `bid ${qty} ${good} @${limit} for the firm (${label})` : `bid for ${good} refused`;
         const asking = b.bestAsk !== null ? `${b.askDepth} ${good} are asked at ${credits(b.bestAsk)}` : `nobody is asking ${good}; it last traded at ${credits(p)}`;
-        if (mine.treasury >= per * take) {
-          candidates.push(doing(`take_ask_${good}`, `buy ${per} ${good}, one ${produces}'s worth, at once at ${credits(take)} each: ${asking}; from the firm's treasury of ${credits(mine.treasury)}`, bid(take, "at the ask")));
+        if (mine.treasury >= qty * take) {
+          candidates.push(doing(`take_ask_${good}`, `buy ${qty} ${good}, ${qty >= short ? lotWords : `what the treasury covers of ${lotWords}`}, at once at ${credits(take)} each: ${asking}; from the firm's treasury of ${credits(mine.treasury)}`, bid(take, "at the ask")));
         }
-        candidates.push(doing(`bid_under_${good}`, `bid for ${per} ${good} at ${credits(under)} each, one tick under, and wait for a seller to come down to it`, bid(under, "under the ask")));
+        candidates.push(doing(`bid_under_${good}`, `bid for ${qty} ${good} at ${credits(under)} each, one tick under, and wait for a seller to come down to it`, bid(under, "under the ask")));
       }
       // The output: one tick under the best ask, so the shelf sells first, or 5% over the last print and wait (SJ.5).
       if (sellable.length) {

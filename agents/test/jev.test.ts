@@ -322,6 +322,22 @@ describe("pricing in the firm slot (SJ.5)", () => {
   });
 });
 
+describe("a foundry (SJ.5b)", () => {
+  it("buys a day's ore at its rate, or what the treasury covers, and sells the Materials it makes", async () => {
+    const home = workingHome();
+    const prices = booksWith({ ore: [80, null, 80, 0, 500], materials: [172, null, 172, 0, 300] });
+    const rich = await layOut("founder", new Script(ctx(fixtureTransport(FIX, { "GET /s/1/orgs": managedOrgs({ kind: "foundry", treasury: 10000, inventory: { materials: 30 } }), "GET /s/1/books": prices })), turnInput(home), {}, "f"));
+    const venture = rich.find((s) => s.key === "venture")!;
+    // Base rate 10 an hour x 8 h = 80 ore a day, one each.
+    expect(venture.candidates.find((x) => x.option === "take_ask_ore")!.describe).toContain("buy 80 ore, a day's worth at the foundry, at once at 0.80 each");
+    expect(venture.candidates.find((x) => x.option === "undercut")!.describe).toContain("ask 30 materials at 1.71");
+    expect(venture.facts.books).toMatchObject({ materials: { days_unsold: 0 }, ore: { ask_depth: 500 } });
+    // A treasury of 20.00 covers 25 ore at the ask: that many, not one.
+    const thin = await layOut("founder", new Script(ctx(fixtureTransport(FIX, { "GET /s/1/orgs": managedOrgs({ kind: "foundry", treasury: 2000 }), "GET /s/1/books": prices })), turnInput(home), {}, "f"));
+    expect(thin.find((s) => s.key === "venture")!.candidates.find((x) => x.option === "take_ask_ore")!.describe).toContain("buy 25 ore, what the treasury covers of a day's worth at the foundry");
+  });
+});
+
 describe("which workplace (SJ.5)", () => {
   /** Twenty Materials and the fee in hand, a job held: ready to found. */
   const ready = () => {
