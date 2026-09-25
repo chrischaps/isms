@@ -728,6 +728,15 @@ pub enum Event {
         cycle: Cycle,
         shelf: BTreeMap<Good, crate::world::Shelf>,
     },
+    /// A market workplace's labour board at cycle close (E-7, phase 8m): the
+    /// step its householder manager's next wage offer will take, up one when
+    /// an offer stood unfilled at the close and down one when the org's shelf
+    /// of its output grew. Emitted only when the step changed.
+    WageStepped {
+        workplace: WorkplaceId,
+        cycle: Cycle,
+        step: i32,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -990,6 +999,7 @@ impl Event {
             Event::Honored { .. } => "Honored",
             Event::Disbursed { .. } => "Disbursed",
             Event::ShelfClosed { .. } => "ShelfClosed",
+            Event::WageStepped { .. } => "WageStepped",
         }
     }
 
@@ -1110,5 +1120,6 @@ impl Event {
         "Honored",
         "Disbursed",
         "ShelfClosed",
+        "WageStepped",
     ];
 }

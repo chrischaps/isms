@@ -11,7 +11,7 @@ Householders are the AI citizens that fill a society up to its population floor.
 
 ## Every legacy firm, every hour (managed by a householder)
 
-1. **Hire** at the median of the open hourly offers (or the legacy wage when there are none): one open offer per workplace with free places, full hours, no fixed term, one cycle's notice. Stop hiring while the firm holds more than two cycles of full production of its output.
+1. **Hire** at a wage each workplace's board moves: one open offer per workplace with free places it can pay a cycle's wages for, full hours, no fixed term, one cycle's notice. Every cycle end the firm reads the board: if the firm's shelf of what the workplace makes grew (rule 3), the wage falls a step; otherwise, if an offer stood unfilled at the close, it rises a step; otherwise it stays. The wage never goes below the legacy wage nor above twice it. Stop hiring while the firm holds more than two cycles of full production of its output. An open offer the firm can no longer honour — no place it can pay for, a glutted shelf, or a wage the board has moved off — is withdrawn, and the offer is re-posted at the board's wage while there is a place to fill.
 2. **Buy inputs** for one cycle of production at the current headcount, bidding at the last price plus the legacy markup, within the treasury.
 3. **Sell output** at cost-plus: labor per unit at the legacy wage, plus inputs at the reference price, times a markup the shelf moves. Every cycle end the firm reads its shelf of each good it makes: if it holds more than it held at the last close, the markup falls a step; if the shelf is bare after a cycle of making, it rises a step; otherwise it stays. The markup never goes below zero (the firm sells at cost) nor above three times the legacy markup. The ask is refreshed when that price moves.
 4. **Invest** in one Machine at the last price whenever the treasury exceeds three cycles of payroll, and install every Machine held.
@@ -20,7 +20,7 @@ Householders are the AI citizens that fill a society up to its population floor.
 
 ## In the Republic
 
-The same householder and the same legacy firms as in Freeport. The householder pays its income tax at every cycle end and takes the need floor when the treasury tops it up, like anyone else; it never changes its plan because of either, and a legacy firm never offers below the minimum wage (its offers are at the legacy wage, above it). No householder ever forms a union, signs a collective agreement or strikes; those are for humans.
+The same householder and the same legacy firms as in Freeport. The householder pays its income tax at every cycle end and takes the need floor when the treasury tops it up, like anyone else; it never changes its plan because of either, and a legacy firm never offers below the minimum wage (its offers start at the legacy wage, above it, and the board only moves them up from there). No householder ever forms a union, signs a collective agreement or strikes; those are for humans.
 
 ## In the Commonwealth
 

@@ -1212,6 +1212,13 @@ pub fn apply(world: &mut World, event: &Event) {
                 o.shelf.clone_from(shelf);
             }
         }
+        Event::WageStepped {
+            workplace, step, ..
+        } => {
+            if let Some(w) = world.workplaces.get_mut(workplace) {
+                w.wage_step = *step;
+            }
+        }
         Event::UnionFormed { org, firm } => {
             if let Some(o) = world.orgs.get_mut(org) {
                 o.union = Some(crate::world::UnionState {
@@ -1930,6 +1937,7 @@ fn apply_workplace_added(
             target: None,
             last_cycle_output: 0.0,
             last_fulfillment: None,
+            wage_step: 0,
         },
     );
     if let Some(o) = world.orgs.get_mut(&org) {
