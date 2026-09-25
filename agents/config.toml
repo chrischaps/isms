@@ -38,7 +38,10 @@ players = 8
 poll_ms = 3000
 personas = ["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord", "rule-prober"]
 # A preset with its own list (S2.10): `pnpm play --preset commune` (run.sh passes PRESET through). Others fall back to `personas`.
-personas_for = { commune = ["steward", "rationer", "free-rider", "chronicler", "steward", "rationer", "chronicler", "rule-prober"] }
+# A named cast (SJ.3): `--cast freeport-town` (CAST=freeport-town for run.sh) picks a list by name over the preset's;
+# the list cycles to `players`. The town is sixteen: two founders, two lenders, a builder, a landlord, two speculators,
+# two wage-maximisers, two savers, two slackers, a borrower and the rule-prober.
+personas_for = { commune = ["steward", "rationer", "free-rider", "chronicler", "steward", "rationer", "chronicler", "rule-prober"], freeport-town = ["founder", "lender", "builder", "landlord", "speculator", "wage-maximiser", "saver", "slacker", "borrower", "founder", "lender", "speculator", "wage-maximiser", "saver", "slacker", "rule-prober"] }
 # scripted (free, deterministic) | llm (every persona on a model) | mixed (each persona's own choice)
 # | jev (the [jev] personas on TypeSafe's decision model, the rest scripted; SJ.1)
 brain = "mixed"
@@ -52,9 +55,12 @@ base_url = "https://openrouter.ai/api/alpha/decisions"
 # With `brain = "jev"` these play on Jev; every other persona in the cast is scripted (the contrast).
 # SJ.2: all seven of Freeport's strategic personas, so their choices are each other's opportunities
 # (two firms hiring at different wages, a borrower, a landlord); the rule-prober stays the fuzzer.
-personas = ["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord"]
+# SJ.3 adds the lender and the builder: the other side of the borrower's and the landlord's markets.
+personas = ["founder", "wage-maximiser", "speculator", "saver", "slacker", "borrower", "landlord", "lender", "builder"]
 # A choice below this confidence is read as "do nothing". Jev's calibration is loose (an ECE of ~0.1
 # in independent tests), so these floors do real work; tune them from the report's Jev section.
 min_confidence = 0.35
 # An irreversible choice (switch jobs, found a firm, buy a dwelling) needs this much, and 0.4 of the mass.
 irreversible_confidence = 0.5
+# A floor for one named slot, over min_confidence (SJ.3). `market` is the one slot that flips (3–5 flip-flops a run).
+floors = { market = 0.5 }

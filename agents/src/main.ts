@@ -1,7 +1,7 @@
 // The command line: bootstrap the accounts, run the cohort, fold a run into a
 // report, or record one player for the replay test.
 //
-//   pnpm run -- --run <name> [--preset freeport|commune] [--players N] [--brain scripted|llm|mixed] [--model id] [--cycle-model id] [--max-usd n] [--record <player>]
+//   pnpm run -- --run <name> [--preset freeport|commune] [--cast <name>] [--players N] [--brain scripted|llm|mixed|jev] [--model id] [--cycle-model id] [--max-usd n] [--record <player>]
 //   pnpm bootstrap -- --run <name>
 //   pnpm report <run>
 //   pnpm rollover -- --run <name> [--wait <seconds>]   (S1.15: a closing statement, the archive, the next epoch)
@@ -9,7 +9,7 @@
 // Environment: ISMS_URL, ISMS_SOCIETY, ISMS_SERVER_BIN, DATABASE_URL, ANTHROPIC_API_KEY, OPENROUTER_API_KEY.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ApiError, makeClient, unwrap, type Client } from "./api/client.ts";
@@ -23,36 +23,16 @@ import { Budget } from "./budget/budget.ts";
 import { runCohort } from "./cohort/cohort.ts";
 import { loadConfig, readEnv, type Config } from "./config.ts";
 import { Journal } from "./journal/journal.ts";
+import { AGENTS_DIR, personasFor } from "./player/cast.ts";
 import { Notes } from "./player/notes.ts";
-import { loadPersona } from "./player/persona.ts";
 import { Player } from "./player/player.ts";
 import { buildReport, fold } from "./report/report.ts";
 import { hasAssembly, readFacts, type SocietyFacts } from "./society.ts";
 import { watchTicks, type TickSignal } from "./stream/ticks.ts";
 
-const HERE = import.meta.dirname;
-export const AGENTS_DIR = resolve(HERE, "..");
-export const PERSONAS_DIR = join(AGENTS_DIR, "personas");
+export { AGENTS_DIR, PERSONAS_DIR, personaSlugs, personasFor } from "./player/cast.ts";
 export const RUNS_DIR = join(AGENTS_DIR, "runs");
 export const REPORTS_DIR = resolve(AGENTS_DIR, "..", "docs", "playtest", "runs");
-
-/** The persona list for a preset: its own in `run.personas_for`, else `run.personas` (Freeport's). */
-export function personaSlugs(cfg: Config, preset: string): string[] {
-  return cfg.run.personas_for[preset] ?? cfg.run.personas;
-}
-
-export function personasFor(cfg: Config, preset = "freeport"): Persona[] {
-  const available = new Map(readdirSync(PERSONAS_DIR).filter((f) => f.endsWith(".md")).map((f) => [f.replace(/\.md$/, ""), join(PERSONAS_DIR, f)]));
-  const slugs = personaSlugs(cfg, preset);
-  const out: Persona[] = [];
-  for (let i = 0; i < cfg.run.players; i++) {
-    const slug = slugs[i % slugs.length]!;
-    const file = available.get(slug);
-    if (!file) throw new Error(`no persona file for ${slug} in ${PERSONAS_DIR}`);
-    out.push(loadPersona(file));
-  }
-  return out;
-}
 
 /** What plays the persona (SJ.1): a run's `jev` puts the `[jev]` personas on Jev and scripts the rest. */
 export function wantsBrain(persona: Persona, cfg: Config): Persona["brain"] {
@@ -202,6 +182,8 @@ async function main(argv: string[]) {
       record: { type: "string" },
       // The preset the society was seeded from: picks the persona list (S2.10). The facts themselves are read from the server.
       preset: { type: "string", default: "freeport" },
+      // A named cast from `run.personas_for` over the preset's list (SJ.3): `--cast freeport-town`.
+      cast: { type: "string" },
     },
   });
   const run = values.run ?? new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
@@ -217,10 +199,10 @@ async function main(argv: string[]) {
   const env = readEnv();
   const runDir = join(RUNS_DIR, run);
   mkdirSync(runDir, { recursive: true });
-  const personas = personasFor(cfg, values.preset!);
+  const personas = personasFor(cfg, values.preset!, values.cast);
   const recording = cmd === "record" ? (values.record ?? `${personas[0]!.slug}-1`) : values.record;
 
-  log(`run ${run}: preset ${values.preset}, ${cfg.run.players} players, brain ${cfg.run.brain}, turn model ${cfg.models.turn}, cycle model ${cfg.models.cycle} via ${cfg.models.cycle_provider === "claude_code" ? "claude -p (subscription)" : "the API"}, society ${env.society} at ${env.ismsUrl}`);
+  log(`run ${run}: preset ${values.preset}${values.cast ? `, cast ${values.cast}` : ""}, ${cfg.run.players} players, brain ${cfg.run.brain}, turn model ${cfg.models.turn}, cycle model ${cfg.models.cycle} via ${cfg.models.cycle_provider === "claude_code" ? "claude -p (subscription)" : "the API"}, society ${env.society} at ${env.ismsUrl}`);
   const accounts = await ensurePlayers(
     personas.map((p) => p.slug),
     { baseUrl: env.ismsUrl, society: env.society, serverBin: env.serverBin, databaseUrl: env.databaseUrl, runLabel: run },

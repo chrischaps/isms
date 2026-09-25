@@ -121,7 +121,7 @@ export type Folded = {
   turns: TurnRecord[];
 };
 
-export type DayRecord = { cycle: number; live: Record<string, unknown> | null; aggregates: Record<string, unknown> | null };
+export type DayRecord = { cycle: number; live: Record<string, unknown> | null; aggregates: Record<string, unknown> | null; headlines?: string[] };
 export type ScoreRow = { citizen: number; handle: string; net_worth: number; self_made: number; firms: unknown[] };
 
 export function fold(runDir: string, run: string): Folded {
@@ -178,6 +178,16 @@ export function economyTable(days: DayRecord[]): string[] {
     "Day wage and credit in credits; food is the day's last Food price; output and materials in units; invest is the share of Materials that became Machines or dwellings; Gini is of consumption; needs met is the fulfilment rate. A vibrant economy moves on this table: wages and prices that differ from day to day, credit above zero, an investment share that is not the legacy runner's constant, a Gini that opens as strategies diverge.",
     "",
   );
+  // The day's headlines (SJ.3), so a day that breaks the pattern can be read against what the Chronicle wrote.
+  const told = days.filter((d) => d.headlines && d.headlines.length > 0);
+  if (told.length) {
+    out.push("### The days' headlines", "");
+    for (const d of told) {
+      out.push(`**Day ${d.cycle}** (${d.headlines!.length})`, "");
+      for (const h of d.headlines!) out.push(`- ${md(h)}`);
+      out.push("");
+    }
+  }
   return out;
 }
 

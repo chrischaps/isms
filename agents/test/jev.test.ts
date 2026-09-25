@@ -12,7 +12,7 @@ import { buildQuestions } from "../src/brain/jev/questions.ts";
 import { buildState, standingOf, standingText } from "../src/brain/jev/state.ts";
 import { jobOffers, Script } from "../src/brain/scripted/script.ts";
 import { Budget } from "../src/budget/budget.ts";
-import { ConfigSchema } from "../src/config.ts";
+import { ConfigSchema, type Config } from "../src/config.ts";
 import { loadPersona } from "../src/player/persona.ts";
 import { jevSection } from "../src/report/report.ts";
 import { newTurn, type ToolContext } from "../src/tools/context.ts";
@@ -63,14 +63,223 @@ function answer(picks: Record<string, [string, number]>, extra: Record<string, u
   return { status: 200, body: { model: "jev-1.13.0", answers: { ...answers, ...extra }, usage: { input_tokens: 300, output_tokens: 0, cost: 0.0000126 } } };
 }
 
-function brain(slug: string, overrides: Overrides, opts: { budget?: Budget; transport?: Transport } = {}) {
+function brain(slug: string, overrides: Overrides, opts: { budget?: Budget; transport?: Transport; cfg?: Config } = {}) {
   const transport = opts.transport ?? fixtureTransport(FIX, overrides);
-  const cfg = ConfigSchema.parse({});
+  const cfg = opts.cfg ?? ConfigSchema.parse({});
   const b = new JevBrain({ persona: persona(slug), player: `${slug}-1`, handle: slug, cfg, budget: opts.budget ?? new Budget(1_000_000, 1), key: "or-key", transport });
   return { brain: b, ctx: ctx(transport) };
 }
 
 const turnInput = (home: HomeView) => ({ clock: home.clock, home, notes: "", lastTurn: null });
+
+// -- SJ.3: a manager's own workplace, a firm with hands, a builder with a roof, a lender ----------
+
+type OrgsBody = { orgs: { id: number; i_manage: boolean; workplaces: { id: number; kind: string; workers: unknown[]; last_cycle_output?: number }[]; dwellings: unknown[]; treasury: number; inventory: Record<string, number> }[] };
+const orgsView = () => fixture<OrgsBody>("GET /s/1/orgs");
+/** The recorded orgs with founder-1's Works (org 18, a mine at workplace 18) as the caller's own, amended as the test needs. */
+function managedOrgs(patch: { kind?: string; workers?: { citizen: number; handle: string; hours: number }[]; last_cycle_output?: number; dwellings?: unknown[]; treasury?: number; inventory?: Record<string, number> } = {}) {
+  const v = orgsView();
+  const mine = v.orgs.find((o) => o.id === 18)!;
+  mine.i_manage = true;
+  mine.treasury = patch.treasury ?? 0;
+  mine.inventory = patch.inventory ?? {};
+  mine.dwellings = patch.dwellings ?? [];
+  const wp = mine.workplaces[0]!;
+  wp.kind = patch.kind ?? "mine";
+  wp.workers = (patch.workers ?? []).map((w) => ({ ...w, attributed_this_cycle: null }));
+  wp.last_cycle_output = patch.last_cycle_output ?? 0;
+  return { status: 200, body: v };
+}
+const books = (prices: Record<string, number>) => ({ status: 200, body: { books: Object.entries(prices).map(([instrument, last_price]) => ({ instrument, last_price, best_ask: null, best_bid: null })), price_index: 1 } });
+/** A home with hours set at the wage job, so `work` asks only for a reason. */
+function workingHome(): HomeView {
+  const home = employedHome();
+  const best = jobOffers(board().offers)[0]!;
+  return { ...home, household: { ...home.household, balance: 20000 }, labor: { ...home.labor, allocations: [{ workplace: best.workplace, hours: best.maxHours, effort: "normal", org_name: "x", kind: "farm" }] } } as HomeView;
+}
+const firm = { org: 18, workplace: 18, kind: "mine", produces: "ore", base_rate: 10, consumes: {}, inventory: {}, price: 97 };
+
+describe("a manager's own workplace (SJ.3)", () => {
+  it("offers work_own once a day when the firm slot has seen a firm and no hours are there, and hires the manager itself (Q160)", async () => {
+    const home = workingHome();
+    const c = ctx(fixtureTransport(FIX));
+    const script = new Script(c, turnInput(home), { firm }, "f");
+    const slots = await layOut("founder", script);
+    const work = slots.find((s) => s.key === "work")!;
+    expect(work.candidates.map((x) => x.option)).toEqual(["work_own", "keep_hours"]);
+    // Housed at output x0.7 in the recorded view: 10 an hour x 8 h x 0.7 = 56 ore, at 0.97.
+    expect(work.candidates[0]!.describe).toContain("about 56 ore a day at your rate, worth 54.32");
+    expect(work.facts.own_workplace).toMatchObject({ kind: "mine", hours_there: 0, day_output_units: 56 });
+    // Declined, it is not re-asked until tomorrow.
+    expect((await layOut("founder", script)).some((s) => s.key === "work")).toBe(false);
+    // Taken: the firm's token place on the board is accepted, then the hours go there.
+    const place = { id: 88, by: { org: 18 }, created_tick: 0, kind: "employment", body: { employment: { org: 18, workplace: 18, pay: { hourly: 1 }, max_hours: 8, notice_cycles: 0, places: 1, term_cycles: null } } };
+    const withPlace = { status: 200, body: { ...board(), offers: [...board().offers, place] } };
+    const { brain: b, ctx: c2 } = brain("founder", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, "GET /s/1/notice-board": withPlace, "GET /s/1/orgs": managedOrgs(), ...{ "GET /s/1/books": books({ ore: 97 }) }, "POST /s/1/offers/88/accept": ok, [JEV]: answer({ work: ["work_own", 0.9], venture: ["run_quietly", 0.9] }) });
+    (b as unknown as { memory: Record<string, unknown> }).memory.firm = firm;
+    const out = await b.takeTurn(c2, turnInput(home));
+    expect(out.error).toBeNull();
+    expect(c2.turn.calls.find((x) => x.tool === "accept_offer")?.input).toEqual({ offer: 88 });
+    expect(c2.turn.calls.find((x) => x.tool === "set_labor")?.input).toEqual({ allocations: [{ workplace: 18, hours: 8, effort: "normal" }] });
+    expect(out.intent).toContain("work work_own (0.90): set 8 h at my own mine");
+  });
+  it("posts the token place when the board has none, and caps the day's output by the inputs the firm holds", async () => {
+    const home = workingHome();
+    let posted = false;
+    const inner = fixtureTransport(FIX, { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, "POST /s/1/orgs/18/offers": ok, "POST /s/1/offers/89/accept": ok, "GET /s/1/orgs": managedOrgs(), [JEV]: answer({ work: ["work_own", 0.9], venture: ["run_quietly", 0.9] }) });
+    const t: Transport = async (input, init) => {
+      const req = input instanceof Request ? input : new Request(input, init);
+      if (req.method === "POST" && req.url.endsWith("/orgs/18/offers")) posted = true;
+      if (req.method === "GET" && req.url.endsWith("/notice-board") && posted) {
+        const place = { id: 89, by: { org: 18 }, created_tick: 0, kind: "employment", body: { employment: { org: 18, workplace: 18, pay: { hourly: 1 }, max_hours: 8, notice_cycles: 0, places: 1, term_cycles: null } } };
+        return new Response(JSON.stringify({ ...board(), offers: [...board().offers, place] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return inner(input, init);
+    };
+    const roofs = { ...firm, kind: "builder", produces: "dwelling", base_rate: 0.5, consumes: { materials: 10 }, inventory: { materials: 10 }, price: null };
+    // 0.5 x 8 x 0.7 = 2.8 -> 2 dwellings by rate, but the ten Materials held make one.
+    const slots = await layOut("builder", new Script(ctx(t), turnInput(home), { firm: roofs }, "b"));
+    expect(slots.find((s) => s.key === "work")!.candidates[0]!.describe).toContain("about 1 dwelling a day at your rate, the firm's to sell");
+    const { brain: b, ctx: c } = brain("builder", {}, { transport: t });
+    (b as unknown as { memory: Record<string, unknown> }).memory.firm = roofs;
+    const out = await b.takeTurn(c, turnInput(home));
+    expect(out.error).toBeNull();
+    expect(c.turn.calls.find((x) => x.tool === "post_employment_offer")?.input).toEqual({ org: 18, workplace: 18, pay: { hourly: 1 }, max_hours: 8, places: 1, notice_cycles: 0, term_cycles: null });
+    expect(c.turn.calls.find((x) => x.tool === "accept_offer")?.input).toEqual({ offer: 89 });
+    expect(c.turn.calls.find((x) => x.tool === "set_labor")?.input).toEqual({ allocations: [{ workplace: 18, hours: 8, effort: "normal" }] });
+    expect(out.intent).toContain("set 8 h at my own builder");
+  });
+});
+
+describe("the firm with hands (SJ.3)", () => {
+  const hands = [{ citizen: 42, handle: "speculator-1", hours: 8 }, { citizen: 43, handle: "saver-1", hours: 8 }];
+  it("says what the hands cost against yesterday's output, and offers lay_off only when wages outran it after a full day", async () => {
+    const home = workingHome();
+    const lossy = { "GET /s/1/orgs": managedOrgs({ workers: hands, last_cycle_output: 4 }), "GET /s/1/books": books({ ore: 97 }) };
+    // Hired two days ago: a full day of the hands' work is on the record.
+    const hired = { firm, hiredCycle: home.clock.cycle - 2, jobPosted: true };
+    const slots = await layOut("founder", new Script(ctx(fixtureTransport(FIX, lossy)), turnInput(home), { ...hired }, "f"));
+    const venture = slots.find((s) => s.key === "venture")!;
+    expect(venture.candidates.map((x) => x.option)).toContain("lay_off");
+    expect(venture.ask).toContain("2 hired hand(s) at its mine, costing about 128.00 a day; yesterday it made 4 ore, worth 3.88 at the last price");
+    expect(venture.facts).toMatchObject({ workers: 2, wages_per_day: "128.00", yesterday_output_units: 4, yesterday_output_value: "3.88" });
+    // Output worth more than the wages: no lay-off.
+    const paying = { ...lossy, "GET /s/1/orgs": managedOrgs({ workers: hands, last_cycle_output: 160 }) };
+    const rich = await layOut("founder", new Script(ctx(fixtureTransport(FIX, paying)), turnInput(home), { ...hired }, "f"));
+    expect(rich.find((s) => s.key === "venture")?.candidates.map((x) => x.option) ?? []).not.toContain("lay_off");
+    // Hired only yesterday: the record is not a full day's yet.
+    const fresh = await layOut("founder", new Script(ctx(fixtureTransport(FIX, lossy)), turnInput(home), { ...hired, hiredCycle: home.clock.cycle - 1 }, "f"));
+    expect(fresh.find((s) => s.key === "venture")?.candidates.map((x) => x.option) ?? []).not.toContain("lay_off");
+    // No price for the output yet: nothing to weigh the wages against.
+    const unpriced = await layOut("founder", new Script(ctx(fixtureTransport(FIX, { ...lossy, "GET /s/1/books": books({}) })), turnInput(home), { ...hired }, "f"));
+    expect(unpriced.find((s) => s.key === "venture")?.candidates.map((x) => x.option) ?? []).not.toContain("lay_off");
+  });
+  it("ends the dearest hand's contract on the firm's behalf", async () => {
+    const home = workingHome();
+    const contract = (id: number, citizen: number, hourly: number) => ({ id, parties: [{ org: 18 }, { citizen }], created_tick: 0, term_cycles: null, status: "active", role: "manager", body: { employment: { org: 18, workplace: 18, pay: { hourly }, max_hours: 8, notice_cycles: 1, places: 2, term_cycles: null } } });
+    const { brain: b, ctx: c } = brain("founder", {
+      "PUT /s/1/plan": ok,
+      "GET /s/1/orgs": managedOrgs({ workers: hands, last_cycle_output: 4 }),
+      "GET /s/1/books": books({ ore: 97 }),
+      "GET /s/1/contracts": { status: 200, body: { clock: home.clock, contracts: [contract(55, 42, 800), contract(56, 43, 920), { ...contract(57, 42, 990), status: "ended" }] } },
+      "POST /s/1/contracts/56/terminate": ok,
+      [JEV]: answer({ venture: ["lay_off", 0.8] }),
+    });
+    const m = (b as unknown as { memory: Record<string, unknown> }).memory;
+    m.firm = firm;
+    m.hiredCycle = home.clock.cycle - 2;
+    m.jobPosted = true;
+    const out = await b.takeTurn(c, turnInput(home));
+    expect(out.error).toBeNull();
+    expect(c.turn.calls.find((x) => x.tool === "terminate_contract")?.input).toEqual({ contract: 56, on_behalf_of: 18 });
+    expect(out.intent).toContain("laid off a hand at 9.20/h");
+    expect(m.jobPosted).toBe(false);
+  });
+});
+
+describe("the builder's roof (SJ.3)", () => {
+  const roof = { id: 60, owner: { org: 18 }, occupant: null, lease: null, rent_per_cycle: null, offer: null };
+  const built = () => ({ "GET /s/1/orgs": managedOrgs({ kind: "builder", dwellings: [roof], treasury: 5000 }), "GET /s/1/books": books({ materials: 200 }) });
+  it("asks sell or let for a finished, unoffered dwelling, with the sale price and the rent worked out", async () => {
+    const home = workingHome();
+    const slots = await layOut("builder", new Script(ctx(fixtureTransport(FIX, built())), turnInput(home), {}, "b"));
+    const d = slots.find((s) => s.key === "dwelling")!;
+    expect(d.candidates.map((x) => x.option)).toEqual(["sell_dwelling", "lease_dwelling", "hold_dwelling"]);
+    // Ten Materials at 2.00 and two worker-hours at the board's median wage, plus a fifth.
+    const wage = jobOffers(board().offers).map((o) => o.hourly).sort((a, b) => a - b);
+    const median = wage.length % 2 ? wage[Math.floor(wage.length / 2)]! : Math.round((wage[wage.length / 2 - 1]! + wage[wage.length / 2]!) / 2);
+    const price = Math.round((2000 + 2 * median) * 1.2);
+    expect(d.facts).toMatchObject({ finished_unoffered: 1, sale_price: (price / 100).toFixed(2), rent_per_day: "8.00" });
+    // Offered or occupied, it is not asked about again; no dwelling, no slot.
+    const offered = await layOut("builder", new Script(ctx(fixtureTransport(FIX, { ...built(), "GET /s/1/orgs": managedOrgs({ kind: "builder", dwellings: [{ ...roof, offer: 5 }] }) })), turnInput(home), {}, "b"));
+    expect(offered.some((s) => s.key === "dwelling")).toBe(false);
+    const none = await layOut("builder", new Script(ctx(fixtureTransport(FIX, { ...built(), "GET /s/1/orgs": managedOrgs({ kind: "builder" }) })), turnInput(home), {}, "b"));
+    expect(none.some((s) => s.key === "dwelling")).toBe(false);
+    // The firm slot the builder shares with the founder names its inputs.
+    const venture = slots.find((s) => s.key === "venture")!;
+    expect(venture.candidates.map((x) => x.option)).toContain("buy_materials");
+    expect(venture.candidates.find((x) => x.option === "buy_materials")!.describe).toContain("10 materials, one dwelling's worth");
+  });
+  it("posts the sale, or the lease, on the firm's behalf", async () => {
+    const home = workingHome();
+    const sell = brain("builder", { "PUT /s/1/plan": ok, ...built(), "POST /s/1/offers/sale": ok, [JEV]: answer({ dwelling: ["sell_dwelling", 0.8], venture: ["run_quietly", 0.9] }) });
+    const sold = await sell.brain.takeTurn(sell.ctx, turnInput(home));
+    expect(sold.error).toBeNull();
+    const sale = sell.ctx.turn.calls.find((x) => x.tool === "post_sale_offer")?.input as { price: { money: number } };
+    expect(sale).toMatchObject({ asset: { dwelling: 60 }, to: null, on_behalf_of: 18 });
+    expect(sale.price.money).toBeGreaterThan(2000);
+    const lease = brain("builder", { "PUT /s/1/plan": ok, ...built(), "POST /s/1/offers/lease": ok, [JEV]: answer({ dwelling: ["lease_dwelling", 0.8], venture: ["run_quietly", 0.9] }) });
+    await lease.brain.takeTurn(lease.ctx, turnInput(home));
+    expect(lease.ctx.turn.calls.find((x) => x.tool === "post_lease_offer")?.input).toEqual({ asset: { dwelling: 60 }, rent_per_cycle: 800, term_cycles: null, on_behalf_of: 18 });
+  });
+});
+
+describe("the lender (SJ.3)", () => {
+  const roll = { status: 200, body: { clock: {}, citizens: [{ id: 1, handle: "H-1", kind: "householder", dormant: false, joined_tick: 0, flags: { defaulted: false } }, { id: 2, handle: "H-2", kind: "householder", dormant: false, joined_tick: 0, flags: { defaulted: true } }] } };
+  it("offers a quarter of the balance at two rates, once a day, with the roll's defaults in the question", async () => {
+    const home = unemployedHome();
+    const script = new Script(ctx(fixtureTransport(FIX, { "GET /s/1/citizens": roll })), turnInput(home), {}, "l");
+    const slots = await layOut("lender", script);
+    const lend = slots.find((s) => s.key === "lend")!;
+    expect(lend.candidates.map((x) => x.option)).toEqual(["lend_cheap", "lend_dear", "hold_money"]);
+    expect(lend.candidates[0]!.irreversible).toBe(true);
+    // 968.56 / 4 in whole credits: 242.00; five days at 1% earn 12.10, at 3% 36.30.
+    expect(lend.ask).toContain("a quarter of it, 242.00, could go out for 5 days");
+    expect(lend.ask).toContain("At 1% a day it would earn 12.10; at 3%, 36.30");
+    expect(lend.ask).toContain("Of 2 citizens on the roll, 1 have defaulted");
+    expect(lend.facts).toMatchObject({ principal: "242.00", defaulted: 1, citizens_on_roll: 2 });
+    expect((await layOut("lender", script)).some((s) => s.key === "lend")).toBe(false);
+    // A loan of mine already on the board: nothing to decide.
+    const mine = { id: 70, by: { citizen: home.citizen.id }, created_tick: 0, kind: "credit", body: { credit: { principal: 24200, rate_per_cycle_bp: 100, term_cycles: 5, collateral: null, to: null } } };
+    const posted = await layOut("lender", new Script(ctx(fixtureTransport(FIX, { "GET /s/1/citizens": roll, "GET /s/1/notice-board": { status: 200, body: { ...board(), offers: [...board().offers, mine] } } })), turnInput(home), {}, "l"));
+    expect(posted.some((s) => s.key === "lend")).toBe(false);
+    // Too little to lend a quarter of.
+    const poor = { ...home, household: { ...home.household, balance: 12000 } };
+    expect((await layOut("lender", new Script(ctx(fixtureTransport(FIX, { "GET /s/1/citizens": roll })), turnInput(poor), {}, "l"))).some((s) => s.key === "lend")).toBe(false);
+  });
+  it("posts the loan it chose", async () => {
+    const home = unemployedHome();
+    const { brain: b, ctx: c } = brain("lender", { "PUT /s/1/plan": ok, "GET /s/1/citizens": roll, "POST /s/1/offers/credit": ok, [JEV]: answer({ lend: ["lend_dear", 0.9], job: ["wait", 0.9] }) });
+    const out = await b.takeTurn(c, turnInput(home));
+    expect(out.error).toBeNull();
+    expect(c.turn.calls.find((x) => x.tool === "post_credit_offer")?.input).toEqual({ principal: 24200, rate_per_cycle_bp: 300, term_cycles: 5, collateral: null, to: null, on_behalf_of: null });
+    expect(out.intent).toContain("offered 242.00 at 3% a day over 5 days (dear)");
+  });
+});
+
+describe("per-slot floors (SJ.3)", () => {
+  it("holds a slot under its own floor while the run's floor lets another act", async () => {
+    const home = employedHome();
+    const cfg = ConfigSchema.parse({ jev: { floors: { plan: 0.9 } } });
+    const { brain: b, ctx: c } = brain("wage-maximiser", { "PUT /s/1/plan": ok, "PUT /s/1/labor": ok, [JEV]: answer({ work: ["full_normal", 0.4], plan: ["put_aside", 0.8] }) }, { cfg });
+    const out = await b.takeTurn(c, turnInput(home));
+    expect(out.decisions).toEqual([
+      { slot: "work", option: "full_normal", confidence: 0.4, none: false, acted: true },
+      { slot: "plan", option: "put_aside", confidence: 0.8, none: false, acted: false },
+    ]);
+    expect(c.turn.calls.filter((x) => x.tool === "set_plan")).toHaveLength(1);
+  });
+});
 
 describe("laying out the hour", () => {
   it("offers a job, not hours, to someone without a contract", async () => {

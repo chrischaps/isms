@@ -61,6 +61,16 @@ describe("the economy day by day and the standings (SJ.2)", () => {
     expect(lines.filter((l) => /^\| \d+ \|/.test(l))).toHaveLength(2);
     expect(economyTable([])).toEqual([]);
   });
+  it("prints each day's headlines under the table (SJ.3)", () => {
+    const day = (cycle: number, headlines?: string[]) => ({ cycle, live: null, aggregates: null, ...(headlines ? { headlines } : {}) });
+    const lines = economyTable([day(1, []), day(2, ["Legacy Foundry No. 1 runs short of ore.", "H-3 | leaves the mine"]), day(3)]);
+    expect(lines).toContain("### The days' headlines");
+    expect(lines).toContain("**Day 2** (2)");
+    expect(lines).toContain("- Legacy Foundry No. 1 runs short of ore.");
+    expect(lines).toContain("- H-3 \\| leaves the mine");
+    expect(lines.some((l) => l.startsWith("**Day 1**") || l.startsWith("**Day 3**"))).toBe(false);
+    expect(economyTable([day(1), day(2)])).not.toContain("### The days' headlines");
+  });
   it("marks the cohort's players on the scoreboard and keeps every player's rank", () => {
     const rows = Array.from({ length: 14 }, (_, i) => ({ citizen: i, handle: `h${i}`, net_worth: 100000 - i * 1000, self_made: -i * 1000, firms: [] }));
     rows[12]!.handle = "founder-1";

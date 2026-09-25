@@ -135,7 +135,9 @@ export class JevBrain implements Brain {
     const confidence = a.confidence ?? 0;
     const mass = a.probabilities?.[a.choice] ?? 0;
     const none = candidate.act === null;
-    let acted = !none && confidence >= cfg.jev.min_confidence;
+    // A slot may carry its own floor (SJ.3); the run's floor otherwise.
+    const floor = cfg.jev.floors[slot.key] ?? cfg.jev.min_confidence;
+    let acted = !none && confidence >= floor;
     if (acted && candidate.irreversible) acted = confidence >= cfg.jev.irreversible_confidence && mass >= IRREVERSIBLE_MASS;
     return { slot, candidate, decision: { slot: slot.key, option: candidate.option, confidence, none, acted } };
   }

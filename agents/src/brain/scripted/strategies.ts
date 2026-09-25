@@ -10,6 +10,7 @@ import {
   currentJobs,
   electionFor,
   ensurePlan,
+  goingRent,
   isRefusal,
   jobOffers,
   lastPrice,
@@ -19,6 +20,8 @@ import {
   voteOnOpen,
   workFullHours,
   workTheNorm,
+  type BooksView,
+  type OrgsView,
   type ProposalView,
   type Script,
 } from "./script.ts";
@@ -97,55 +100,120 @@ export const speculator: Strategy = async (s) => {
   return done.length ? done.join("; ") : "prices near their means; held";
 };
 
+/** The road to a firm of `kind`: save, buy the Materials, found it, hire, keep it in inputs, sell the output. The founder's mine and the builder's Builder (SJ.3) share it. */
+function founderOf(kind: "mine" | "builder", name: string): Strategy {
+  return async (s) => {
+    await ensurePlan(s, 24, 0);
+    await takeAJob(s);
+    await workFullHours(s);
+    const orgs = await s.orgs();
+    if (!orgs) return "could not read the orgs";
+    const mine = orgs.orgs.find((o) => o.i_manage);
+    const books = await s.books();
+    if (mine) {
+      const done: string[] = [];
+      // Hire when a workplace has room; sell what is in the inventory.
+      const board = await s.board();
+      const offers = jobOffers(board);
+      const wage = median(offers.map((o) => o.hourly)) || 800;
+      const wp = mine.workplaces[0];
+      if (wp && wp.workers.length < 2 && !s.memory.jobPosted) {
+        if (await s.do(act.offerEmployment, { org: mine.id, workplace: wp.id, pay: { hourly: wage }, max_hours: 8, places: 2, notice_cycles: 1, term_cycles: null })) {
+          s.memory.jobPosted = true;
+          done.push(`posted a job at ${wage}/h`);
+        }
+      }
+      const inv = mine.inventory as Record<string, number>;
+      // The inputs the recipe consumes (a Builder's ten Materials a dwelling): one day's worth, bought on the firm's behalf when the treasury covers it.
+      const recipe = orgs.recipes.find((r) => r.workplace_kind === kind);
+      for (const [good, per] of Object.entries((recipe?.consumes ?? {}) as Record<string, number>)) {
+        const price = lastPrice(books, good);
+        if (price === null || (inv[good] ?? 0) >= per || s.actionsLeft <= 0) continue;
+        const qty = per;
+        const limit = Math.round(price * 1.05);
+        if (mine.treasury < qty * limit) continue;
+        if (await s.do(act.placeOrder, { instrument: good, side: "bid", qty, limit_price: limit, on_behalf_of: mine.id })) done.push(`bid ${qty} ${good} @${limit} for the firm`);
+      }
+      for (const [good, qty] of Object.entries(inv)) {
+        if (good in (recipe?.consumes ?? {}) || qty <= 0 || s.actionsLeft <= 0) continue;
+        const p = lastPrice(books, good);
+        if (p === null) continue;
+        if (await s.do(act.placeOrder, { instrument: good, side: "ask", qty, limit_price: Math.round(p * 1.05), on_behalf_of: mine.id })) done.push(`asked ${qty} ${good} @${Math.round(p * 1.05)}`);
+      }
+      // A finished dwelling (SJ.3): the scripted builder leases every other one and sells the rest at cost plus a margin.
+      for (const d of mine.dwellings) {
+        if (d.offer != null || d.occupant != null || s.actionsLeft <= 0) continue;
+        const sold = ((s.memory.dwellingsDecided as number | undefined) ?? 0) % 2 === 0;
+        s.memory.dwellingsDecided = ((s.memory.dwellingsDecided as number | undefined) ?? 0) + 1;
+        if (sold) {
+          const price = dwellingAskPrice(orgs, books, wage);
+          if (await s.do(act.offerSale, { asset: { dwelling: d.id }, price: { money: price }, to: null, on_behalf_of: mine.id })) done.push(`offered dwelling ${d.id} for sale at ${price}`);
+        } else {
+          const rent = goingRent(board);
+          if (await s.do(act.offerLease, { asset: { dwelling: d.id }, rent_per_cycle: rent, term_cycles: null, on_behalf_of: mine.id })) done.push(`offered dwelling ${d.id} to let at ${rent}`);
+        }
+      }
+      if (mine.treasury > 3 * wage * 8 * 2 && s.clock.tick === 1 && s.actionsLeft > 0) {
+        if (await s.do(act.dividend, { org: mine.id, per_share: Math.floor(mine.treasury / 4 / Math.max(1, mine.my_shares)) })) done.push("declared a dividend");
+      }
+      return done.length ? done.join("; ") : `ran ${mine.name}`;
+    }
+    const need = orgs.founding.materials;
+    const fee = orgs.founding.money;
+    const have = s.pantry.materials ?? 0;
+    const pm = lastPrice(books, "materials");
+    if (have >= need) {
+      if (s.balance < fee) return `have the Materials; saving the fee (${s.balance}/${fee})`;
+      const firm = `${s.handle}'s ${name}`;
+      if (await s.do(act.foundOrg, { kind: "firm", name: firm, first_workplace: { kind, slot: null } })) return `founded ${firm} with a ${kind}`;
+      return "founding was refused";
+    }
+    if (pm !== null && s.balance > fee + pm * (need - have)) {
+      const qty = need - have;
+      if (await s.do(act.placeOrder, { instrument: "materials", side: "bid", qty, limit_price: Math.round(pm * 1.1) })) return `bid ${qty} materials @${Math.round(pm * 1.1)} toward founding`;
+    }
+    return `saving toward founding: ${s.balance} cash, ${have}/${need} materials`;
+  };
+}
+
+/** What a dwelling costs its builder at the last prices — the recipe's Materials plus the worker-hours at the going wage — and a fifth over it. */
+export function dwellingAskPrice(orgs: OrgsView, books: BooksView | null, wage: number): number {
+  const recipe = orgs.recipes.find((r) => r.workplace_kind === "builder");
+  const consumes = (recipe?.consumes ?? {}) as Record<string, number>;
+  let cost = 0;
+  for (const [good, per] of Object.entries(consumes)) cost += per * (lastPrice(books, good) ?? 0);
+  const hours = recipe?.base_rate ? 1 / recipe.base_rate : 0;
+  cost += Math.round(hours * wage);
+  return Math.max(100, Math.round(cost * 1.2));
+}
+
 /** Save toward a firm, buy the Materials, found it, hire, sell the output. A lighter founder than the model plays. */
-export const founder: Strategy = async (s) => {
+export const founder: Strategy = founderOf("mine", "Works");
+
+/** The builder, scripted (SJ.3): the founder's road with a Builder at the end of it, and a dwelling sold or let as each is finished. */
+export const builder: Strategy = founderOf("builder", "Roofs");
+
+/** The lender, scripted (SJ.3): one loan on the board at a fixed principal and rate whenever the balance covers it twice and none of mine is open; the installments collect themselves. */
+export const lender: Strategy = async (s) => {
   await ensurePlan(s, 24, 0);
   await takeAJob(s);
   await workFullHours(s);
-  const orgs = await s.orgs();
-  if (!orgs) return "could not read the orgs";
-  const mine = orgs.orgs.find((o) => o.i_manage);
-  const books = await s.books();
-  if (mine) {
-    const done: string[] = [];
-    // Hire when a workplace has room; sell what is in the inventory.
-    const offers = jobOffers(await s.board());
-    const wage = median(offers.map((o) => o.hourly)) || 800;
-    const wp = mine.workplaces[0];
-    if (wp && wp.workers.length < 2 && !s.memory.jobPosted) {
-      if (await s.do(act.offerEmployment, { org: mine.id, workplace: wp.id, pay: { hourly: wage }, max_hours: 8, places: 2, notice_cycles: 1, term_cycles: null })) {
-        s.memory.jobPosted = true;
-        done.push(`posted a job at ${wage}/h`);
-      }
-    }
-    const inv = mine.inventory as Record<string, number>;
-    for (const [good, qty] of Object.entries(inv)) {
-      if (good === "materials" || qty <= 0 || s.actionsLeft <= 0) continue;
-      const p = lastPrice(books, good);
-      if (p === null) continue;
-      if (await s.do(act.placeOrder, { instrument: good, side: "ask", qty, limit_price: Math.round(p * 1.05), on_behalf_of: mine.id })) done.push(`asked ${qty} ${good} @${Math.round(p * 1.05)}`);
-    }
-    if (mine.treasury > 3 * wage * 8 * 2 && s.clock.tick === 1 && s.actionsLeft > 0) {
-      if (await s.do(act.dividend, { org: mine.id, per_share: Math.floor(mine.treasury / 4 / Math.max(1, mine.my_shares)) })) done.push("declared a dividend");
-    }
-    return done.length ? done.join("; ") : `ran ${mine.name}`;
+  const board = await s.board();
+  const open = board.some((o) => o.kind === "credit" && (o.by as { citizen?: number }).citizen === s.me);
+  if (open) return "a loan of mine is on the board; waiting for a borrower";
+  const principal = LENDER_PRINCIPAL;
+  if (s.balance < 2 * principal) return `balance ${s.balance} does not cover ${principal} twice; holding`;
+  if (s.actionsLeft <= 0) return "no actions left to post a loan";
+  if (await s.do(act.offerCredit, { principal, rate_per_cycle_bp: LENDER_RATE_BP, term_cycles: LENDER_TERM, collateral: null, to: null, on_behalf_of: null })) {
+    return `posted a loan of ${principal} at ${LENDER_RATE_BP / 100}% a day over ${LENDER_TERM} days`;
   }
-  const need = orgs.founding.materials;
-  const fee = orgs.founding.money;
-  const have = s.pantry.materials ?? 0;
-  const pm = lastPrice(books, "materials");
-  if (have >= need) {
-    if (s.balance < fee) return `have the Materials; saving the fee (${s.balance}/${fee})`;
-    const name = `${s.handle}'s Works`;
-    if (await s.do(act.foundOrg, { kind: "firm", name, first_workplace: { kind: "mine", slot: null } })) return `founded ${name} with a mine`;
-    return "founding was refused";
-  }
-  if (pm !== null && s.balance > fee + pm * (need - have)) {
-    const qty = need - have;
-    if (await s.do(act.placeOrder, { instrument: "materials", side: "bid", qty, limit_price: Math.round(pm * 1.1) })) return `bid ${qty} materials @${Math.round(pm * 1.1)} toward founding`;
-  }
-  return `saving toward founding: ${s.balance} cash, ${have}/${need} materials`;
+  return "the loan offer was refused";
 };
+
+/** The scripted lender's terms: two hundred credits at 1% a day over five days (the Jev lender chooses its own rate and principal). */
+export const LENDER_PRINCIPAL = 20000;
+export const LENDER_RATE_BP = 100;
+export const LENDER_TERM = 5;
 
 /** The saver, scripted: a job, a floor on the balance, nothing bought but Food. */
 export const saver: Strategy = async (s) => {
@@ -361,6 +429,8 @@ export const STRATEGIES: Record<string, Strategy> = {
   slacker,
   borrower,
   landlord,
+  lender,
+  builder,
   steward,
   rationer,
   "free-rider": freeRider,

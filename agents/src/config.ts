@@ -82,6 +82,8 @@ export const ConfigSchema = z.object({
       min_confidence: z.number().min(0).max(1).default(0.35),
       /** An irreversible choice (switch jobs, found, buy a dwelling) needs at least this, and 0.4 of the probability mass. */
       irreversible_confidence: z.number().min(0).max(1).default(0.5),
+      /** A floor for one named slot, over `min_confidence` (SJ.3): `market` is the slot that flips. */
+      floors: z.record(z.string(), z.number().min(0).max(1)).default({}),
     })
     .prefault({}),
 });

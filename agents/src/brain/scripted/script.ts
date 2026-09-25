@@ -126,6 +126,46 @@ export class Script {
     const v = await this.get<PublishedPlanView>(read.publishedPlan);
     return isRefusal(v) ? null : v;
   }
+  /** The citizens' roll (the read tool caps it at 80 rows): handles and flags, for a lender reading defaults (SJ.3). */
+  async citizens(): Promise<CitizenPublic[]> {
+    const v = await this.get<{ rows: CitizenPublic[] }>(read.citizens);
+    return isRefusal(v) ? [] : v.rows;
+  }
+  /** My contracts and those of the orgs I manage (SJ.3: a manager naming a worker's contract to end it). */
+  async contracts(): Promise<ContractView[]> {
+    const v = await this.get<ContractsView>(read.contracts);
+    return isRefusal(v) ? [] : v.contracts;
+  }
+}
+
+export type CitizenPublic = Schemas["CitizenPublic"];
+export type ContractView = Schemas["ContractView"];
+export type ContractsView = Schemas["ContractsView"];
+
+/** The active employment contracts an org holds, by worker: what a manager may terminate on its behalf (SJ.3). */
+export function workerContracts(contracts: ContractView[], org: number): { contract: number; citizen: number; hourly: number }[] {
+  const out: { contract: number; citizen: number; hourly: number }[] = [];
+  for (const k of contracts) {
+    if (k.status !== "active") continue;
+    const e = (k.body as { employment?: Record<string, unknown> }).employment;
+    if (!e || Number(e.org) !== org) continue;
+    // The engine's `(Party, Party)`: the employer first, the worker second.
+    const parties = k.parties as unknown as { citizen?: number; org?: number }[] | undefined;
+    const worker = Array.isArray(parties) ? parties.find((p) => p && typeof p.citizen === "number")?.citizen : undefined;
+    if (worker === undefined) continue;
+    const pay = (e.pay ?? {}) as { hourly?: number; piece_rate?: number };
+    out.push({ contract: k.id, citizen: worker, hourly: pay.hourly ?? pay.piece_rate ?? 0 });
+  }
+  return out;
+}
+
+/** The cheapest rent asked on the board, else the preset's legacy rent (8.00 a day, TDD 9.3). */
+export function goingRent(offers: Offer[]): number {
+  const rents = offers
+    .filter((o) => o.kind === "lease")
+    .map((o) => (o.body as { lease?: { rent_per_cycle?: number } }).lease?.rent_per_cycle)
+    .filter((r): r is number => typeof r === "number");
+  return rents.length ? Math.min(...rents) : 800;
 }
 
 export function isRefusal(v: unknown): v is Refusal {

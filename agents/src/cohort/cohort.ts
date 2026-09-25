@@ -64,13 +64,24 @@ export async function runCohort(opts: CohortOpts, ticks: AsyncIterable<TickSigna
     inFlight.add(p);
     p.finally(() => inFlight.delete(p)).catch(() => undefined);
   };
-  // The economy day by day (SJ.2): `/stats` at each day's end, its `last_cycle` aggregates being the day just closed, one line per day in `days.jsonl`.
+  // The economy day by day (SJ.2): `/stats` at each day's end, its `last_cycle` aggregates being the day just closed, one line per day in `days.jsonl`;
+  // and the day's headlines from `/chronicle` (SJ.3), so a day that breaks the pattern can be read, not guessed.
   const daysFile = join(opts.runDir, "days.jsonl");
   writeFileSync(daysFile, "");
-  const snapshotDay = async (cycle: number) => {
+  const headlinesOf = async (cycle: number): Promise<string[]> => {
     try {
-      const v = unwrap(await opts.client.GET("/s/{id}/stats", { params: { path: { id: opts.sid } } })) as { live?: unknown; last_cycle?: unknown };
-      appendFileSync(daysFile, JSON.stringify({ cycle, live: v.live ?? null, aggregates: v.last_cycle ?? null }) + "\n");
+      const v = unwrap(await opts.client.GET("/s/{id}/chronicle", { params: { path: { id: opts.sid }, query: { cycle } } }));
+      return v.headlines.map((h) => h.text);
+    } catch (e) {
+      log(`could not read /chronicle for day ${cycle}: ${e instanceof Error ? e.message : String(e)}`);
+      return [];
+    }
+  };
+  const snapshotDay = async (cycle: number, stats?: { live?: unknown; last_cycle?: unknown }) => {
+    try {
+      const v = stats ?? (unwrap(await opts.client.GET("/s/{id}/stats", { params: { path: { id: opts.sid } } })) as { live?: unknown; last_cycle?: unknown });
+      const headlines = await headlinesOf(cycle);
+      appendFileSync(daysFile, JSON.stringify({ cycle, live: v.live ?? null, aggregates: v.last_cycle ?? null, headlines }) + "\n");
     } catch (e) {
       log(`could not read /stats at the end of day ${cycle}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -127,7 +138,7 @@ export async function runCohort(opts: CohortOpts, ticks: AsyncIterable<TickSigna
     // The epoch's last day closed with the epoch, so no `cycle` signal snapshotted it.
     if (stoppedBy === "epoch_end") {
       const v = stats as { clock?: { cycle?: number }; live?: unknown; last_cycle?: unknown };
-      appendFileSync(daysFile, JSON.stringify({ cycle: (v.clock?.cycle ?? cyclesSeen + 1) - 1, live: v.live ?? null, aggregates: v.last_cycle ?? null }) + "\n");
+      await snapshotDay((v.clock?.cycle ?? cyclesSeen + 1) - 1, v);
     }
   } catch (e) {
     log(`could not read /stats at the end: ${e instanceof Error ? e.message : String(e)}`);

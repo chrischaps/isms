@@ -8,7 +8,8 @@
 // the hours are not re-asked every hour they are already set (SJ.2).
 
 import * as act from "../../tools/act.ts";
-import { currentJobs, jobOffers, lastPrice, median, workFullHours, type Offer, type Script } from "../scripted/script.ts";
+import { currentJobs, goingRent, jobOffers, lastPrice, median, workFullHours, workerContracts, type Offer, type Script } from "../scripted/script.ts";
+import { dwellingAskPrice } from "../scripted/strategies.ts";
 
 export type Candidate = {
   option: string;
@@ -44,6 +45,50 @@ function dayWage(s: Script, offers: ReturnType<typeof jobOffers>): number {
   return hourly * 8;
 }
 
+/** The firm a citizen manages, as the firm slot last saw it (SJ.3): kept in memory so `work` can offer the manager's own workplace without a second read of the orgs. */
+export type Firm = {
+  org: number;
+  workplace: number;
+  kind: string;
+  produces: string;
+  /** Units a worker-hour before skill, effort and needs. */
+  base_rate: number;
+  /** Inputs a unit consumes and how many the firm holds: production is capped by them. */
+  consumes: Record<string, number>;
+  inventory: Record<string, number>;
+  /** The last price of what it makes, in cents, or null when nothing has traded. */
+  price: number | null;
+};
+
+/** The token wage a manager pays itself to hold a place at its own workplace (Q160): the smallest the engine accepts; the firm's output is the return. */
+export const OWN_PLACE_WAGE = 1;
+
+/** Hire yourself (Q160) if you hold no place at your own workplace, then put the hours there. */
+function workOwn(firm: Firm, hours: number) {
+  return async (sc: Script) => {
+    if (!currentJobs(sc.home).some((j) => j.workplace === firm.workplace)) {
+      const mine = (offers: ReturnType<typeof jobOffers>) => offers.find((o) => o.org === firm.org && o.workplace === firm.workplace && o.hourly <= OWN_PLACE_WAGE);
+      let place = mine(jobOffers(await sc.board()));
+      if (!place) {
+        const posted = await sc.do(act.offerEmployment, { org: firm.org, workplace: firm.workplace, pay: { hourly: OWN_PLACE_WAGE }, max_hours: hours, places: 1, notice_cycles: 0, term_cycles: null });
+        if (!posted) return `could not post my own place at the ${firm.kind}`;
+        place = mine(jobOffers(await sc.board()));
+        if (!place) return "posted my own place but it is not on the board";
+      }
+      if (!(await sc.do(act.acceptOffer, { offer: place.id }))) return `was refused my own place at the ${firm.kind}`;
+    }
+    const ok = await sc.do(act.setLabor, { allocations: [{ workplace: firm.workplace, hours, effort: "normal" }] });
+    return ok ? `set ${hours} h at my own ${firm.kind}` : `could not set ${hours} h at my own ${firm.kind}`;
+  };
+}
+
+/** What a day of one citizen's hours makes at `firm`, capped by the inputs it holds. */
+export function ownDayOutput(firm: Firm, hours: number, outputMult: number): number {
+  let units = Math.floor(firm.base_rate * hours * outputMult);
+  for (const [good, per] of Object.entries(firm.consumes)) if (per > 0) units = Math.min(units, Math.floor((firm.inventory[good] ?? 0) / per));
+  return Math.max(0, units);
+}
+
 /** How many hours, how hard. The full menu when nothing is set today; afterwards only when something gives a reason to change. */
 export const workSlot: SlotGen = async (s) => {
   const jobs = currentJobs(s.home);
@@ -55,34 +100,59 @@ export const workSlot: SlotGen = async (s) => {
   const few = Math.max(1, Math.min(4, budget));
   const set = s.home.labor.allocations.reduce((n, a) => n + a.hours, 0);
   const effort = s.home.labor.allocations[0]?.effort ?? "normal";
-  const best = Math.max(...jobs.map((j) => j.hourly));
+  // The manager's own workplace (SJ.3), when the firm slot has seen one and a wage job exists beside it.
+  const firm = s.memory.firm as Firm | undefined;
+  const ownHours = firm ? (s.home.labor.allocations.find((a) => a.workplace === firm.workplace)?.hours ?? 0) : 0;
+  const wageJobs = firm ? jobs.filter((j) => j.workplace !== firm.workplace) : jobs;
+  const best = wageJobs.length ? Math.max(...wageJobs.map((j) => j.hourly)) : 0;
   const fatigue = s.home.labor.fatigue_debt ?? 0;
   const day = best * 8;
   const run = (e: "low" | "normal" | "high", cap: number) => async (sc: Script) => {
-    const ok = await workFullHours(sc, e, cap);
+    // Once the hours are at the manager's own workplace, a change keeps them there.
+    const ok = firm && ownHours > 0 ? await sc.do(act.setLabor, { allocations: [{ workplace: firm.workplace, hours: cap, effort: e }] }) : await workFullHours(sc, e, cap);
     return ok ? `set ${cap} h at ${e} effort` : `could not set ${cap} h`;
   };
-  const facts = { contract_hours: contractHours, hour_budget: budget, hours_set_today: set, effort_set: effort, best_hourly_credits: credits(best), fatigue_debt: fatigue };
+  const facts: Record<string, unknown> = { contract_hours: contractHours, hour_budget: budget, hours_set_today: set, effort_set: effort, best_hourly_credits: credits(best), fatigue_debt: fatigue };
   const who = `Food ${s.food.toFixed(0)} of 100, balance ${credits(s.balance)} credits, a day's wage ${credits(day)}.`;
+  const own: Candidate[] = [];
+  const ownReasons: string[] = [];
+  if (firm && wageJobs.length && ownHours < full && onceToday(s, "work_own")) {
+    const units = ownDayOutput(firm, full, s.home.labor.output_mult ?? 1);
+    const value = firm.price !== null ? units * firm.price : null;
+    facts.own_workplace = { kind: firm.kind, hours_there: ownHours, day_output_units: units, day_output_value_credits: value !== null ? credits(value) : null };
+    ownReasons.push(`your own ${firm.kind} stands without your hours`);
+    own.push(
+      doing(
+        "work_own",
+        `work all ${full} hours at your own ${firm.kind} for a token wage: about ${units} ${firm.produces} a day at your rate${value !== null ? `, worth ${credits(value)} at the last price` : ""}, the firm's to sell, instead of the ${credits(day)} a day your job pays`,
+        workOwn(firm, full),
+      ),
+    );
+  } else if (firm && wageJobs.length && ownHours >= full && onceToday(s, "work_job")) {
+    facts.own_workplace = { kind: firm.kind, hours_there: ownHours };
+    ownReasons.push(`your hours are at your own ${firm.kind} and your job at ${credits(best)} an hour goes unworked`);
+    own.push(doing("work_job", `work all ${full} hours at the job paying ${credits(day)} a day and leave the ${firm.kind} to its hands`, async (sc) => ((await workFullHours(sc, "normal", full)) ? `set ${full} h at the job` : "could not set the hours")));
+  }
   if (set === 0) {
     return {
       key: "work",
       tier: 0,
       ask:
         `how many hours to work today and how hard. Your contracts allow ${contractHours} h a day at up to ${credits(best)} credits an hour; ` +
-        `${budget} h of your day are free and nothing is set yet${fatigue ? `; you carry ${fatigue} h of fatigue debt` : ""}. ${who}`,
+        `${budget} h of your day are free and nothing is set yet${fatigue ? `; you carry ${fatigue} h of fatigue debt` : ""}${ownReasons.length ? `; ${ownReasons.join(", ")}` : ""}. ${who}`,
       facts,
       candidates: [
         doing("full_normal", `work all ${full} contract hours at normal effort`, run("normal", full)),
         doing("full_high", `work all ${full} hours at high effort: more output, more fatigue`, run("high", full)),
         doing("half_normal", `work about half, ${half} hours, at normal effort`, run("normal", half)),
         doing("few_low", `work ${few} hours at low effort: the least that keeps a wage coming`, run("low", few)),
+        ...own,
         none("none", "set no hours today"),
       ],
     };
   }
-  const reasons: string[] = [];
-  const candidates: Candidate[] = [];
+  const reasons: string[] = [...ownReasons];
+  const candidates: Candidate[] = [...own];
   if (fatigue > 0 && set > half) {
     reasons.push(`you carry ${fatigue} h of fatigue debt`);
     candidates.push(doing("rest_more", `cut today to ${half} hours at normal effort and work the fatigue off`, run("normal", half)));
@@ -346,111 +416,242 @@ export const creditSlot: SlotGen = async (s) => {
   };
 };
 
-/** The founder's road: save, buy the Materials, found; then fund it, hire at one of two wages, sell the output, pay a dividend from surplus. */
-export const ventureSlot: SlotGen = async (s) => {
-  const orgs = await s.orgs();
-  if (!orgs) return null;
-  const books = await s.books();
-  const mine = orgs.orgs.find((o) => o.i_manage);
-  if (mine) {
-    const offers = jobOffers(await s.board());
-    const wage = median(offers.map((o) => o.hourly)) || 800;
-    const generous = Math.round(wage * 1.15);
-    const wp = mine.workplaces[0];
-    const workers = wp?.workers.length ?? 0;
-    const inv = mine.inventory as Record<string, number>;
-    const stock = Object.entries(inv).filter(([, q]) => q > 0);
-    const sellable = stock.filter(([g]) => g !== "materials" && lastPrice(books, g) !== null);
-    const dayOfWages = wage * 8;
-    const coversDays = Math.floor(mine.treasury / Math.max(1, dayOfWages));
-    const candidates: Candidate[] = [];
-    const postJob = (hourly: number, label: string) => async (sc: Script) => {
-      const ok = await sc.do(act.offerEmployment, { org: mine.id, workplace: wp!.id, pay: { hourly }, max_hours: 8, places: 2, notice_cycles: 1, term_cycles: null });
-      if (ok) sc.memory.jobPosted = true;
-      return ok ? `posted a job at ${credits(hourly)}/h (${label})` : "job posting refused";
-    };
-    if (wp && workers < 2 && !s.memory.jobPosted) {
-      candidates.push(doing("post_job", `post a job at ${credits(wage)} an hour, the going median, with two places`, postJob(wage, "median")));
-      candidates.push(doing("post_job_generous", `post a job at ${credits(generous)} an hour, 15% over the median, to draw workers away from other firms`, postJob(generous, "generous")));
+/** The founder's road: save, buy the Materials, found a firm of `kind`; then fund it, hire at one of two wages, keep it in inputs, sell the output, lay off when wages outrun output, pay a dividend from surplus. */
+export function ventureSlotOf(kind: "mine" | "builder", firmName: string): SlotGen {
+  return async (s) => {
+    const orgs = await s.orgs();
+    if (!orgs) return null;
+    const books = await s.books();
+    const mine = orgs.orgs.find((o) => o.i_manage);
+    if (mine) {
+      const offers = jobOffers(await s.board());
+      const wage = median(offers.map((o) => o.hourly)) || 800;
+      const generous = Math.round(wage * 1.15);
+      const wp = mine.workplaces[0];
+      const recipe = orgs.recipes.find((r) => r.workplace_kind === wp?.kind);
+      const produces = recipe?.produces ?? "output";
+      const price = lastPrice(books, produces);
+      const inv = mine.inventory as Record<string, number>;
+      // What `work` needs to offer the manager's own workplace next hour (SJ.3), without a second read.
+      if (wp) {
+        const firm: Firm = { org: mine.id, workplace: wp.id, kind: wp.kind, produces, base_rate: recipe?.base_rate ?? 0, consumes: (recipe?.consumes ?? {}) as Record<string, number>, inventory: inv, price };
+        s.memory.firm = firm;
+      }
+      // The hired hands, their cost against yesterday's output (SJ.3): the manager's own hours are not a wage.
+      const hands = wp?.workers.filter((w) => w.citizen !== s.me) ?? [];
+      const workers = hands.length;
+      const wagesDay = workers * wage * 8;
+      const yesterdayUnits = Math.round(wp?.last_cycle_output ?? 0);
+      const yesterdayValue = price !== null ? yesterdayUnits * price : null;
+      const stock = Object.entries(inv).filter(([, q]) => q > 0);
+      const consumes = (recipe?.consumes ?? {}) as Record<string, number>;
+      const sellable = stock.filter(([g]) => !(g in consumes) && g !== "materials" && lastPrice(books, g) !== null);
+      const dayOfWages = wage * 8;
+      const coversDays = Math.floor(mine.treasury / Math.max(1, dayOfWages));
+      const candidates: Candidate[] = [];
+      const postJob = (hourly: number, label: string) => async (sc: Script) => {
+        const ok = await sc.do(act.offerEmployment, { org: mine.id, workplace: wp!.id, pay: { hourly }, max_hours: 8, places: 2, notice_cycles: 1, term_cycles: null });
+        if (ok) {
+          sc.memory.jobPosted = true;
+          sc.memory.hiredCycle = sc.clock.cycle;
+        }
+        return ok ? `posted a job at ${credits(hourly)}/h (${label})` : "job posting refused";
+      };
+      if (wp && workers < 2 && !s.memory.jobPosted) {
+        candidates.push(doing("post_job", `post a job at ${credits(wage)} an hour, the going median, with two places`, postJob(wage, "median")));
+        candidates.push(doing("post_job_generous", `post a job at ${credits(generous)} an hour, 15% over the median, to draw workers away from other firms`, postJob(generous, "generous")));
+      }
+      // A full day of the hands' work has been seen, and it sold for less than it cost.
+      const hired = typeof s.memory.hiredCycle === "number" ? (s.memory.hiredCycle as number) : s.clock.cycle;
+      if (workers > 0 && yesterdayValue !== null && wagesDay > yesterdayValue && s.clock.cycle >= hired + 2) {
+        candidates.push(
+          doing("lay_off", `lay off one of the ${workers} hired hand(s), paying a day's notice, since their ${credits(wagesDay)} a day in wages outran yesterday's ${credits(yesterdayValue)} of output`, async (sc) => {
+            const held = workerContracts(await sc.contracts(), mine.id).filter((k) => k.citizen !== sc.me);
+            const dearest = held.sort((a, b) => b.hourly - a.hourly)[0];
+            if (!dearest) return "found no contract to end";
+            if (await sc.do(act.terminateContract, { contract: dearest.contract, on_behalf_of: mine.id })) {
+              sc.memory.jobPosted = false;
+              return `laid off a hand at ${credits(dearest.hourly)}/h (contract ${dearest.contract})`;
+            }
+            return "the lay-off was refused";
+          }),
+        );
+      }
+      if (mine.treasury < dayOfWages && s.balance > 2 * dayOfWages) {
+        const amount = Math.floor(s.balance / 4);
+        candidates.push(
+          doing("fund_firm", `put ${credits(amount)} of your own money, a quarter of it, into the firm's treasury so it can pay wages`, async (sc) =>
+            (await sc.do(act.transfer, { to: { org: mine.id }, asset: { money: amount }, memo: "capital", on_behalf_of: null })) ? `moved ${credits(amount)} into the treasury` : "the transfer was refused",
+          ),
+        );
+      }
+      // The inputs a unit consumes (a Builder's ten Materials a dwelling), one unit's worth, from the treasury.
+      for (const [good, per] of Object.entries(consumes)) {
+        const p = lastPrice(books, good);
+        if (p === null || per <= 0 || (inv[good] ?? 0) >= per) continue;
+        const limit = Math.round(p * 1.05);
+        if (mine.treasury < per * limit) continue;
+        candidates.push(
+          doing(`buy_${good}`, `bid for ${per} ${good}, one ${produces}'s worth, at ${credits(limit)} each from the firm's treasury of ${credits(mine.treasury)}`, async (sc) =>
+            (await sc.do(act.placeOrder, { instrument: good, side: "bid", qty: per, limit_price: limit, on_behalf_of: mine.id })) ? `bid ${per} ${good} @${limit} for the firm` : `bid for ${good} refused`,
+          ),
+        );
+      }
+      if (sellable.length) {
+        candidates.push(
+          doing("sell_output", `ask ${sellable.map(([g, q]) => `${q} ${g}`).join(", ")} on the book at 5% over the last price`, async (sc) => {
+            const done: string[] = [];
+            for (const [g, q] of sellable) {
+              if (sc.actionsLeft <= 0) break;
+              const ask = Math.round(lastPrice(books, g)! * 1.05);
+              if (await sc.do(act.placeOrder, { instrument: g, side: "ask", qty: q, limit_price: ask, on_behalf_of: mine.id })) done.push(`asked ${q} ${g} @${ask}`);
+            }
+            return done.length ? done.join(", ") : "asks refused";
+          }),
+        );
+      }
+      const perShare = Math.floor(mine.treasury / 4 / Math.max(1, mine.my_shares));
+      if (mine.treasury > 3 * dayOfWages * 2 && perShare > 0) {
+        candidates.push(
+          doing("pay_dividend", `declare a dividend of ${credits(perShare)} a share, a quarter of a treasury of ${credits(mine.treasury)}`, async (sc) =>
+            (await sc.do(act.dividend, { org: mine.id, per_share: perShare })) ? `declared ${credits(perShare)} a share` : "dividend refused",
+          ),
+        );
+      }
+      if (candidates.length === 0) return null;
+      candidates.push(none("run_quietly", "change nothing at the firm this hour"));
+      const output = yesterdayValue !== null ? `yesterday it made ${yesterdayUnits} ${produces}, worth ${credits(yesterdayValue)} at the last price` : `yesterday it made ${yesterdayUnits} ${produces}, which has no price yet`;
+      return {
+        key: "venture",
+        tier: 2,
+        ask:
+          `what to do at the firm you manage. Its treasury holds ${credits(mine.treasury)} credits, ${coversDays === 0 ? "not enough to pay one worker for a day" : `enough to pay one worker for ${coversDays} day(s)`} at the going wage of ${credits(wage)} an hour; ` +
+          `${workers} hired hand(s) at its ${wp?.kind ?? "workplace"}, costing about ${credits(wagesDay)} a day; ${output}; inventory ${stock.length ? stock.map(([g, q]) => `${q} ${g}`).join(", ") : "empty"}. You hold ${credits(s.balance)} credits yourself.`,
+        facts: {
+          managing: true,
+          treasury: credits(mine.treasury),
+          treasury_covers_worker_days: coversDays,
+          workers,
+          wages_per_day: credits(wagesDay),
+          yesterday_output_units: yesterdayUnits,
+          yesterday_output_value: yesterdayValue !== null ? credits(yesterdayValue) : null,
+          inventory: Object.fromEntries(stock),
+          going_wage: credits(wage),
+        },
+        candidates,
+      };
     }
-    if (mine.treasury < dayOfWages && s.balance > 2 * dayOfWages) {
-      const amount = Math.floor(s.balance / 4);
+    delete s.memory.firm;
+    const need = orgs.founding.materials;
+    const fee = orgs.founding.money;
+    const have = s.pantry.materials ?? 0;
+    const pm = lastPrice(books, "materials");
+    const candidates: Candidate[] = [];
+    if (have >= need && s.balance >= fee) {
       candidates.push(
-        doing("fund_firm", `put ${credits(amount)} of your own money, a quarter of it, into the firm's treasury so it can pay wages`, async (sc) =>
-          (await sc.do(act.transfer, { to: { org: mine.id }, asset: { money: amount }, memo: "capital", on_behalf_of: null })) ? `moved ${credits(amount)} into the treasury` : "the transfer was refused",
+        doing(
+          "found_now",
+          `found a firm now, paying the ${credits(fee)} fee and the ${need} Materials, and open a ${kind}`,
+          async (sc) => {
+            const name = `${sc.handle}'s ${firmName}`;
+            return (await sc.do(act.foundOrg, { kind: "firm", name, first_workplace: { kind, slot: null } })) ? `founded ${name} with a ${kind}` : "founding refused";
+          },
+          true,
         ),
       );
     }
-    if (sellable.length) {
+    if (have < need && pm !== null && s.balance > fee + pm * (need - have)) {
+      const qty = need - have;
+      const price = Math.round(pm * 1.1);
       candidates.push(
-        doing("sell_output", `ask ${sellable.map(([g, q]) => `${q} ${g}`).join(", ")} on the book at 5% over the last price`, async (sc) => {
-          const done: string[] = [];
-          for (const [g, q] of sellable) {
-            if (sc.actionsLeft <= 0) break;
-            const price = Math.round(lastPrice(books, g)! * 1.05);
-            if (await sc.do(act.placeOrder, { instrument: g, side: "ask", qty: q, limit_price: price, on_behalf_of: mine.id })) done.push(`asked ${q} ${g} @${price}`);
-          }
-          return done.length ? done.join(", ") : "asks refused";
-        }),
-      );
-    }
-    const perShare = Math.floor(mine.treasury / 4 / Math.max(1, mine.my_shares));
-    if (mine.treasury > 3 * dayOfWages * 2 && perShare > 0) {
-      candidates.push(
-        doing("pay_dividend", `declare a dividend of ${credits(perShare)} a share, a quarter of a treasury of ${credits(mine.treasury)}`, async (sc) =>
-          (await sc.do(act.dividend, { org: mine.id, per_share: perShare })) ? `declared ${credits(perShare)} a share` : "dividend refused",
+        doing("buy_materials", `bid for the ${qty} Materials still needed at ${credits(price)} each, 10% over the last price, keeping the fee in hand`, async (sc) =>
+          (await sc.do(act.placeOrder, { instrument: "materials", side: "bid", qty, limit_price: price })) ? `bid ${qty} materials @${price}` : "materials bid refused",
         ),
       );
     }
     if (candidates.length === 0) return null;
-    candidates.push(none("run_quietly", "change nothing at the firm this hour"));
+    candidates.push(none("keep_saving", "keep saving; found nothing and buy nothing this hour"));
     return {
       key: "venture",
       tier: 2,
       ask:
-        `what to do at the firm you manage. Its treasury holds ${credits(mine.treasury)} credits, ${coversDays === 0 ? "not enough to pay one worker for a day" : `enough to pay one worker for ${coversDays} day(s)`} at the going wage of ${credits(wage)} an hour; ` +
-        `${workers} worker(s) at its first workplace; inventory ${stock.length ? stock.map(([g, q]) => `${q} ${g}`).join(", ") : "empty"}. You hold ${credits(s.balance)} credits yourself.`,
-      facts: { managing: true, treasury: credits(mine.treasury), treasury_covers_worker_days: coversDays, workers, inventory: Object.fromEntries(stock), going_wage: credits(wage) },
+        `whether to move toward founding a firm. It costs a ${credits(fee)} fee and ${need} Materials; you hold ${have} Materials and ${credits(s.balance)} credits` +
+        `${pm !== null ? `; Materials last traded at ${credits(pm)}` : ""}.`,
+      facts: { managing: false, fee: credits(fee), materials_need: need, materials_have: have, materials_last: pm !== null ? credits(pm) : null },
       candidates,
     };
-  }
-  const need = orgs.founding.materials;
-  const fee = orgs.founding.money;
-  const have = s.pantry.materials ?? 0;
-  const pm = lastPrice(books, "materials");
-  const candidates: Candidate[] = [];
-  if (have >= need && s.balance >= fee) {
-    candidates.push(
-      doing(
-        "found_now",
-        `found a firm now, paying the ${credits(fee)} fee and the ${need} Materials, and open a mine`,
-        async (sc) => {
-          const name = `${sc.handle}'s Works`;
-          return (await sc.do(act.foundOrg, { kind: "firm", name, first_workplace: { kind: "mine", slot: null } })) ? `founded ${name} with a mine` : "founding refused";
-        },
-        true,
-      ),
-    );
-  }
-  if (have < need && pm !== null && s.balance > fee + pm * (need - have)) {
-    const qty = need - have;
-    const price = Math.round(pm * 1.1);
-    candidates.push(
-      doing("buy_materials", `bid for the ${qty} Materials still needed at ${credits(price)} each, 10% over the last price, keeping the fee in hand`, async (sc) =>
-        (await sc.do(act.placeOrder, { instrument: "materials", side: "bid", qty, limit_price: price })) ? `bid ${qty} materials @${price}` : "materials bid refused",
-      ),
-    );
-  }
-  if (candidates.length === 0) return null;
-  candidates.push(none("keep_saving", "keep saving; found nothing and buy nothing this hour"));
+  };
+}
+
+/** The founder's and the borrower's firm: a mine. */
+export const ventureSlot: SlotGen = ventureSlotOf("mine", "Works");
+/** The builder's firm (SJ.3): a Builder, whose output is dwellings. */
+export const builderVentureSlot: SlotGen = ventureSlotOf("builder", "Roofs");
+
+/** A finished dwelling (SJ.3): sell it at cost plus a margin, or keep it and let it at the going rent — the accumulation decision the Materials tension exists for. */
+export const dwellingSlot: SlotGen = async (s) => {
+  const orgs = await s.orgs();
+  if (!orgs) return null;
+  const mine = orgs.orgs.find((o) => o.i_manage);
+  if (!mine) return null;
+  const free = mine.dwellings.filter((d) => d.offer == null && d.occupant == null);
+  const d = free[0];
+  if (!d) return null;
+  const board = await s.board();
+  const books = await s.books();
+  const wage = median(jobOffers(board).map((o) => o.hourly)) || 800;
+  const price = dwellingAskPrice(orgs, books, wage);
+  const rent = goingRent(board);
+  const daysToMatch = Math.ceil(price / Math.max(1, rent));
   return {
-    key: "venture",
+    key: "dwelling",
     tier: 2,
     ask:
-      `whether to move toward founding a firm. It costs a ${credits(fee)} fee and ${need} Materials; you hold ${have} Materials and ${credits(s.balance)} credits` +
-      `${pm !== null ? `; Materials last traded at ${credits(pm)}` : ""}.`,
-    facts: { managing: false, fee: credits(fee), materials_need: need, materials_have: have, materials_last: pm !== null ? credits(pm) : null },
-    candidates,
+      `whether to sell or let a dwelling your firm has finished. Sold, it would ask ${credits(price)}, its cost in Materials and hours plus a fifth, paid once; let, it would bring ${credits(rent)} a day, the going rent, ` +
+      `so ${daysToMatch} days of rent equal the sale price. ${free.length} finished dwelling(s) stand empty and unoffered. The firm's treasury holds ${credits(mine.treasury)}.`,
+    facts: { finished_unoffered: free.length, sale_price: credits(price), rent_per_day: credits(rent), days_of_rent_to_match_sale: daysToMatch, treasury: credits(mine.treasury) },
+    candidates: [
+      doing("sell_dwelling", `offer it for sale at ${credits(price)} and build the next`, async (sc) =>
+        (await sc.do(act.offerSale, { asset: { dwelling: d.id }, price: { money: price }, to: null, on_behalf_of: mine.id })) ? `offered dwelling ${d.id} for sale at ${credits(price)}` : "the sale offer was refused",
+      ),
+      doing("lease_dwelling", `keep it and offer it to let at ${credits(rent)} a day`, async (sc) =>
+        (await sc.do(act.offerLease, { asset: { dwelling: d.id }, rent_per_cycle: rent, term_cycles: null, on_behalf_of: mine.id })) ? `offered dwelling ${d.id} to let at ${credits(rent)} a day` : "the lease offer was refused",
+      ),
+      none("hold_dwelling", "leave it empty and decide another hour"),
+    ],
+  };
+};
+
+/** The lender's terms: a quarter of the balance, five days, whole credits. */
+export const LEND_TERM = 5;
+
+/** The lender's loan (SJ.3): a quarter of the balance on the board at 1% or 3% a day, once a day while none of mine is open, with the roll's defaults in the question. */
+export const lendSlot: SlotGen = async (s) => {
+  const board = await s.board();
+  if (board.some((o) => o.kind === "credit" && (o.by as { citizen?: number }).citizen === s.me)) return null;
+  const principal = Math.floor(s.balance / 4 / 100) * 100;
+  if (principal < 5000) return null;
+  if (!onceToday(s, "lend")) return null;
+  const roll = await s.citizens();
+  const defaulted = roll.filter((c) => (c.flags as { defaulted?: boolean }).defaulted).length;
+  const interest = (bp: number) => Math.round(principal * (bp / 10000) * LEND_TERM);
+  const lend = (bp: number, label: string) => async (sc: Script) =>
+    (await sc.do(act.offerCredit, { principal, rate_per_cycle_bp: bp, term_cycles: LEND_TERM, collateral: null, to: null, on_behalf_of: null }))
+      ? `offered ${credits(principal)} at ${bp / 100}% a day over ${LEND_TERM} days (${label})`
+      : "the loan offer was refused";
+  return {
+    key: "lend",
+    tier: 2,
+    ask:
+      `whether to offer a loan. You hold ${credits(s.balance)} credits; a quarter of it, ${credits(principal)}, could go out for ${LEND_TERM} days, repaid in daily installments. ` +
+      `At 1% a day it would earn ${credits(interest(100))}; at 3%, ${credits(interest(300))}, if the borrower pays. Of ${roll.length} citizens on the roll, ${defaulted} have defaulted on a loan. ` +
+      `A missed installment flags the borrower; this offer takes no collateral, so a default is your loss.`,
+    facts: { principal: credits(principal), principal_share_of_balance: 0.25, term_days: LEND_TERM, interest_cheap: credits(interest(100)), interest_dear: credits(interest(300)), citizens_on_roll: roll.length, defaulted: defaulted },
+    candidates: [
+      doing("lend_cheap", `offer ${credits(principal)} at 1% a day, a rate anyone solvent can pay`, lend(100, "cheap"), true),
+      doing("lend_dear", `offer ${credits(principal)} at 3% a day, dear enough to pay for a default`, lend(300, "dear"), true),
+      none("hold_money", "lend nothing; keep the balance whole"),
+    ],
   };
 };
 
@@ -522,6 +723,8 @@ export const SLOTS: Record<string, SlotGen[]> = {
   landlord: [workSlot, housingSlot, jobSlot, propertySlot, planSlot],
   saver: HOUSEHOLDER,
   slacker: HOUSEHOLDER,
+  lender: [workSlot, housingSlot, jobSlot, lendSlot, planSlot],
+  builder: [workSlot, housingSlot, jobSlot, builderVentureSlot, dwellingSlot, planSlot],
 };
 
 export function slotsFor(slug: string): SlotGen[] {
