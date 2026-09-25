@@ -419,18 +419,60 @@ pub fn ask_price(world: &World, org: OrgId, kind: WorkplaceKind) -> Money {
     cost_plus_at(world, kind, markup)
 }
 
-/// 8m (E-1): every market org's shelves answer the cycle. For each good an
-/// org's workplaces produce, the step falls by one when the closing stock is
-/// above the last close's (the shelf grew: the price is too high for the
-/// buyers there are) and rises by one when the shelf closed empty after the
-/// org produced any (the price is too low for the buyers there are); a first
-/// close only takes the reading. Society-owned orgs have no prices to move.
+/// The hourly wage an org's householder manager offers at `workplace` (E-7):
+/// the legacy wage times a multiplier moved one `legacy_wage_step` per step
+/// the workplace's board has taken, clamped to the preset's band.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn offer_wage(world: &World, workplace: WorkplaceId) -> Money {
+    let p = &world.params.householder;
+    let step = world.workplaces.get(&workplace).map_or(0, |w| w.wage_step);
+    let mult =
+        (1.0 + f64::from(step) * p.legacy_wage_step).clamp(p.legacy_wage_min, p.legacy_wage_max);
+    Money((world.params.money.legacy_wage.0 as f64 * mult).round() as i64)
+}
+
+/// The steps at which `offer_wage` reaches the band's edges (E-7): the board
+/// saturates there, so a wage that has fallen to the floor answers the next
+/// short close at once rather than after every cycle it spent below it.
+#[allow(clippy::cast_possible_truncation)]
+fn wage_step_band(p: &crate::params::HouseholderParams) -> (i32, i32) {
+    if p.legacy_wage_step <= 0.0 {
+        return (0, 0);
+    }
+    let lo = ((p.legacy_wage_min - 1.0) / p.legacy_wage_step).round() as i32;
+    let hi = ((p.legacy_wage_max - 1.0) / p.legacy_wage_step).round() as i32;
+    (lo.min(0), hi.max(0))
+}
+
+/// Whether an employment offer of `org`'s at `workplace` stands open with a
+/// place unfilled.
+fn open_places_offered(world: &World, org: OrgId, workplace: WorkplaceId) -> bool {
+    world.offers.values().any(|o| {
+        matches!(o.body, OfferBody::Employment { org: x, workplace: w, places, .. }
+            if x == org && w == workplace && places > 0)
+    })
+}
+
+/// 8m (E-1, E-7): every market org's shelves and labour boards answer the
+/// cycle. For each good an org's workplaces produce, the shelf's step falls by
+/// one when the closing stock is above the last close's (the shelf grew: the
+/// price is too high for the buyers there are) and rises by one when the shelf
+/// closed empty after the org produced any (the price is too low for the
+/// buyers there are); a first close only takes the reading. Then each
+/// workplace's wage step falls by one when the org's shelf of its output grew
+/// (the firm has more than it can sell, whatever the board says) and otherwise
+/// rises by one when an offer of the org's stood unfilled at the close (the
+/// wage is too low for the hands there are), saturating at the band's edges.
+/// Society-owned orgs have no prices or wages to move.
 pub fn cycle_end_8m_shelves(b: &mut crate::tick::TickBuilder) {
     if !b.world.constitution.has_money() || !b.world.rules_order_books() {
         return;
     }
     let cycle = b.cycle;
+    let (lo, hi) = wage_step_band(&b.world.params.householder);
     let mut closes = Vec::new();
+    let mut boards = Vec::new();
     for org in b.world.orgs.values() {
         if org.ownership == Ownership::Society {
             continue;
@@ -445,10 +487,8 @@ pub fn cycle_end_8m_shelves(b: &mut crate::tick::TickBuilder) {
                 *produced.entry(g).or_insert(0.0) += wp.cycle_output;
             }
         }
-        if produced.is_empty() {
-            continue;
-        }
         let mut shelf = org.shelf.clone();
+        let mut grew_goods = std::collections::BTreeSet::new();
         for (good, output) in produced {
             let close = org.inventory.get(&good).copied().unwrap_or(0);
             let entry = shelf.entry(good).or_insert(crate::world::Shelf {
@@ -459,6 +499,7 @@ pub fn cycle_end_8m_shelves(b: &mut crate::tick::TickBuilder) {
             let sold_out = close == 0 && output > 0.0;
             if grew {
                 entry.step -= 1;
+                grew_goods.insert(good);
             } else if sold_out {
                 entry.step += 1;
             }
@@ -467,9 +508,37 @@ pub fn cycle_end_8m_shelves(b: &mut crate::tick::TickBuilder) {
         if shelf != org.shelf {
             closes.push((org.id, shelf));
         }
+        for wp_id in &org.workplaces {
+            let Some(wp) = b.world.workplaces.get(wp_id) else {
+                continue;
+            };
+            let grew = b.world.params.recipes[&wp.kind]
+                .produces
+                .as_good()
+                .is_some_and(|g| grew_goods.contains(&g));
+            let short = open_places_offered(&b.world, org.id, *wp_id);
+            let step = if grew {
+                wp.wage_step - 1
+            } else if short {
+                wp.wage_step + 1
+            } else {
+                wp.wage_step
+            }
+            .clamp(lo, hi);
+            if step != wp.wage_step {
+                boards.push((*wp_id, step));
+            }
+        }
     }
     for (org, shelf) in closes {
         b.emit(Event::ShelfClosed { org, cycle, shelf });
+    }
+    for (workplace, step) in boards {
+        b.emit(Event::WageStepped {
+            workplace,
+            cycle,
+            step,
+        });
     }
 }
 
@@ -527,26 +596,6 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
     // Money this round's bids have already committed (a coop keeps no payroll
     // reserve, so the Machine rule below must not count it twice).
     let mut committed = Money::ZERO;
-    let wage = p.money.legacy_wage;
-    let open_wages: Vec<Money> = world
-        .offers
-        .values()
-        .filter_map(|o| match o.body {
-            OfferBody::Employment {
-                pay: Pay::Hourly(w),
-                places,
-                ..
-            } if places > 0 => Some(w),
-            _ => None,
-        })
-        .collect();
-    let median_wage = if open_wages.is_empty() {
-        wage
-    } else {
-        let mut v = open_wages;
-        v.sort();
-        v[v.len() / 2]
-    };
 
     for wp_id in &org.workplaces {
         let Some(wp) = world.workplaces.get(wp_id) else {
@@ -554,22 +603,52 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         };
         let recipe = &p.recipes[&wp.kind];
         let workers = u32::try_from(wp.workers.len()).unwrap_or(0);
-        let per_worker = Money(median_wage.0 * i64::from(p.labor.base_budget_hours));
+        // The wage this workplace's board has settled on (E-7); a coop's
+        // board never moves, so this is the legacy wage there.
+        let board_wage = offer_wage(world, *wp_id);
+        let per_worker = Money(board_wage.0 * i64::from(p.labor.base_budget_hours));
         let affordable = if coop {
             u32::MAX
         } else {
             u32::try_from(org.treasury.0 / per_worker.0.max(1)).unwrap_or(0)
         };
-        let places = p
-            .labor
-            .max_workers_per_workplace
-            .min(affordable)
-            .saturating_sub(workers);
-        let has_offer = world.offers.values().any(|o| matches!(o.body, OfferBody::Employment { workplace, places, .. } if workplace == *wp_id && places > 0));
         // Hiring cap (Q2): stop hiring when output stock exceeds N cycles of
         // full production (a Builders' coop: by its dwellings standing empty).
         let glutted = crate::coop::glutted(world, org, wp);
-        if coop && places > 0 && !glutted {
+        let places = if glutted {
+            0
+        } else {
+            p.labor
+                .max_workers_per_workplace
+                .min(affordable)
+                .saturating_sub(workers)
+        };
+        // The board says what the firm means (E-7): an open offer the firm
+        // can no longer honour (no place it can pay for, or a glutted shelf)
+        // or one at a wage the board has moved off is withdrawn, and the
+        // offer stands at the board's wage while there is a place to fill.
+        let mut has_offer = false;
+        for o in world.offers.values() {
+            let OfferBody::Employment {
+                org: x,
+                workplace,
+                pay,
+                places: open,
+                ..
+            } = o.body
+            else {
+                continue;
+            };
+            if x != org_id || workplace != *wp_id || open == 0 {
+                continue;
+            }
+            if places == 0 || pay != Pay::Hourly(board_wage) {
+                cmds.push(Command::WithdrawOffer { offer: o.id });
+            } else {
+                has_offer = true;
+            }
+        }
+        if coop && places > 0 {
             // Admissions instead of hiring (Q86): pending requests, oldest first.
             let mut requests: Vec<(crate::ids::OfferId, CitizenId)> = world
                 .offers
@@ -590,11 +669,11 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
                     });
                 }
             }
-        } else if !coop && places > 0 && !has_offer && !glutted {
+        } else if !coop && places > 0 && !has_offer {
             cmds.push(Command::OfferEmployment {
                 org: org_id,
                 workplace: *wp_id,
-                pay: Pay::Hourly(median_wage),
+                pay: Pay::Hourly(board_wage),
                 max_hours: p.householder.legacy_offer_max_hours,
                 term_cycles: None,
                 notice_cycles: p.householder.legacy_offer_notice_cycles,
@@ -610,7 +689,7 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         // would earn at the legacy wage (Q91): with no reserve at all a Mill
         // spends every credit on Grain and its members share out nothing.
         let wage_equivalent =
-            Money(median_wage.0 * i64::from(workers) * i64::from(p.labor.base_budget_hours));
+            Money(board_wage.0 * i64::from(workers) * i64::from(p.labor.base_budget_hours));
         let reserve = if coop {
             crate::coop::obligations_due(world, org_id) + wage_equivalent
         } else {
@@ -684,7 +763,7 @@ pub fn decide_manager(world: &World, org_id: OrgId) -> Vec<Command> {
         // wage instead (Q91): keyed to the last share-out, a coop that had none
         // would put every credit into Machines and never share anything.
         let payroll =
-            Money(median_wage.0 * i64::from(workers) * i64::from(p.labor.base_budget_hours));
+            Money(board_wage.0 * i64::from(workers) * i64::from(p.labor.base_budget_hours));
         let threshold =
             Money((payroll.0 as f64 * p.householder.legacy_machine_buy_payroll_mult) as i64);
         #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -813,8 +892,12 @@ pub fn run_round(world: &mut World, rules: &Rules, tick: Tick) -> (Vec<Event>, V
         .map(|c| c.id)
         .collect();
     for id in ids {
-        let mut cmds: Vec<(Option<OrgId>, Command)> =
+        // The citizen's own commands land before the manager's are decided,
+        // so a manager who has just taken the last place on its own firm's
+        // offer does not then withdraw an offer that is gone (E-7).
+        let own: Vec<(Option<OrgId>, Command)> =
             decide(world, id).into_iter().map(|c| (None, c)).collect();
+        run_commands(world, rules, tick, id, own, &mut events, &mut rejected);
         let managed: Vec<OrgId> = world
             .orgs
             .values()
@@ -822,37 +905,50 @@ pub fn run_round(world: &mut World, rules: &Rules, tick: Tick) -> (Vec<Event>, V
             .map(|o| o.id)
             .collect();
         for org in managed {
-            cmds.extend(
-                decide_manager(world, org)
-                    .into_iter()
-                    .map(|c| (Some(org), c)),
-            );
-        }
-        for (org, command) in cmds {
-            let env = Envelope {
-                actor: Actor::Citizen(id),
-                on_behalf_of: org,
-                client_kind: ClientKind::Householder,
-                received_at_tick: tick,
-                command,
-            };
-            match handle(world, rules, &env) {
-                Ok(evs) => {
-                    for e in evs {
-                        apply(world, &e);
-                        events.push(e);
-                    }
-                }
-                Err(reject) => rejected.push(Rejection {
-                    citizen: id,
-                    org,
-                    command: env.command.clone(),
-                    reject,
-                }),
-            }
+            let cmds: Vec<(Option<OrgId>, Command)> = decide_manager(world, org)
+                .into_iter()
+                .map(|c| (Some(org), c))
+                .collect();
+            run_commands(world, rules, tick, id, cmds, &mut events, &mut rejected);
         }
     }
     (events, rejected)
+}
+
+/// Handle and apply one citizen's commands in order, collecting the events
+/// and the rejections.
+fn run_commands(
+    world: &mut World,
+    rules: &Rules,
+    tick: Tick,
+    id: CitizenId,
+    cmds: Vec<(Option<OrgId>, Command)>,
+    events: &mut Vec<Event>,
+    rejected: &mut Vec<Rejection>,
+) {
+    for (org, command) in cmds {
+        let env = Envelope {
+            actor: Actor::Citizen(id),
+            on_behalf_of: org,
+            client_kind: ClientKind::Householder,
+            received_at_tick: tick,
+            command,
+        };
+        match handle(world, rules, &env) {
+            Ok(evs) => {
+                for e in evs {
+                    apply(world, &e);
+                    events.push(e);
+                }
+            }
+            Err(reject) => rejected.push(Rejection {
+                citizen: id,
+                org,
+                command: env.command.clone(),
+                reject,
+            }),
+        }
+    }
 }
 
 impl World {

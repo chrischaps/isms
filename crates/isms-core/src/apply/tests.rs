@@ -316,6 +316,7 @@ fn unimplemented_registry_matches_the_enum() {
         "Honored",
         "Disbursed",
         "ShelfClosed",
+        "WageStepped",
     ];
     for k in Event::ALL_KINDS {
         let listed = UNIMPLEMENTED.contains(k);
@@ -334,10 +335,10 @@ fn unimplemented_registry_matches_the_enum() {
 #[test]
 fn all_kinds_is_in_sync_with_kind() {
     // Phase 0b variants are appended after `CycleClosed` (Q64); Phase 2 after `EpochEnding`.
-    let last = Event::ShelfClosed {
-        org: crate::ids::OrgId(0),
+    let last = Event::WageStepped {
+        workplace: crate::ids::WorkplaceId(0),
         cycle: 0,
-        shelf: std::collections::BTreeMap::new(),
+        step: 0,
     };
     assert_eq!(last.kind(), *Event::ALL_KINDS.last().unwrap());
     let first = Event::SocietyCreated {

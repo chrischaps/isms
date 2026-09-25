@@ -495,6 +495,12 @@ pub struct Workplace {
     /// scoreboard and the planner (S0.16b).
     pub last_cycle_output: f64,
     pub last_fulfillment: Option<f64>,
+    /// The step the runner's wage offer here has taken (E-7): up one per
+    /// cycle close an offer stood unfilled, down one per close the org's
+    /// shelf of this workplace's output grew; `householder::offer_wage`
+    /// turns it into an hourly rate.
+    #[serde(default)]
+    pub wage_step: i32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

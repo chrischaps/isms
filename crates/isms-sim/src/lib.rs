@@ -294,6 +294,7 @@ fn seed_assembly(world: &mut World, rules: &Rules, preset: &str) -> Result<u64, 
 
 /// `run` with an [`Observer`] called after each applied step (S0.14e). The
 /// observer only reads; with `NoObserver` this is byte-for-byte `run`.
+#[allow(clippy::too_many_lines)]
 pub fn run_with(
     presets_dir: &Path,
     spec: &RunSpec,
@@ -343,6 +344,12 @@ pub fn run_with(
             for r in &assembly_rejected {
                 eprintln!(
                     "{} seed {} tick {now}: assembly {r}",
+                    spec.preset, spec.seed
+                );
+            }
+            for r in &rejected {
+                eprintln!(
+                    "{} seed {} tick {now}: householder {r:?}",
                     spec.preset, spec.seed
                 );
             }

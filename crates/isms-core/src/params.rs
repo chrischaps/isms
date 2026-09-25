@@ -255,6 +255,14 @@ pub struct HouseholderParams {
     pub legacy_markup_step: f64,
     pub legacy_markup_min: f64,
     pub legacy_markup_max: f64,
+    /// How far a legacy firm's wage offer moves per cycle its labour board
+    /// answers (E-7), as a fraction of `legacy_wage`: up a step when an offer
+    /// stood unfilled at the close, down a step when the shelf grew; the
+    /// offer is `legacy_wage` times a multiplier clamped to
+    /// `legacy_wage_min..=legacy_wage_max`.
+    pub legacy_wage_step: f64,
+    pub legacy_wage_min: f64,
+    pub legacy_wage_max: f64,
     pub legacy_machine_buy_payroll_mult: f64,
     pub legacy_hire_inventory_cycles_cap: u32,
     pub legacy_offer_max_hours: u8,

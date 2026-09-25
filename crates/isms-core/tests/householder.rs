@@ -8,7 +8,7 @@
 use isms_core::command::{Command, Envelope};
 use isms_core::employment::employed;
 use isms_core::event::Event;
-use isms_core::householder::{ask_price, cost_plus, run_round};
+use isms_core::householder::{ask_price, cost_plus, offer_wage, run_round};
 use isms_core::kinds::{CitizenKind, Good, WorkplaceKind};
 use isms_core::ledger::Party;
 use isms_core::money::Money;
@@ -299,6 +299,188 @@ fn a_shelf_that_closed_fuller_steps_down_and_the_ask_follows() {
             if *seller == Party::Org(mill) && *instrument == Instrument::Good(Good::Food))),
         "the cheaper Food sold"
     );
+    h.check();
+}
+
+/// E-7: the wage offer is the legacy wage moved a step per step the board
+/// has taken, clamped to the band; a fresh workplace offers the legacy wage.
+#[test]
+fn a_board_moves_the_wage_offer_by_a_step_within_the_band() {
+    let mut h = seeded(1);
+    h.check_every_step = false;
+    let mill = legacy_org(&h, WorkplaceKind::Mill);
+    let wp = *h.world.orgs[&mill].workplaces.iter().next().unwrap();
+    assert_eq!(offer_wage(&h.world, wp), Money::credits(8));
+    // 8.00 x 1.05 = 8.40 a step; x2.00 = 16.00 is the ceiling (twenty steps);
+    // the floor is the legacy wage itself.
+    for (step, cents) in [(1, 840), (4, 960), (20, 1600), (25, 1600), (-3, 800)] {
+        h.apply(Event::WageStepped {
+            workplace: wp,
+            cycle: 0,
+            step,
+        });
+        assert_eq!(offer_wage(&h.world, wp), Money::cents(cents), "step {step}");
+    }
+    // the ask's cost basis has not moved with the board
+    assert_eq!(cost_plus(&h.world, WorkplaceKind::Mill), Money::cents(131));
+    h.check();
+}
+
+/// E-7: twelve householders spread one per workplace and nobody chooses the
+/// mills; the mills' offers stand unfilled, so their wage steps up cycle by
+/// cycle and the offer follows, while a firm whose shelf grows steps back
+/// down and a firm that can no longer pay for a place withdraws its offer.
+/// When the first hands are freed they take the best wage there is, and the
+/// town has Food again.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn a_mill_nobody_chose_raises_its_wage_until_the_idle_hands_come() {
+    // (`seed_epoch` restores the preset's floor, so the floor is set after it.)
+    let mut h = WorldBuilder::new("freeport")
+        .seed(1)
+        .seed_epoch()
+        .with_preset(|p| {
+            p.params.population.collapse_enabled = false;
+            p.params.population.floor = 12;
+        })
+        .build();
+    h.check_every_step = false;
+    let open_offers = |h: &Harness| -> Vec<(isms_core::ids::WorkplaceId, Money)> {
+        h.world
+            .offers
+            .values()
+            .filter_map(|o| match o.body {
+                OfferBody::Employment {
+                    workplace,
+                    pay: isms_core::world::Pay::Hourly(w),
+                    places,
+                    ..
+                } if places > 0 => Some((workplace, w)),
+                _ => None,
+            })
+            .collect()
+    };
+    let mut rejected = Vec::new();
+    for _ in 0..24 {
+        rejected.extend(step(&mut h).1);
+    }
+    assert!(rejected.is_empty(), "{rejected:#?}");
+    // Twelve hands for eighteen workplaces: every board closed short, and a
+    // first close reads no shelf.
+    let idle: Vec<_> = h
+        .world
+        .workplaces
+        .values()
+        .filter(|w| w.workers.is_empty())
+        .map(|w| w.id)
+        .collect();
+    assert!(idle.len() >= 6, "{} idle workplaces", idle.len());
+    for w in h.world.workplaces.values() {
+        assert_eq!(w.wage_step, 1, "{:?} closed short once", w.id);
+    }
+    // The next hour every manager withdraws its 8.00 offer and posts at 8.40.
+    let (events, r) = step(&mut h);
+    assert!(r.is_empty(), "{r:#?}");
+    let withdrawn = events
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                Event::OfferWithdrawn {
+                    body: OfferBody::Employment { .. },
+                    ..
+                }
+            )
+        })
+        .count();
+    assert!(withdrawn >= idle.len(), "{withdrawn} offers withdrawn");
+    for (wp, w) in open_offers(&h) {
+        assert_eq!(w, Money::cents(840), "{wp:?}'s offer follows the board");
+    }
+    for _ in 0..23 {
+        rejected.extend(step(&mut h).1);
+    }
+    assert!(rejected.is_empty(), "{rejected:#?}");
+    // The idle boards closed short again, unless the org's shelf grew (a
+    // seeded shelf coming back off the book counts); a staffed firm whose
+    // shelf grew (more made than the town bought) stepped back down instead.
+    for wp in &idle {
+        let w = &h.world.workplaces[wp];
+        let shelf_fell = h.world.params.recipes[&w.kind]
+            .produces
+            .as_good()
+            .and_then(|g| h.world.orgs[&w.org].shelf.get(&g))
+            .is_some_and(|s| s.step < 0);
+        assert!(
+            w.wage_step == 2 || (shelf_fell && w.wage_step == 0),
+            "{wp:?} closed short twice: step {}",
+            w.wage_step
+        );
+    }
+    assert!(
+        h.world.workplaces.values().any(|w| w.wage_step < 2),
+        "some board answered its shelf: {:?}",
+        h.world
+            .workplaces
+            .values()
+            .map(|w| (w.kind, w.workers.len(), w.wage_step))
+            .collect::<Vec<_>>()
+    );
+    // Eight more cycles: the workshops break, the hands they free take the
+    // best wage, and the mills make Food.
+    let mut food_made = 0;
+    for _ in 0..(8 * 24) {
+        let (events, r) = step(&mut h);
+        rejected.extend(r);
+        food_made += events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Produced { output, units, .. } if *output == Good::Food => Some(*units),
+                _ => None,
+            })
+            .sum::<u32>();
+    }
+    assert!(rejected.is_empty(), "{rejected:#?}");
+    assert!(food_made > 0, "the mills made Food once they had hands");
+    // One more round, so the boards the last close moved have had their hour.
+    let rules = h.rules();
+    let tick = h.world.meta.tick;
+    let mut scratch = h.world.clone();
+    let (events, r) = run_round(&mut scratch, &rules, tick);
+    assert!(r.is_empty(), "{r:#?}");
+    h.apply_all(events);
+    assert!(
+        h.world
+            .workplaces
+            .values()
+            .any(|w| w.kind == WorkplaceKind::Mill && !w.workers.is_empty()),
+        "a mill has hands"
+    );
+    // No firm keeps an offer open that it cannot pay for.
+    for o in h.world.offers.values() {
+        if let OfferBody::Employment {
+            org,
+            workplace,
+            pay: isms_core::world::Pay::Hourly(w),
+            places,
+            ..
+        } = o.body
+            && places > 0
+        {
+            let a_place = Money(w.0 * i64::from(h.world.params.labor.base_budget_hours));
+            assert!(
+                h.world.orgs[&org].treasury >= a_place,
+                "{} keeps an offer at {w} open at {workplace} with {} in the treasury",
+                h.world.orgs[&org].name,
+                h.world.orgs[&org].treasury
+            );
+            assert_eq!(
+                w,
+                offer_wage(&h.world, workplace),
+                "the offer is at the board's wage"
+            );
+        }
+    }
     h.check();
 }
 
