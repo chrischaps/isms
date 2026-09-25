@@ -68,7 +68,7 @@ Every good traded every day — Food 400–1,560 trades a day, grain and ore ~75
 
 | card | what | why | source |
 |---|---|---|---|
-| E-1 | **The runner's markup responds to stock** (TDD 9.3): cut the ask when a legacy firm's inventory grows day on day, raise it when the shelf sold out; the response as a tunable in `presets/_base.toml`, `sim-check` on all five presets | nothing can move a price down but a player undercutting, and nothing moves one up at all; the single largest lever on the flat basket | SJ.3b |
+| E-1 | **The runner's markup responds to stock** (TDD 9.3): cut the ask when a legacy firm's inventory grows day on day, raise it when the shelf sold out; the response as a tunable in `presets/_base.toml`, `sim-check` on all five presets | nothing can move a price down but a player undercutting, and nothing moves one up at all; the single largest lever on the flat basket | SJ.3b · **done** 2026-09-24 (`s3.1-runner-markup`, Q162) |
 | E-2 | **Net worth counts dwellings and loans out** (`scoreboard`, GDD 6.2), with Q157's contribution totals | the landlord and the lender read as losses by construction (628.47 and 583.39 after thirteen dwellings and one loan) | SJ.3b, Q157 |
 | E-3 | **An owner's position at founding** (Q160): `FoundOrg` emits `Assigned { contract: None }` for the founder at the first workplace, as a cooperative member's | the harness hires the founder at a token wage to get its hours counted; the game should not need the trick | SJ.3, Q160 |
 | E-4 | **A seed that expects its players** (Q161): `seed --expect-humans N` fills the floor to `floor − N` | every lab run emigrates one householder per player at day 1's end and reads day 2 as a slump | SJ.3, Q161 |

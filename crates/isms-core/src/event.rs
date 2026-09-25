@@ -720,6 +720,14 @@ pub enum Event {
         asset: Asset,
         explain: Explain,
     },
+    /// A market org's shelves at cycle close (E-1, phase 8m): the stock of
+    /// each good it produces and the markup step its householder manager
+    /// will ask with. Emitted only when a shelf changed.
+    ShelfClosed {
+        org: OrgId,
+        cycle: Cycle,
+        shelf: BTreeMap<Good, crate::world::Shelf>,
+    },
 }
 
 /// One citizen's line in the cycle's Ledger of Contribution.
@@ -981,6 +989,7 @@ impl Event {
             Event::WorkplaceClosed { .. } => "WorkplaceClosed",
             Event::Honored { .. } => "Honored",
             Event::Disbursed { .. } => "Disbursed",
+            Event::ShelfClosed { .. } => "ShelfClosed",
         }
     }
 
@@ -1100,5 +1109,6 @@ impl Event {
         "WorkplaceClosed",
         "Honored",
         "Disbursed",
+        "ShelfClosed",
     ];
 }

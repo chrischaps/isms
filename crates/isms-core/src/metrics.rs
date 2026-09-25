@@ -356,6 +356,9 @@ pub fn cycle_end_8m_aggregates(b: &mut TickBuilder) {
     } else {
         0
     };
+    // The market orgs' shelves answer the cycle's sales before the output
+    // accumulators reset (E-1).
+    crate::householder::cycle_end_8m_shelves(b);
     // Close the workplaces' cycle: remember this cycle's output and fulfilment
     // for the scoreboard and the planner, then take the aggregates and reset.
     for w in b.world.workplaces.values_mut() {

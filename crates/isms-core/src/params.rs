@@ -243,6 +243,13 @@ pub struct HouseholderParams {
     pub rent_income_fraction_max: f64,
     pub sell_surplus: bool,
     pub legacy_markup: f64,
+    /// How far a legacy firm's ask markup moves per cycle when its shelf
+    /// answers (E-1): down a step when the closing stock grew on the last
+    /// close, up a step when it closed empty after producing; clamped to
+    /// `legacy_markup_min..=legacy_markup_max`.
+    pub legacy_markup_step: f64,
+    pub legacy_markup_min: f64,
+    pub legacy_markup_max: f64,
     pub legacy_machine_buy_payroll_mult: f64,
     pub legacy_hire_inventory_cycles_cap: u32,
     pub legacy_offer_max_hours: u8,

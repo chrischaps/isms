@@ -13,7 +13,7 @@ Householders are the AI citizens that fill a society up to its population floor.
 
 1. **Hire** at the median of the open hourly offers (or the legacy wage when there are none): one open offer per workplace with free places, full hours, no fixed term, one cycle's notice. Stop hiring while the firm holds more than two cycles of full production of its output.
 2. **Buy inputs** for one cycle of production at the current headcount, bidding at the last price plus the legacy markup, within the treasury.
-3. **Sell output** at cost-plus: labor per unit at the legacy wage, plus inputs at the last price, times the markup, never below the start price. The ask is refreshed when that price moves.
+3. **Sell output** at cost-plus: labor per unit at the legacy wage, plus inputs at the reference price, times a markup the shelf moves. Every cycle end the firm reads its shelf of each good it makes: if it holds more than it held at the last close, the markup falls a step; if the shelf is bare after a cycle of making, it rises a step; otherwise it stays. The markup never goes below zero (the firm sells at cost) nor above three times the legacy markup. The ask is refreshed when that price moves.
 4. **Invest** in one Machine at the last price whenever the treasury exceeds three cycles of payroll, and install every Machine held.
 5. **Let dwellings** it owns at the legacy rent, one open offer per empty dwelling.
 6. **Stay for sale.** Every share the firm still holds is on offer at book value (treasury plus inventory and machines at last price, per share); the offer is relisted when book value moves by more than ten percent. Whoever buys more than half becomes the controlling owner and manager; the householder steps down.
