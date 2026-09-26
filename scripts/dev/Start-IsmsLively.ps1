@@ -56,6 +56,8 @@ param(
     [switch] $Reseed,
     # Start the clock at once instead of waiting for Enter.
     [switch] $NoHold,
+    # Leave the clock held and return (resume it on /admin), instead of waiting for Enter here.
+    [switch] $NoPrompt,
     # Hold the clock and close the windows.
     [switch] $Stop
 )
@@ -247,6 +249,11 @@ Write-Host "  Links     .\scripts\dev\Get-IsmsMagicLink.ps1 -Database $Database 
 Write-Host "            Your friend signs in from a second browser profile or an InPrivate window, so the two sessions stay apart."
 Write-Host "  Stop      .\scripts\dev\Start-IsmsLively.ps1 -Stop"
 if ($NoHold) { return }
+if ($NoPrompt) {
+    Write-Host ""
+    Write-Host "The clock is held. When you have both joined, press Resume on $web/admin." -ForegroundColor Yellow
+    return
+}
 
 Write-Host ""
 Read-Host "The clock is held. When you have both joined, press Enter to start it"
