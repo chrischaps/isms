@@ -20,6 +20,10 @@ Against a server you are already running: set `ISMS_URL`, `ISMS_SOCIETY` (a lab 
 
 `pnpm report <run>` folds a run into the report again.
 
+### Playing in a Jev town yourself
+
+`scripts/dev/Start-IsmsLively.ps1` (PowerShell) keeps a town to play in beside the players: its own database (`isms_lively`) and ports (API 8090, web 5174), so it runs next to `isms-dev.cmd`. On a first start it seeds a lab Freeport shaped like SJ.6b's (the `freeport-town` cast of sixteen on Jev, eight householders) with E-4's places kept for two humans (`-Humans`), a seven-day epoch at 30 s an hour (a day in 12 minutes), and a 30-minute closing window. It opens the API, the web client and the cohort in their own windows, holds the clock until you press Enter so everyone can sign in and join, then plays to the epoch's end and writes the usual report. Running it again resumes the same town (the cohort finds its players in `accounts.json`). `-Stop` holds the clock and closes the windows, `-Reseed` starts a fresh town, and `-Brain scripted` puts the whole town on the free scripted brain for checking the launcher. Jev costs about $0.15 for a sixteen-player week, whatever the pace, and `-MaxUsd` (default 1) caps it.
+
 ## Configuration
 
 `config.toml` holds the models, the per-turn action cap, the concurrency, the budget and the persona list; CLI flags override it; a persona's frontmatter may override the models for itself. Models are chosen from a small table in `src/config.ts` that carries each one's price and thinking parameters (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`). The budget is enforced per run in tokens and dollars; a run that reaches it stops cleanly and still writes its report.
